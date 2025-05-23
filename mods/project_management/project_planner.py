@@ -146,7 +146,10 @@ class ProjectPlanner:
                        assigned_to: str = "Developer",
                        task_type: str = "Development",
                        tags: str = "",
-                       sequence: Optional[int] = None) -> Tuple[bool, str]:
+                       sequence: Optional[int] = None,
+                       content: Optional[str] = None,
+                       dependencies: Optional[str] = None,
+                       effort_estimate: Optional[str] = None) -> Tuple[bool, str]:
         """Create a new task with auto-generated ID and enhanced metadata.
         
         Args:
@@ -158,6 +161,9 @@ class ProjectPlanner:
             task_type: Type of task (Development, Test Case, etc.)
             tags: Comma-separated tags
             sequence: Optional sequence number
+            content: Optional task content (overrides template content)
+            dependencies: Optional comma-separated task dependencies
+            effort_estimate: Optional effort estimate
             
         Returns:
             Tuple of (success, task_id or error_message)
@@ -173,18 +179,73 @@ class ProjectPlanner:
         if not template_name:
             template_name = self.settings.get('default_task_template', 'task-template.md')
         
+        # Prepare additional keyword arguments
+        kwargs = {
+            'task_id': task_id,
+            'priority': priority,
+            'due_date': due_date,
+            'assigned_to': assigned_to,
+            'task_type': task_type,
+            'tags': tags,
+            'sequence': sequence
+        }
+        
+        # Add optional fields if provided
+        if dependencies:
+            kwargs['dependencies'] = dependencies
+        if effort_estimate:
+            kwargs['effort_estimate'] = effort_estimate
+        
         # Create task from template with enhanced metadata
         task = self.task_manager.create_task_from_template(
             title=title, 
             template_name=template_name,
-            task_id=task_id,
-            priority=priority,
-            due_date=due_date,
-            assigned_to=assigned_to,
-            task_type=task_type,
-            tags=tags,
-            sequence=sequence
+            **kwargs
         )
+        
+        if task and content:
+            # If custom content is provided, update the task content
+            try:
+                task.content = content
+                
+                # Save the updated task with custom content
+                file_path = Path(task.file_path)
+                if file_path.exists():
+                    # Read current template content
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        current_content = f.read()
+                    
+                    # Replace the overview section with custom content
+                    if "## Overview" in current_content:
+                        parts = current_content.split("## Overview")
+                        if len(parts) > 1:
+                            # Find the next section
+                            next_section_pos = parts[1].find("\n## ")
+                            if next_section_pos > 0:
+                                # Replace overview content
+                                updated_content = (
+                                    parts[0] + 
+                                    "## Overview\n" + 
+                                    content + "\n\n" +
+                                    "## " + parts[1][next_section_pos+4:]
+                                )
+                            else:
+                                # No next section, append to end
+                                updated_content = (
+                                    parts[0] + 
+                                    "## Overview\n" + 
+                                    content
+                                )
+                            
+                            # Write updated content
+                            with open(file_path, 'w', encoding='utf-8') as f:
+                                f.write(updated_content)
+                            
+                            logger.info(f"Updated task {task_id} with custom content")
+                
+            except Exception as e:
+                logger.warning(f"Error updating task content: {e}")
+                # Task was created successfully, just couldn't update content
         
         if task:
             # Increment counter and save settings

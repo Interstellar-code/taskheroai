@@ -88,6 +88,8 @@ class TaskMetadata:
     estimated_hours: Optional[float] = None
     actual_hours: Optional[float] = None
     completion_percentage: int = 0
+    dependencies: Optional[str] = None
+    effort_estimate: Optional[str] = None
     
     def __post_init__(self):
         """Initialize default values."""
@@ -123,7 +125,9 @@ class TaskMetadata:
             'tags': ['tags'],
             'estimated_hours': ['estimated_hours'],
             'actual_hours': ['actual_hours'],
-            'completion_percentage': ['completion_percentage']
+            'completion_percentage': ['completion_percentage'],
+            'dependencies': ['dependencies'],
+            'effort_estimate': ['effort_estimate']
         }
         
         # Map fields from data to normalized names
@@ -232,7 +236,8 @@ class TaskMetadata:
         valid_fields = {
             'task_id', 'title', 'status', 'priority', 'created_date', 
             'due_date', 'assigned_to', 'task_type', 'sequence', 'tags',
-            'estimated_hours', 'actual_hours', 'completion_percentage'
+            'estimated_hours', 'actual_hours', 'completion_percentage',
+            'dependencies', 'effort_estimate'
         }
         
         final_data = {k: v for k, v in normalized_data.items() if k in valid_fields and v is not None}
@@ -329,6 +334,12 @@ class Task:
             tags_str = ", ".join(self.metadata.tags)
             metadata_lines.append(f"- **Tags:** {tags_str}")
         
+        if self.metadata.dependencies:
+            metadata_lines.append(f"- **Dependencies:** {self.metadata.dependencies}")
+        
+        if self.metadata.effort_estimate:
+            metadata_lines.append(f"- **Effort Estimate:** {self.metadata.effort_estimate}")
+        
         metadata_lines.extend([
             "",
             "## Overview",
@@ -421,7 +432,9 @@ class Task:
                         'sequence': 'sequence',
                         'tags': 'tags',
                         'estimated_hours': 'estimated_hours',
-                        'actual_hours': 'actual_hours'
+                        'actual_hours': 'actual_hours',
+                        'dependencies': 'dependencies',
+                        'effort_estimate': 'effort_estimate'
                     }
                     
                     mapped_key = key_mappings.get(key, key)
@@ -594,6 +607,10 @@ class TaskManager:
                 'TASK-TYPE': kwargs.get('task_type', 'Development'),
                 'SEQUENCE': str(kwargs.get('sequence', '')),
                 'TAGS': kwargs.get('tags', ''),
+                'DEPENDENCIES': kwargs.get('dependencies', ''),
+                'EFFORT-ESTIMATE': kwargs.get('effort_estimate', 'TBD'),
+                '[DEPENDENCIES]': kwargs.get('dependencies', ''),
+                '[EFFORT_ESTIMATE]': kwargs.get('effort_estimate', 'TBD'),
             }
             
             task_content = template_content

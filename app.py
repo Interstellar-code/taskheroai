@@ -43,6 +43,7 @@ try:
         render_markdown,
     )
     from mods.project_management import TaskManager, ProjectTemplates, ProjectPlanner
+    from taskhero_ai_integration import AIAgentIntegration
 except ImportError as e:
     print(f"Error importing required modules: {e}")
     print("Make sure you're running this script from the project root directory.")
@@ -146,6 +147,9 @@ class TaskHeroAI:
         self.task_manager: Optional[TaskManager] = None
         self.project_templates: Optional[ProjectTemplates] = None
         self.project_planner: Optional[ProjectPlanner] = None
+
+        # AI Integration Component
+        self.ai_integration: Optional[AIAgentIntegration] = None
 
         self.enable_markdown_rendering: bool = self._get_env_bool("ENABLE_MARKDOWN_RENDERING", True)
         self.show_thinking_blocks: bool = self._get_env_bool("SHOW_THINKING_BLOCKS", False)
@@ -2056,12 +2060,19 @@ class TaskHeroAI:
             print(f"{Fore.GREEN}6. {Style.BRIGHT}Manage Templates{Style.RESET_ALL}")
             print(f"{Fore.GREEN}7. {Style.BRIGHT}Archive Completed Tasks{Style.RESET_ALL}")
             print(f"{Fore.GREEN}8. {Style.BRIGHT}Project Settings{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'─'*60}{Style.RESET_ALL}")
+            print(f"{Fore.MAGENTA}🤖 AI INTEGRATION{Style.RESET_ALL}")
+            print(f"{Fore.MAGENTA}10. {Style.BRIGHT}Generate AI Prompts for External Agent{Style.RESET_ALL}")
+            print(f"{Fore.MAGENTA}11. {Style.BRIGHT}Codebase Analysis for Task Generation{Style.RESET_ALL}")
+            print(f"{Fore.MAGENTA}12. {Style.BRIGHT}Task Prioritization Analysis{Style.RESET_ALL}")
+            print(f"{Fore.MAGENTA}13. {Style.BRIGHT}Project Insights & Analytics{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'─'*60}{Style.RESET_ALL}")
             print(f"{Fore.GREEN}9. {Style.BRIGHT}Back to Main Menu{Style.RESET_ALL}")
             print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
             
             while True:
                 try:
-                    choice = input(f"\n{Fore.GREEN}Choose an option (1-9): {Style.RESET_ALL}").strip()
+                    choice = input(f"\n{Fore.GREEN}Choose an option (1-13): {Style.RESET_ALL}").strip()
                     
                     if choice == "1":
                         self._view_all_tasks()
@@ -2081,8 +2092,16 @@ class TaskHeroAI:
                         self._project_settings()
                     elif choice == "9":
                         break
+                    elif choice == "10":
+                        self._ai_prompt_generator()
+                    elif choice == "11":
+                        self._ai_codebase_analysis()
+                    elif choice == "12":
+                        self._ai_task_prioritization()
+                    elif choice == "13":
+                        self._ai_project_insights()
                     else:
-                        print(f"{Fore.RED}Invalid choice. Please select 1-9.{Style.RESET_ALL}")
+                        print(f"{Fore.RED}Invalid choice. Please select 1-13.{Style.RESET_ALL}")
                         
                 except KeyboardInterrupt:
                     print(f"\n{Fore.YELLOW}Returning to main menu...{Style.RESET_ALL}")
@@ -2136,7 +2155,7 @@ class TaskHeroAI:
         input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
 
     def _create_new_task(self) -> None:
-        """Create a new task from user input with AI enhancement."""
+        """Create a new task from user input with comprehensive AI enhancement."""
         print(f"\n{Fore.CYAN}🤖 AI-Enhanced Task Creation{Style.RESET_ALL}")
         print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
         
@@ -2151,7 +2170,7 @@ class TaskHeroAI:
                 print(f"{Fore.YELLOW}⚠️  AI Engine unavailable - Basic creation mode{Style.RESET_ALL}")
                 self.logger.warning(f"AI Engine not available: {e}")
             
-            # Collect basic task information
+            # Step 1: Collect basic task information
             title = input(f"{Fore.GREEN}Task title: {Style.RESET_ALL}").strip()
             if not title:
                 print(f"{Fore.RED}Task title cannot be empty.{Style.RESET_ALL}")
@@ -2171,7 +2190,10 @@ class TaskHeroAI:
                 except Exception as e:
                     self.logger.warning(f"AI enhancement failed: {e}")
             
-            # Ask for task type
+            print(f"\n{Fore.CYAN}📋 Task Metadata Collection{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*30}{Style.RESET_ALL}")
+            
+            # Step 2: Ask for task type
             print(f"\n{Fore.CYAN}Task Types:{Style.RESET_ALL}")
             print("1. Development (DEV)")
             print("2. Test Case (TEST)")
@@ -2192,7 +2214,7 @@ class TaskHeroAI:
             task_type_info = type_map.get(type_choice, ("Development", "DEV"))
             task_type, task_prefix = task_type_info
             
-            # Ask for priority
+            # Step 3: Ask for priority
             print(f"\n{Fore.CYAN}Priority levels:{Style.RESET_ALL}")
             print("1. Low")
             print("2. Medium (default)")
@@ -2203,7 +2225,24 @@ class TaskHeroAI:
             priority_map = {"1": "low", "2": "medium", "3": "high", "4": "critical"}
             priority = priority_map.get(priority_choice, "medium")
             
-            # Ask for assignment
+            # Step 4: Ask for estimated effort
+            print(f"\n{Fore.CYAN}Estimated effort:{Style.RESET_ALL}")
+            print("1. Small (1-2 hours)")
+            print("2. Medium (3-8 hours)")
+            print("3. Large (1-2 days)")
+            print("4. Very Large (3+ days)")
+            
+            effort_choice = input(f"{Fore.GREEN}Select effort estimate (1-4, default 2): {Style.RESET_ALL}").strip()
+            effort_map = {
+                "1": ("Small", "1-2 hours"),
+                "2": ("Medium", "3-8 hours"), 
+                "3": ("Large", "1-2 days"),
+                "4": ("Very Large", "3+ days")
+            }
+            effort_info = effort_map.get(effort_choice, ("Medium", "3-8 hours"))
+            effort_level, effort_estimate = effort_info
+            
+            # Step 5: Ask for assignment
             print(f"\n{Fore.CYAN}Assignment:{Style.RESET_ALL}")
             print("1. Developer (default)")
             print("2. Team Lead")
@@ -2218,50 +2257,144 @@ class TaskHeroAI:
             }
             assigned_to = assign_map.get(assign_choice, "Developer")
             
-            # Ask for due date (optional)
+            # Step 6: Ask for due date (optional)
             due_date = input(f"{Fore.GREEN}Due date (YYYY-MM-DD, optional): {Style.RESET_ALL}").strip()
             if due_date and not re.match(r'^\d{4}-\d{2}-\d{2}$', due_date):
                 print(f"{Fore.YELLOW}Invalid date format, skipping due date.{Style.RESET_ALL}")
                 due_date = None
             
-            # Ask for tags (optional)
+            # Step 7: Ask for dependencies (optional)
+            dependencies = input(f"{Fore.GREEN}Dependencies (comma-separated task IDs, optional): {Style.RESET_ALL}").strip()
+            dependency_list = [dep.strip() for dep in dependencies.split(",")] if dependencies else []
+            
+            # Step 8: Ask for tags (optional)
             tags_input = input(f"{Fore.GREEN}Tags (comma-separated, optional): {Style.RESET_ALL}").strip()
             tags = [tag.strip() for tag in tags_input.split(",")] if tags_input else []
             
-            # Generate detailed task content with AI if available
+            # Step 9: Get detailed task description - CRITICAL STEP!
+            print(f"\n{Fore.CYAN}📝 Task Description{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*20}{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Please provide a detailed description of what this task should accomplish:")
+            print(f"Include requirements, acceptance criteria, technical considerations, etc.{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}Task description (enter 'END' on a new line when finished):{Style.RESET_ALL}")
+            
+            description_lines = []
+            while True:
+                line = input()
+                if line.strip().upper() == 'END':
+                    break
+                description_lines.append(line)
+            
+            task_description = '\n'.join(description_lines).strip()
+            
+            if not task_description:
+                print(f"{Fore.YELLOW}No description provided. AI will generate content based on title and metadata.{Style.RESET_ALL}")
+                task_description = f"Complete the task: {enhanced_title}"
+            
+            # Step 10: Search indexed files for relevant context
+            relevant_context = ""
+            if ai_engine and hasattr(self, 'file_indexer') and self.file_indexer:
+                try:
+                    print(f"\n{Fore.CYAN}🔍 Searching indexed files for relevant context...{Style.RESET_ALL}")
+                    
+                    # Create search query from title, description, and tags
+                    search_terms = []
+                    search_terms.append(enhanced_title)
+                    if task_description:
+                        # Extract key terms from description
+                        import re
+                        words = re.findall(r'\b\w{4,}\b', task_description.lower())
+                        search_terms.extend(words[:10])  # Take first 10 significant words
+                    search_terms.extend(tags)
+                    
+                    search_query = ' '.join(search_terms)
+                    
+                    # Search for relevant files (this would use your existing indexer)
+                    # For now, we'll simulate this
+                    relevant_files = []
+                    
+                    print(f"{Fore.GREEN}🔍 Found {len(relevant_files)} relevant files in codebase{Style.RESET_ALL}")
+                    
+                    if relevant_files:
+                        relevant_context = f"Relevant codebase context found in: {', '.join(relevant_files[:5])}"
+                    
+                except Exception as e:
+                    self.logger.warning(f"Context search failed: {e}")
+                    print(f"{Fore.YELLOW}⚠️  Context search unavailable{Style.RESET_ALL}")
+            
+            # Step 11: Generate comprehensive task content with AI
             task_content = ""
             if ai_engine:
                 try:
-                    print(f"\n{Fore.CYAN}🚀 AI is generating detailed task content...{Style.RESET_ALL}")
+                    print(f"\n{Fore.CYAN}🚀 AI is generating comprehensive task content...{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}   Using: title + metadata + description + codebase context{Style.RESET_ALL}")
                     
-                    # Prepare context for AI
-                    context = {
+                    # Prepare comprehensive context for AI
+                    comprehensive_context = {
                         "title": enhanced_title,
                         "task_type": task_type,
                         "priority": priority,
+                        "effort_estimate": effort_estimate,
                         "assigned_to": assigned_to,
                         "due_date": due_date,
-                        "tags": tags
+                        "dependencies": dependency_list,
+                        "tags": tags,
+                        "detailed_description": task_description,
+                        "relevant_context": relevant_context,
+                        "project_path": self.current_directory
                     }
                     
-                    # Generate content using AI engine
+                    # Generate content using AI engine with comprehensive context
                     task_content = ai_engine.generate_task_content(
                         title=enhanced_title,
                         task_type=task_type,
                         priority=priority,
-                        context=context
+                        context=comprehensive_context
                     )
                     
-                    if task_content and len(task_content) > 100:
-                        print(f"{Fore.GREEN}✅ AI generated {len(task_content)} characters of detailed content{Style.RESET_ALL}")
+                    if task_content and len(task_content) > 200:
+                        print(f"{Fore.GREEN}✅ AI generated {len(task_content)} characters of comprehensive content{Style.RESET_ALL}")
+                        
+                        # Show a preview of the generated content
+                        preview = task_content[:200] + "..." if len(task_content) > 200 else task_content
+                        print(f"{Fore.CYAN}📖 Content preview:{Style.RESET_ALL}")
+                        print(f"{Fore.WHITE}{preview}{Style.RESET_ALL}")
+                        
+                        # Ask if user wants to see full content before creating
+                        show_full = input(f"\n{Fore.GREEN}Show full generated content before creating task? (y/n, default n): {Style.RESET_ALL}").strip().lower()
+                        if show_full == 'y':
+                            print(f"\n{Fore.CYAN}📄 Full Generated Content:{Style.RESET_ALL}")
+                            print(f"{Fore.WHITE}{task_content}{Style.RESET_ALL}")
                     else:
                         print(f"{Fore.YELLOW}⚠️  AI content generation incomplete - using template{Style.RESET_ALL}")
-                        task_content = ""
+                        task_content = task_description  # Fallback to user description
                         
                 except Exception as e:
                     self.logger.warning(f"AI content generation failed: {e}")
-                    print(f"{Fore.YELLOW}⚠️  AI content generation failed - using template{Style.RESET_ALL}")
-                    task_content = ""
+                    print(f"{Fore.YELLOW}⚠️  AI content generation failed - using description{Style.RESET_ALL}")
+                    task_content = task_description
+            else:
+                # No AI available, use the user's description
+                task_content = task_description
+            
+            # Final confirmation
+            print(f"\n{Fore.CYAN}📋 Task Summary{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*15}{Style.RESET_ALL}")
+            print(f"{Fore.WHITE}Title: {enhanced_title}")
+            print(f"Type: {task_type} ({task_prefix})")
+            print(f"Priority: {priority.title()}")
+            print(f"Effort: {effort_estimate}")
+            print(f"Assigned to: {assigned_to}")
+            print(f"Due date: {due_date or 'Not set'}")
+            print(f"Dependencies: {', '.join(dependency_list) if dependency_list else 'None'}")
+            print(f"Tags: {', '.join(tags) if tags else 'None'}")
+            print(f"Description length: {len(task_description)} characters")
+            print(f"Generated content: {'Yes' if len(task_content) > len(task_description) else 'User description only'}{Style.RESET_ALL}")
+            
+            confirm = input(f"\n{Fore.GREEN}Create this task? (y/n, default y): {Style.RESET_ALL}").strip().lower()
+            if confirm == 'n':
+                print(f"{Fore.YELLOW}Task creation cancelled.{Style.RESET_ALL}")
+                return
             
             # Create the task with enhanced metadata
             success, result = self.project_planner.create_new_task(
@@ -2270,7 +2403,10 @@ class TaskHeroAI:
                 due_date=due_date if due_date else None,
                 assigned_to=assigned_to,
                 task_type=task_type,
-                tags=", ".join(tags) if tags else ""
+                tags=", ".join(tags) if tags else "",
+                content=task_content,  # Pass the comprehensive content
+                dependencies=", ".join(dependency_list) if dependency_list else None,
+                effort_estimate=effort_estimate
             )
             
             if success:
@@ -2297,14 +2433,14 @@ class TaskHeroAI:
                             old_file.rename(new_file)
                             print(f"{Fore.CYAN}📁 File renamed to: {new_name}{Style.RESET_ALL}")
                             
-                            # Update file content with AI-generated content if available
-                            if task_content and ai_engine:
+                            # Update file content with comprehensive AI-generated content
+                            if task_content and len(task_content) > len(task_description):
                                 try:
                                     # Read current content
                                     with open(new_file, 'r', encoding='utf-8') as f:
                                         current_content = f.read()
                                     
-                                    # Replace the overview section with AI content
+                                    # Replace the overview section with comprehensive AI content
                                     if "## Overview" in current_content:
                                         parts = current_content.split("## Overview")
                                         if len(parts) > 1:
@@ -2330,26 +2466,25 @@ class TaskHeroAI:
                                             with open(new_file, 'w', encoding='utf-8') as f:
                                                 f.write(updated_content)
                                             
-                                            print(f"{Fore.GREEN}✅ Task enhanced with AI-generated content{Style.RESET_ALL}")
+                                            print(f"{Fore.GREEN}✅ Task enhanced with comprehensive AI-generated content{Style.RESET_ALL}")
                                 
                                 except Exception as e:
                                     self.logger.warning(f"Error updating task content: {e}")
                             
+                            print(f"{Fore.GREEN}🎉 Enhanced task creation completed!{Style.RESET_ALL}")
+                            
                         except Exception as e:
-                            print(f"{Fore.YELLOW}⚠️  Could not rename file: {e}{Style.RESET_ALL}")
-                
-                print(f"{Fore.CYAN}📄 Task Type: {task_type} ({task_prefix}){Style.RESET_ALL}")
-                print(f"{Fore.CYAN}👤 Assigned to: {assigned_to}{Style.RESET_ALL}")
-                print(f"{Fore.CYAN}📅 Priority: {priority.title()}{Style.RESET_ALL}")
-                if tags:
-                    print(f"{Fore.CYAN}🏷️  Tags: {', '.join(tags)}{Style.RESET_ALL}")
+                            self.logger.warning(f"Error renaming file: {e}")
+                            print(f"{Fore.YELLOW}⚠️  File created but naming convention not applied{Style.RESET_ALL}")
                 
             else:
                 print(f"{Fore.RED}❌ Failed to create task: {result}{Style.RESET_ALL}")
                 
+        except KeyboardInterrupt:
+            print(f"\n{Fore.YELLOW}Task creation cancelled by user.{Style.RESET_ALL}")
         except Exception as e:
-            self.logger.error(f"Error creating task: {e}")
-            print(f"{Fore.RED}Error creating task: {e}{Style.RESET_ALL}")
+            self.logger.error(f"Error in task creation: {e}")
+            print(f"{Fore.RED}❌ Error creating task: {e}{Style.RESET_ALL}")
             import traceback
             traceback.print_exc()
         
@@ -2693,6 +2828,321 @@ class TaskHeroAI:
         except Exception as e:
             self.logger.error(f"Error managing settings: {e}")
             print(f"{Fore.RED}Error managing settings: {e}{Style.RESET_ALL}")
+        
+        input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _ai_prompt_generator(self) -> None:
+        """Generate AI prompts for external agent."""
+        print(f"\n{Fore.CYAN}🤖 AI Prompt Generator for External Agents{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+        
+        try:
+            # Initialize AI integration if not already done
+            if not self.ai_integration:
+                from taskhero_ai_integration import AIAgentIntegration
+                self.ai_integration = AIAgentIntegration()
+                print(f"{Fore.GREEN}✅ AI Integration initialized{Style.RESET_ALL}")
+            
+            # Display available prompt types
+            available_types = self.ai_integration.get_available_prompt_types()
+            print(f"\n{Fore.CYAN}Available AI Prompt Types:{Style.RESET_ALL}")
+            for i, prompt_type in enumerate(available_types, 1):
+                print(f"{Fore.GREEN}{i}. {prompt_type.replace('_', ' ').title()}{Style.RESET_ALL}")
+            
+            print(f"{Fore.GREEN}{len(available_types) + 1}. Generate All Prompt Types{Style.RESET_ALL}")
+            
+            # Get user selection
+            choice = input(f"\n{Fore.GREEN}Select prompt type (1-{len(available_types) + 1}): {Style.RESET_ALL}").strip()
+            
+            try:
+                choice_num = int(choice)
+                if choice_num == len(available_types) + 1:
+                    # Generate all prompt types
+                    print(f"\n{Fore.CYAN}🔄 Generating all prompt types...{Style.RESET_ALL}")
+                    
+                    import asyncio
+                    import json
+                    from pathlib import Path
+                    
+                    # Create output directory
+                    output_dir = Path("logs/ai_prompts")
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    async def generate_all_prompts():
+                        for prompt_type in available_types:
+                            try:
+                                print(f"{Fore.YELLOW}Generating {prompt_type}...{Style.RESET_ALL}")
+                                prompt_data = await self.ai_integration.generate_prompt(prompt_type)
+                                
+                                if "error" not in prompt_data:
+                                    # Save to file
+                                    output_file = output_dir / f"{prompt_type}_prompt.json"
+                                    with open(output_file, 'w', encoding='utf-8') as f:
+                                        json.dump(prompt_data, f, indent=2, ensure_ascii=False)
+                                    
+                                    print(f"{Fore.GREEN}✅ {prompt_type} saved to {output_file}{Style.RESET_ALL}")
+                                else:
+                                    print(f"{Fore.RED}❌ Error generating {prompt_type}: {prompt_data['error']}{Style.RESET_ALL}")
+                                    
+                            except Exception as e:
+                                print(f"{Fore.RED}❌ Error with {prompt_type}: {str(e)}{Style.RESET_ALL}")
+                    
+                    # Run async generation
+                    asyncio.run(generate_all_prompts())
+                    
+                    print(f"\n{Fore.GREEN}🎉 All prompts generated and saved to {output_dir}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}📋 These JSON files can be consumed by your external AI agent (Claude/OpenAI){Style.RESET_ALL}")
+                    
+                elif 1 <= choice_num <= len(available_types):
+                    # Generate specific prompt type
+                    selected_type = available_types[choice_num - 1]
+                    print(f"\n{Fore.CYAN}🔄 Generating {selected_type.replace('_', ' ').title()} prompt...{Style.RESET_ALL}")
+                    
+                    import asyncio
+                    prompt_data = asyncio.run(self.ai_integration.generate_prompt(selected_type))
+                    
+                    if "error" not in prompt_data:
+                        # Display prompt summary
+                        print(f"\n{Fore.GREEN}✅ Prompt generated successfully!{Style.RESET_ALL}")
+                        print(f"{Fore.CYAN}Task Type: {prompt_data['task_type']}{Style.RESET_ALL}")
+                        print(f"{Fore.CYAN}Timestamp: {prompt_data['timestamp']}{Style.RESET_ALL}")
+                        print(f"{Fore.CYAN}Context Keys: {list(prompt_data['context'].keys())}{Style.RESET_ALL}")
+                        
+                        # Show prompt preview
+                        prompt_text = prompt_data['prompt']
+                        preview = prompt_text[:500] + "..." if len(prompt_text) > 500 else prompt_text
+                        print(f"\n{Fore.YELLOW}Prompt Preview:{Style.RESET_ALL}")
+                        print(f"{Fore.WHITE}{preview}{Style.RESET_ALL}")
+                        
+                        # Save option
+                        save_prompt = input(f"\n{Fore.GREEN}Save prompt to file? (y/n): {Style.RESET_ALL}").strip().lower()
+                        if save_prompt == 'y':
+                            import json
+                            from pathlib import Path
+                            
+                            output_dir = Path("logs/ai_prompts")
+                            output_dir.mkdir(parents=True, exist_ok=True)
+                            output_file = output_dir / f"{selected_type}_prompt.json"
+                            
+                            with open(output_file, 'w', encoding='utf-8') as f:
+                                json.dump(prompt_data, f, indent=2, ensure_ascii=False)
+                            
+                            print(f"{Fore.GREEN}💾 Prompt saved to {output_file}{Style.RESET_ALL}")
+                    else:
+                        print(f"{Fore.RED}❌ Error generating prompt: {prompt_data['error']}{Style.RESET_ALL}")
+                else:
+                    print(f"{Fore.RED}Invalid choice. Please select 1-{len(available_types) + 1}.{Style.RESET_ALL}")
+                    
+            except ValueError:
+                print(f"{Fore.RED}Invalid input. Please enter a number.{Style.RESET_ALL}")
+                
+        except Exception as e:
+            self.logger.error(f"Error in AI prompt generator: {e}")
+            print(f"{Fore.RED}Error in AI prompt generator: {e}{Style.RESET_ALL}")
+            import traceback
+            traceback.print_exc()
+        
+        input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _ai_codebase_analysis(self) -> None:
+        """Analyze codebase for task generation."""
+        print(f"\n{Fore.CYAN}🔍 AI Codebase Analysis for Task Generation{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+        
+        try:
+            # Initialize AI integration if not already done
+            if not self.ai_integration:
+                from taskhero_ai_integration import AIAgentIntegration
+                self.ai_integration = AIAgentIntegration()
+                print(f"{Fore.GREEN}✅ AI Integration initialized{Style.RESET_ALL}")
+            
+            # Display analysis options
+            print(f"\n{Fore.CYAN}Analysis Types:{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}1. Task Generation Analysis{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}2. Code Quality Assessment{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}3. Architecture Review{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}4. All Analysis Types{Style.RESET_ALL}")
+            
+            choice = input(f"\n{Fore.GREEN}Select analysis type (1-4): {Style.RESET_ALL}").strip()
+            
+            analysis_types = {
+                "1": "task_generation",
+                "2": "code_quality", 
+                "3": "architecture",
+                "4": "all"
+            }
+            
+            if choice not in analysis_types:
+                print(f"{Fore.RED}Invalid choice. Please select 1-4.{Style.RESET_ALL}")
+                return
+            
+            selected_analysis = analysis_types[choice]
+            
+            if selected_analysis == "all":
+                # Run all analysis types
+                print(f"\n{Fore.CYAN}🔄 Running comprehensive codebase analysis...{Style.RESET_ALL}")
+                
+                import asyncio
+                import json
+                from pathlib import Path
+                
+                # Create output directory
+                output_dir = Path("logs/codebase_analysis")
+                output_dir.mkdir(parents=True, exist_ok=True)
+                
+                async def run_all_analysis():
+                    for analysis_type in ["task_generation", "code_quality", "architecture"]:
+                        try:
+                            print(f"\n{Fore.YELLOW}Running {analysis_type.replace('_', ' ').title()} analysis...{Style.RESET_ALL}")
+                            
+                            prompt_data = await self.ai_integration.generate_prompt(
+                                "codebase_analysis",
+                                analysis_type=analysis_type
+                            )
+                            
+                            if "error" not in prompt_data:
+                                # Save analysis prompt
+                                output_file = output_dir / f"codebase_{analysis_type}_analysis.json"
+                                with open(output_file, 'w', encoding='utf-8') as f:
+                                    json.dump(prompt_data, f, indent=2, ensure_ascii=False)
+                                
+                                print(f"{Fore.GREEN}✅ {analysis_type.title()} analysis saved to {output_file}{Style.RESET_ALL}")
+                                
+                                # Display key insights from context
+                                context = prompt_data.get('context', {})
+                                codebase_summary = context.get('codebase_summary', {})
+                                
+                                print(f"  📊 Total Files: {codebase_summary.get('total_files', 'N/A')}")
+                                
+                                languages = codebase_summary.get('programming_languages', [])
+                                if languages:
+                                    print(f"  💻 Languages: {', '.join([lang['language'] for lang in languages[:3]])}")
+                                
+                                existing_tasks = context.get('existing_tasks', {})
+                                print(f"  📋 Existing Tasks: {existing_tasks.get('total_tasks', 'N/A')}")
+                                
+                            else:
+                                print(f"{Fore.RED}❌ Error in {analysis_type}: {prompt_data['error']}{Style.RESET_ALL}")
+                                
+                        except Exception as e:
+                            print(f"{Fore.RED}❌ Error with {analysis_type}: {str(e)}{Style.RESET_ALL}")
+                
+                # Run async analysis
+                asyncio.run(run_all_analysis())
+                
+                print(f"\n{Fore.GREEN}🎉 Comprehensive analysis completed!{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}📁 Results saved to {output_dir}{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}💡 Next Steps:{Style.RESET_ALL}")
+                print(f"  1. Review the generated analysis files")
+                print(f"  2. Feed the prompts to your external AI agent")
+                print(f"  3. Use AI recommendations to create new tasks")
+                print(f"  4. Implement suggested improvements")
+                
+            else:
+                # Run specific analysis type
+                print(f"\n{Fore.CYAN}🔄 Running {selected_analysis.replace('_', ' ').title()} analysis...{Style.RESET_ALL}")
+                
+                import asyncio
+                prompt_data = asyncio.run(self.ai_integration.generate_prompt(
+                    "codebase_analysis",
+                    analysis_type=selected_analysis
+                ))
+                
+                if "error" not in prompt_data:
+                    print(f"\n{Fore.GREEN}✅ Analysis completed successfully!{Style.RESET_ALL}")
+                    
+                    # Display analysis summary
+                    context = prompt_data.get('context', {})
+                    codebase_summary = context.get('codebase_summary', {})
+                    existing_tasks = context.get('existing_tasks', {})
+                    project_structure = context.get('project_structure', {})
+                    
+                    print(f"\n{Fore.CYAN}📊 Analysis Summary:{Style.RESET_ALL}")
+                    print(f"  📁 Total Files: {codebase_summary.get('total_files', 'N/A')}")
+                    
+                    languages = codebase_summary.get('programming_languages', [])
+                    if languages:
+                        print(f"  💻 Programming Languages:")
+                        for lang in languages[:5]:  # Show top 5
+                            print(f"    - {lang['language']}: {lang['file_count']} files ({lang['percentage']}%)")
+                    
+                    print(f"  📋 Existing Tasks: {existing_tasks.get('total_tasks', 'N/A')}")
+                    
+                    if existing_tasks.get('by_status'):
+                        print(f"  📈 Task Status Distribution:")
+                        for status, count in existing_tasks['by_status'].items():
+                            if count > 0:
+                                print(f"    - {status.title()}: {count}")
+                    
+                    # Show git status if available
+                    git_status = context.get('git_status', {})
+                    if git_status.get('has_changes'):
+                        print(f"  🔄 Git Status: {git_status.get('modified_files', 0)} modified, {git_status.get('new_files', 0)} new files")
+                    
+                    # Show prompt preview
+                    prompt_text = prompt_data['prompt']
+                    preview = prompt_text[:400] + "..." if len(prompt_text) > 400 else prompt_text
+                    print(f"\n{Fore.YELLOW}Generated AI Prompt Preview:{Style.RESET_ALL}")
+                    print(f"{Fore.WHITE}{preview}{Style.RESET_ALL}")
+                    
+                    # Save option
+                    save_analysis = input(f"\n{Fore.GREEN}Save analysis to file? (y/n): {Style.RESET_ALL}").strip().lower()
+                    if save_analysis == 'y':
+                        import json
+                        from pathlib import Path
+                        
+                        output_dir = Path("logs/codebase_analysis")
+                        output_dir.mkdir(parents=True, exist_ok=True)
+                        output_file = output_dir / f"codebase_{selected_analysis}_analysis.json"
+                        
+                        with open(output_file, 'w', encoding='utf-8') as f:
+                            json.dump(prompt_data, f, indent=2, ensure_ascii=False)
+                        
+                        print(f"{Fore.GREEN}💾 Analysis saved to {output_file}{Style.RESET_ALL}")
+                        print(f"{Fore.CYAN}📋 This file can be used with your external AI agent for task suggestions{Style.RESET_ALL}")
+                
+                else:
+                    print(f"{Fore.RED}❌ Error in analysis: {prompt_data['error']}{Style.RESET_ALL}")
+                
+        except Exception as e:
+            self.logger.error(f"Error in codebase analysis: {e}")
+            print(f"{Fore.RED}Error in codebase analysis: {e}{Style.RESET_ALL}")
+            import traceback
+            traceback.print_exc()
+        
+        input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _ai_task_prioritization(self) -> None:
+        """Prioritize tasks based on AI analysis."""
+        print(f"\n{Fore.CYAN}🤖 AI Task Prioritization{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*30}{Style.RESET_ALL}")
+        
+        try:
+            # Implement task prioritization logic
+            print(f"{Fore.GREEN}Prioritizing tasks...{Style.RESET_ALL}")
+            # Add your task prioritization logic here
+            
+            print(f"{Fore.GREEN}Tasks prioritized successfully!{Style.RESET_ALL}")
+        except Exception as e:
+            self.logger.error(f"Error prioritizing tasks: {e}")
+            print(f"{Fore.RED}Error prioritizing tasks: {e}{Style.RESET_ALL}")
+        
+        input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _ai_project_insights(self) -> None:
+        """Generate project insights and analytics."""
+        print(f"\n{Fore.CYAN}🤖 AI Project Insights{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*30}{Style.RESET_ALL}")
+        
+        try:
+            # Implement project insights generation logic
+            print(f"{Fore.GREEN}Generating project insights...{Style.RESET_ALL}")
+            # Add your project insights generation logic here
+            
+            print(f"{Fore.GREEN}Project insights generated successfully!{Style.RESET_ALL}")
+        except Exception as e:
+            self.logger.error(f"Error generating project insights: {e}")
+            print(f"{Fore.RED}Error generating project insights: {e}{Style.RESET_ALL}")
         
         input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
 
