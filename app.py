@@ -18,6 +18,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+import re
 
 import colorama
 import uvicorn
@@ -41,6 +42,7 @@ try:
         get_terminal_size,
         render_markdown,
     )
+    from mods.project_management import TaskManager, ProjectTemplates, ProjectPlanner
 except ImportError as e:
     print(f"Error importing required modules: {e}")
     print("Make sure you're running this script from the project root directory.")
@@ -139,6 +141,11 @@ class VerbalCodeAI:
         self.index_outdated: bool = False
         self.chat_history: List[Dict[str, str]] = []
         self.agent_mode_instance: Optional[AgentMode] = None
+        
+        # Project Management Components
+        self.task_manager: Optional[TaskManager] = None
+        self.project_templates: Optional[ProjectTemplates] = None
+        self.project_planner: Optional[ProjectPlanner] = None
 
         self.enable_markdown_rendering: bool = self._get_env_bool("ENABLE_MARKDOWN_RENDERING", True)
         self.show_thinking_blocks: bool = self._get_env_bool("SHOW_THINKING_BLOCKS", False)
@@ -240,7 +247,7 @@ class VerbalCodeAI:
     def display_menu(self) -> None:
         """Display the main menu."""
         print("\n" + Fore.CYAN + "=" * 50 + Style.RESET_ALL)
-        print(Fore.CYAN + Style.BRIGHT + "VerbalCodeAI - Code Assistant" + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "TaskHeroAI - AI-Powered Code & Project Assistant" + Style.RESET_ALL)
         print(Fore.CYAN + "=" * 50 + Style.RESET_ALL)
 
         if not self.indexer:
@@ -267,6 +274,8 @@ class VerbalCodeAI:
             + Style.RESET_ALL
         )
         
+        print(Fore.CYAN + "-" * 50 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "AI Features" + Style.RESET_ALL)
         print(Fore.GREEN + "1. " + Style.BRIGHT + "Index Code" + Style.RESET_ALL)
         print(Fore.GREEN + "2. " + Style.BRIGHT + "Chat with AI (Expensive)" + Style.RESET_ALL)
         print(Fore.GREEN + "3. " + Style.BRIGHT + "Max Chat Mode (Expensive)" + Style.RESET_ALL)
@@ -275,7 +284,14 @@ class VerbalCodeAI:
         print(Fore.GREEN + "6. " + Style.BRIGHT + "View Indexed Files" + Style.RESET_ALL)
         print(Fore.GREEN + "7. " + Style.BRIGHT + "View Project Info" + Style.RESET_ALL)
         print(Fore.GREEN + "8. " + Style.BRIGHT + "Recent Projects" + Style.RESET_ALL)
-        print(Fore.RED + "9. " + Style.BRIGHT + "🗑️  Project Cleanup Manager" + Style.RESET_ALL)
+        
+        print(Fore.CYAN + "-" * 50 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "Project Management" + Style.RESET_ALL)
+        print(Fore.MAGENTA + "9. " + Style.BRIGHT + "📋 Task Management Dashboard" + Style.RESET_ALL)
+        
+        print(Fore.CYAN + "-" * 50 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "Maintenance" + Style.RESET_ALL)
+        print(Fore.RED + "10. " + Style.BRIGHT + "🗑️  Project Cleanup Manager" + Style.RESET_ALL)
 
         print(Fore.CYAN + "-" * 50 + Style.RESET_ALL)
         print(Fore.CYAN + Style.BRIGHT + "Settings" + Style.RESET_ALL)
@@ -285,24 +301,24 @@ class VerbalCodeAI:
             if self.enable_markdown_rendering
             else f"{Fore.RED}Disabled{Style.RESET_ALL}"
         )
-        print(f"{Fore.GREEN}10. {Style.BRIGHT}Toggle Markdown Rendering{Style.RESET_ALL} [{markdown_status}]")
+        print(f"{Fore.GREEN}11. {Style.BRIGHT}Toggle Markdown Rendering{Style.RESET_ALL} [{markdown_status}]")
 
         thinking_status: str = (
             f"{Fore.GREEN}Enabled{Style.RESET_ALL}"
             if self.show_thinking_blocks
             else f"{Fore.RED}Disabled{Style.RESET_ALL}"
         )
-        print(f"{Fore.GREEN}11. {Style.BRIGHT}Toggle Thinking Blocks{Style.RESET_ALL} [{thinking_status}]")
+        print(f"{Fore.GREEN}12. {Style.BRIGHT}Toggle Thinking Blocks{Style.RESET_ALL} [{thinking_status}]")
 
         streaming_status: str = (
             f"{Fore.GREEN}Enabled{Style.RESET_ALL}"
             if self.enable_streaming_mode
             else f"{Fore.RED}Disabled{Style.RESET_ALL}"
         )
-        print(f"{Fore.GREEN}12. {Style.BRIGHT}Toggle Streaming Mode{Style.RESET_ALL} [{streaming_status}]")
+        print(f"{Fore.GREEN}13. {Style.BRIGHT}Toggle Streaming Mode{Style.RESET_ALL} [{streaming_status}]")
 
-        print(f"{Fore.GREEN}13. {Style.BRIGHT}Clear Screen{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}14. {Style.BRIGHT}Exit{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}14. {Style.BRIGHT}Clear Screen{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}15. {Style.BRIGHT}Exit{Style.RESET_ALL}")
 
         print(Fore.CYAN + "=" * 50 + Style.RESET_ALL)
 
@@ -1949,7 +1965,7 @@ class VerbalCodeAI:
                 self.index_outdated = not index_status.get('complete', False)
 
             self.display_menu()
-            choice = input(f"{Fore.YELLOW}Enter your choice (1-14): {Style.RESET_ALL}").strip()
+            choice = input(f"{Fore.YELLOW}Enter your choice (1-15): {Style.RESET_ALL}").strip()
 
             actions = {
                 "1": lambda: self.index_directory(),
@@ -1960,23 +1976,528 @@ class VerbalCodeAI:
                 "6": lambda: self.view_indexed_files(),
                 "7": lambda: self.view_project_info(),
                 "8": lambda: self.view_recent_projects(),
-                "9": lambda: self.clean_slate(),
-                "10": lambda: self.toggle_markdown_rendering(),
-                "11": lambda: self.toggle_thinking_blocks(),
-                "12": lambda: self.toggle_streaming_mode(),
-                "13": lambda: clear_screen(),
+                "9": lambda: self.project_management_dashboard(),
+                "10": lambda: self.clean_slate(),
+                "11": lambda: self.toggle_markdown_rendering(),
+                "12": lambda: self.toggle_thinking_blocks(),
+                "13": lambda: self.toggle_streaming_mode(),
+                "14": lambda: clear_screen(),
             }
 
-            if choice in actions or choice == "14":
-                if choice == "14":
+            if choice in actions or choice == "15":
+                if choice == "15":
                     clear_screen()
-                    print(f"\n{Fore.GREEN}Exiting VerbalCodeAI. Goodbye!{Style.RESET_ALL}")
+                    print(f"\n{Fore.GREEN}Exiting TaskHeroAI. Goodbye!{Style.RESET_ALL}")
                     break
                 else:
                     clear_screen()
                     actions[choice]()
             else:
-                print(f"\n{Fore.RED}Invalid choice. Please enter a number between 1 and 14.{Style.RESET_ALL}")
+                print(f"\n{Fore.RED}Invalid choice. Please enter a number between 1 and 15.{Style.RESET_ALL}")
+
+    def project_management_dashboard(self) -> None:
+        """Display the project management dashboard."""
+        print("\n" + Fore.CYAN + "=" * 60 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "📋 TaskHeroAI - Project Management Dashboard" + Style.RESET_ALL)
+        print(Fore.CYAN + "=" * 60 + Style.RESET_ALL)
+        
+        # Initialize project management components if not already done
+        if not self.project_planner:
+            self.project_planner = ProjectPlanner()
+            self.task_manager = self.project_planner.task_manager
+            self.project_templates = self.project_planner.templates
+        
+        try:
+            # Get dashboard data
+            dashboard = self.project_planner.get_project_dashboard()
+            
+            # Display project overview
+            print(f"\n{Fore.YELLOW}🏠 Project: {Style.BRIGHT}{dashboard['project_name']}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}📊 Progress: {Style.BRIGHT}{dashboard['progress_percentage']}%{Style.RESET_ALL} " +
+                  f"({dashboard['completed_tasks']}/{dashboard['total_tasks']} tasks)")
+            print(f"{Fore.CYAN}🕒 Last Updated: {dashboard['last_updated']}{Style.RESET_ALL}")
+            
+            # Display task summary
+            print(f"\n{Fore.CYAN}📈 Task Summary:{Style.RESET_ALL}")
+            task_summary = dashboard['task_summary']
+            status_colors = {
+                'todo': Fore.YELLOW,
+                'inprogress': Fore.BLUE, 
+                'testing': Fore.MAGENTA,
+                'devdone': Fore.GREEN,
+                'done': Fore.GREEN + Style.BRIGHT,
+                'backlog': Fore.WHITE
+            }
+            
+            for status, count in task_summary.items():
+                color = status_colors.get(status, Fore.WHITE)
+                status_name = self.project_planner.settings['statuses'].get(status, status.title())
+                print(f"  {color}• {status_name}: {count}{Style.RESET_ALL}")
+            
+            # Display upcoming deadlines if any
+            if dashboard['upcoming_deadlines']:
+                print(f"\n{Fore.RED}⚠️  Upcoming Deadlines:{Style.RESET_ALL}")
+                for deadline in dashboard['upcoming_deadlines'][:3]:  # Show top 3
+                    priority_color = Fore.RED if deadline['priority'] == 'high' else Fore.YELLOW
+                    print(f"  {priority_color}• {deadline['task']} - Due: {deadline['due_date']}{Style.RESET_ALL}")
+            
+            # Display available templates
+            templates = dashboard.get('available_templates', [])
+            if templates:
+                print(f"\n{Fore.CYAN}📄 Available Templates: {len(templates)}{Style.RESET_ALL}")
+            
+            # Menu options
+            print(f"\n{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}1. {Style.BRIGHT}View All Tasks{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}2. {Style.BRIGHT}Create New Task{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}3. {Style.BRIGHT}Move Task Status{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}4. {Style.BRIGHT}Search Tasks{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}5. {Style.BRIGHT}Generate Project Report{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}6. {Style.BRIGHT}Manage Templates{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}7. {Style.BRIGHT}Archive Completed Tasks{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}8. {Style.BRIGHT}Project Settings{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}9. {Style.BRIGHT}Back to Main Menu{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+            
+            while True:
+                try:
+                    choice = input(f"\n{Fore.GREEN}Choose an option (1-9): {Style.RESET_ALL}").strip()
+                    
+                    if choice == "1":
+                        self._view_all_tasks()
+                    elif choice == "2":
+                        self._create_new_task()
+                    elif choice == "3":
+                        self._move_task_status()
+                    elif choice == "4":
+                        self._search_tasks()
+                    elif choice == "5":
+                        self._generate_project_report()
+                    elif choice == "6":
+                        self._manage_templates()
+                    elif choice == "7":
+                        self._archive_completed_tasks()
+                    elif choice == "8":
+                        self._project_settings()
+                    elif choice == "9":
+                        break
+                    else:
+                        print(f"{Fore.RED}Invalid choice. Please select 1-9.{Style.RESET_ALL}")
+                        
+                except KeyboardInterrupt:
+                    print(f"\n{Fore.YELLOW}Returning to main menu...{Style.RESET_ALL}")
+                    break
+                    
+        except Exception as e:
+            self.logger.error(f"Error in project management dashboard: {e}")
+            print(f"{Fore.RED}Error loading project management dashboard: {e}{Style.RESET_ALL}")
+
+    def _view_all_tasks(self) -> None:
+        """Display all tasks organized by status."""
+        print(f"\n{Fore.CYAN}📋 All Tasks{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
+        
+        all_tasks = self.task_manager.get_all_tasks()
+        
+        for status, tasks in all_tasks.items():
+            if not tasks:
+                continue
+                
+            status_name = self.project_planner.settings['statuses'].get(status, status.title())
+            print(f"\n{Fore.YELLOW}{status_name} ({len(tasks)}){Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'-'*30}{Style.RESET_ALL}")
+            
+            for i, task in enumerate(tasks, 1):
+                priority_indicator = ""
+                if task.priority and task.priority != 'medium':
+                    priority_indicator = f" [{task.priority.upper()}]"
+                
+                print(f"  {i}. {task.title}{priority_indicator}")
+                if task.due_date:
+                    print(f"     📅 Due: {task.due_date}")
+        
+        input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _create_new_task(self) -> None:
+        """Create a new task from user input."""
+        print(f"\n{Fore.CYAN}📝 Create New Task{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*30}{Style.RESET_ALL}")
+        
+        try:
+            title = input(f"{Fore.GREEN}Task title: {Style.RESET_ALL}").strip()
+            if not title:
+                print(f"{Fore.RED}Task title cannot be empty.{Style.RESET_ALL}")
+                return
+            
+            # Ask for priority
+            print(f"\n{Fore.CYAN}Priority levels:{Style.RESET_ALL}")
+            print("1. Low")
+            print("2. Medium (default)")
+            print("3. High") 
+            print("4. Critical")
+            
+            priority_choice = input(f"{Fore.GREEN}Select priority (1-4, default 2): {Style.RESET_ALL}").strip()
+            priority_map = {"1": "low", "2": "medium", "3": "high", "4": "critical"}
+            priority = priority_map.get(priority_choice, "medium")
+            
+            # Ask for due date (optional)
+            due_date = input(f"{Fore.GREEN}Due date (YYYY-MM-DD, optional): {Style.RESET_ALL}").strip()
+            if due_date and not re.match(r'^\d{4}-\d{2}-\d{2}$', due_date):
+                print(f"{Fore.YELLOW}Invalid date format, skipping due date.{Style.RESET_ALL}")
+                due_date = None
+            
+            # Create the task
+            success, result = self.project_planner.create_new_task(
+                title=title,
+                priority=priority,
+                due_date=due_date if due_date else None
+            )
+            
+            if success:
+                print(f"{Fore.GREEN}✅ Task created successfully: {result}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}Task file: {result.lower()}-{title.lower().replace(' ', '-')}.md{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.RED}❌ Failed to create task: {result}{Style.RESET_ALL}")
+                
+        except Exception as e:
+            self.logger.error(f"Error creating task: {e}")
+            print(f"{Fore.RED}Error creating task: {e}{Style.RESET_ALL}")
+        
+        input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _move_task_status(self) -> None:
+        """Move a task to a different status."""
+        print(f"\n{Fore.CYAN}🔄 Move Task Status{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*30}{Style.RESET_ALL}")
+        
+        # Show all tasks with numbers
+        all_tasks = self.task_manager.get_all_tasks()
+        task_list = []
+        task_index = 1
+        
+        for status, tasks in all_tasks.items():
+            if not tasks:
+                continue
+                
+            status_name = self.project_planner.settings['statuses'].get(status, status.title())
+            print(f"\n{Fore.YELLOW}{status_name}:{Style.RESET_ALL}")
+            
+            for task in tasks:
+                task_file = Path(task.file_path).name
+                print(f"  {task_index}. {task.title}")
+                print(f"     File: {task_file}")
+                task_list.append((task_file, status, task.title))
+                task_index += 1
+        
+        if not task_list:
+            print(f"{Fore.YELLOW}No tasks found.{Style.RESET_ALL}")
+            input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+            return
+        
+        try:
+            task_choice = input(f"\n{Fore.GREEN}Select task number (1-{len(task_list)}): {Style.RESET_ALL}").strip()
+            task_num = int(task_choice) - 1
+            
+            if task_num < 0 or task_num >= len(task_list):
+                print(f"{Fore.RED}Invalid task number.{Style.RESET_ALL}")
+                return
+            
+            task_file, current_status, task_title = task_list[task_num]
+            
+            # Show available statuses
+            print(f"\n{Fore.CYAN}Move '{task_title}' to:{Style.RESET_ALL}")
+            statuses = list(self.project_planner.settings['statuses'].items())
+            for i, (status, name) in enumerate(statuses, 1):
+                marker = " (current)" if status == current_status else ""
+                print(f"  {i}. {name}{marker}")
+            
+            status_choice = input(f"{Fore.GREEN}Select new status (1-{len(statuses)}): {Style.RESET_ALL}").strip()
+            status_num = int(status_choice) - 1
+            
+            if status_num < 0 or status_num >= len(statuses):
+                print(f"{Fore.RED}Invalid status number.{Style.RESET_ALL}")
+                return
+            
+            new_status = statuses[status_num][0]
+            new_status_name = statuses[status_num][1]
+            
+            if new_status == current_status:
+                print(f"{Fore.YELLOW}Task is already in {new_status_name} status.{Style.RESET_ALL}")
+                return
+            
+            # Move the task
+            success = self.project_planner.move_task_to_status(task_file, new_status)
+            
+            if success:
+                print(f"{Fore.GREEN}✅ Task moved to {new_status_name} successfully!{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.RED}❌ Failed to move task.{Style.RESET_ALL}")
+                
+        except (ValueError, IndexError):
+            print(f"{Fore.RED}Invalid selection.{Style.RESET_ALL}")
+        except Exception as e:
+            self.logger.error(f"Error moving task: {e}")
+            print(f"{Fore.RED}Error moving task: {e}{Style.RESET_ALL}")
+        
+        input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _search_tasks(self) -> None:
+        """Search for tasks."""
+        print(f"\n{Fore.CYAN}🔍 Search Tasks{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*20}{Style.RESET_ALL}")
+        
+        query = input(f"{Fore.GREEN}Enter search query: {Style.RESET_ALL}").strip()
+        if not query:
+            print(f"{Fore.RED}Search query cannot be empty.{Style.RESET_ALL}")
+            input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+            return
+        
+        try:
+            results = self.task_manager.search_tasks(query)
+            
+            if results:
+                print(f"\n{Fore.GREEN}Found {len(results)} matching tasks:{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}{'-'*40}{Style.RESET_ALL}")
+                
+                for i, task in enumerate(results, 1):
+                    print(f"{i}. {task.title}")
+                    print(f"   Status: {task.status}")
+                    if task.priority and task.priority != 'medium':
+                        print(f"   Priority: {task.priority}")
+                    if task.due_date:
+                        print(f"   Due: {task.due_date}")
+                    print()
+            else:
+                print(f"{Fore.YELLOW}No tasks found matching '{query}'.{Style.RESET_ALL}")
+                
+        except Exception as e:
+            self.logger.error(f"Error searching tasks: {e}")
+            print(f"{Fore.RED}Error searching tasks: {e}{Style.RESET_ALL}")
+        
+        input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _generate_project_report(self) -> None:
+        """Generate and display a project report."""
+        print(f"\n{Fore.CYAN}📊 Generate Project Report{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*30}{Style.RESET_ALL}")
+        
+        try:
+            include_details = input(f"{Fore.GREEN}Include detailed task information? (y/n, default n): {Style.RESET_ALL}").strip().lower() == 'y'
+            
+            print(f"\n{Fore.CYAN}Generating report...{Style.RESET_ALL}")
+            report = self.project_planner.generate_project_report(include_details=include_details)
+            
+            # Display the report
+            print(f"\n{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+            if self.enable_markdown_rendering:
+                render_markdown(report)
+            else:
+                print(report)
+            print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+            
+            # Ask if user wants to save the report
+            save_report = input(f"\n{Fore.GREEN}Save report to file? (y/n): {Style.RESET_ALL}").strip().lower() == 'y'
+            
+            if save_report:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                report_file = f"project_report_{timestamp}.md"
+                
+                try:
+                    with open(report_file, 'w', encoding='utf-8') as f:
+                        f.write(report)
+                    print(f"{Fore.GREEN}✅ Report saved to: {report_file}{Style.RESET_ALL}")
+                except Exception as e:
+                    print(f"{Fore.RED}Error saving report: {e}{Style.RESET_ALL}")
+                    
+        except Exception as e:
+            self.logger.error(f"Error generating report: {e}")
+            print(f"{Fore.RED}Error generating report: {e}{Style.RESET_ALL}")
+        
+        input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _manage_templates(self) -> None:
+        """Manage project templates."""
+        print(f"\n{Fore.CYAN}📄 Template Management{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*25}{Style.RESET_ALL}")
+        
+        try:
+            templates = self.project_templates.get_available_templates()
+            
+            if templates:
+                print(f"\n{Fore.GREEN}Available templates:{Style.RESET_ALL}")
+                for i, template in enumerate(templates, 1):
+                    print(f"  {i}. {template}")
+            else:
+                print(f"{Fore.YELLOW}No templates found.{Style.RESET_ALL}")
+            
+            print(f"\n{Fore.CYAN}Template actions:{Style.RESET_ALL}")
+            print("1. View template details")
+            print("2. Create document from template")
+            print("3. Back to dashboard")
+            
+            choice = input(f"\n{Fore.GREEN}Choose action (1-3): {Style.RESET_ALL}").strip()
+            
+            if choice == "1" and templates:
+                self._view_template_details(templates)
+            elif choice == "2" and templates:
+                self._create_from_template(templates)
+            elif choice == "3":
+                return
+            else:
+                print(f"{Fore.RED}Invalid choice or no templates available.{Style.RESET_ALL}")
+                
+        except Exception as e:
+            self.logger.error(f"Error managing templates: {e}")
+            print(f"{Fore.RED}Error managing templates: {e}{Style.RESET_ALL}")
+        
+        input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _view_template_details(self, templates: List[str]) -> None:
+        """View details of a selected template."""
+        try:
+            template_choice = input(f"{Fore.GREEN}Select template number (1-{len(templates)}): {Style.RESET_ALL}").strip()
+            template_num = int(template_choice) - 1
+            
+            if template_num < 0 or template_num >= len(templates):
+                print(f"{Fore.RED}Invalid template number.{Style.RESET_ALL}")
+                return
+            
+            template_name = templates[template_num]
+            template_info = self.project_templates.get_template_info(template_name)
+            
+            if template_info:
+                print(f"\n{Fore.CYAN}Template Details:{Style.RESET_ALL}")
+                print(f"Name: {template_info['name']}")
+                print(f"Title: {template_info['title']}")
+                print(f"Description: {template_info['description']}")
+                print(f"Size: {template_info['size']} bytes")
+                print(f"Modified: {template_info['modified']}")
+            else:
+                print(f"{Fore.RED}Could not load template information.{Style.RESET_ALL}")
+                
+        except (ValueError, IndexError):
+            print(f"{Fore.RED}Invalid selection.{Style.RESET_ALL}")
+
+    def _create_from_template(self, templates: List[str]) -> None:
+        """Create a document from a template."""
+        try:
+            template_choice = input(f"{Fore.GREEN}Select template number (1-{len(templates)}): {Style.RESET_ALL}").strip()
+            template_num = int(template_choice) - 1
+            
+            if template_num < 0 or template_num >= len(templates):
+                print(f"{Fore.RED}Invalid template number.{Style.RESET_ALL}")
+                return
+            
+            template_name = templates[template_num]
+            output_path = input(f"{Fore.GREEN}Output file path: {Style.RESET_ALL}").strip()
+            
+            if not output_path:
+                print(f"{Fore.RED}Output path cannot be empty.{Style.RESET_ALL}")
+                return
+            
+            # Basic replacements - could be expanded
+            replacements = {}
+            author = input(f"{Fore.GREEN}Author name (optional): {Style.RESET_ALL}").strip()
+            if author:
+                replacements["AUTHOR"] = author
+            
+            success = self.project_templates.create_document_from_template(
+                template_name, output_path, replacements
+            )
+            
+            if success:
+                print(f"{Fore.GREEN}✅ Document created successfully: {output_path}{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.RED}❌ Failed to create document.{Style.RESET_ALL}")
+                
+        except (ValueError, IndexError):
+            print(f"{Fore.RED}Invalid selection.{Style.RESET_ALL}")
+
+    def _archive_completed_tasks(self) -> None:
+        """Archive all completed tasks."""
+        print(f"\n{Fore.CYAN}📦 Archive Completed Tasks{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*30}{Style.RESET_ALL}")
+        
+        try:
+            done_tasks = self.task_manager.get_tasks_by_status('done')
+            
+            if not done_tasks:
+                print(f"{Fore.YELLOW}No completed tasks to archive.{Style.RESET_ALL}")
+                input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+                return
+            
+            print(f"\n{Fore.CYAN}Found {len(done_tasks)} completed tasks:{Style.RESET_ALL}")
+            for task in done_tasks:
+                print(f"  • {task.title}")
+            
+            confirm = input(f"\n{Fore.GREEN}Archive all completed tasks? (y/n): {Style.RESET_ALL}").strip().lower() == 'y'
+            
+            if confirm:
+                archived_count = self.project_planner.archive_completed_tasks()
+                print(f"{Fore.GREEN}✅ Archived {archived_count} tasks successfully!{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}Archive operation cancelled.{Style.RESET_ALL}")
+                
+        except Exception as e:
+            self.logger.error(f"Error archiving tasks: {e}")
+            print(f"{Fore.RED}Error archiving tasks: {e}{Style.RESET_ALL}")
+        
+        input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _project_settings(self) -> None:
+        """Display and modify project settings."""
+        print(f"\n{Fore.CYAN}⚙️  Project Settings{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*25}{Style.RESET_ALL}")
+        
+        try:
+            settings = self.project_planner.settings
+            
+            print(f"\n{Fore.GREEN}Current Settings:{Style.RESET_ALL}")
+            print(f"Project Name: {settings.get('project_name', 'Unknown')}")
+            print(f"Task ID Prefix: {settings.get('task_id_prefix', 'TASK')}")
+            print(f"Next Task ID: {settings.get('task_id_prefix', 'TASK')}-{settings.get('task_id_counter', 1):03d}")
+            print(f"Default Template: {settings.get('default_task_template', 'task-template.md')}")
+            
+            print(f"\n{Fore.CYAN}Modify settings:{Style.RESET_ALL}")
+            print("1. Change project name")
+            print("2. Change task ID prefix")
+            print("3. Reset task counter")
+            print("4. Back to dashboard")
+            
+            choice = input(f"\n{Fore.GREEN}Choose option (1-4): {Style.RESET_ALL}").strip()
+            
+            if choice == "1":
+                new_name = input(f"{Fore.GREEN}New project name: {Style.RESET_ALL}").strip()
+                if new_name:
+                    settings['project_name'] = new_name
+                    self.project_planner._save_settings()
+                    print(f"{Fore.GREEN}✅ Project name updated.{Style.RESET_ALL}")
+                    
+            elif choice == "2":
+                new_prefix = input(f"{Fore.GREEN}New task ID prefix: {Style.RESET_ALL}").strip().upper()
+                if new_prefix:
+                    settings['task_id_prefix'] = new_prefix
+                    self.project_planner._save_settings()
+                    print(f"{Fore.GREEN}✅ Task ID prefix updated.{Style.RESET_ALL}")
+                    
+            elif choice == "3":
+                confirm = input(f"{Fore.YELLOW}Reset task counter to 1? (y/n): {Style.RESET_ALL}").strip().lower() == 'y'
+                if confirm:
+                    settings['task_id_counter'] = 1
+                    self.project_planner._save_settings()
+                    print(f"{Fore.GREEN}✅ Task counter reset.{Style.RESET_ALL}")
+                    
+            elif choice == "4":
+                return
+            else:
+                print(f"{Fore.RED}Invalid choice.{Style.RESET_ALL}")
+                
+        except Exception as e:
+            self.logger.error(f"Error managing settings: {e}")
+            print(f"{Fore.RED}Error managing settings: {e}{Style.RESET_ALL}")
+        
+        input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
+
 
 def run_http_server(port: int, allow_all_origins: bool = None) -> None:
     """Run the HTTP API server.
@@ -2012,7 +2533,7 @@ def run_http_server(port: int, allow_all_origins: bool = None) -> None:
 
 if __name__ == "__main__":
     try:
-        parser = argparse.ArgumentParser(description="VerbalCodeAI Terminal Application")
+        parser = argparse.ArgumentParser(description="TaskHeroAI Terminal Application")
         parser.add_argument("directory", nargs="?", help="Directory to index")
         parser.add_argument("--serve", type=int, metavar="PORT", help="Run HTTP API server on specified port")
         parser.add_argument("--allow-all-origins", action="store_true", help="Allow all origins for HTTP API (not just localhost)")
@@ -2020,17 +2541,17 @@ if __name__ == "__main__":
 
         if args.serve:
             logger = setup_logging()
-            logger.info(f"Starting VerbalCodeAI HTTP API Server on port {args.serve}")
+            logger.info(f"Starting TaskHeroAI HTTP API Server on port {args.serve}")
 
             run_http_server(args.serve, args.allow_all_origins)
             sys.exit(0)
 
         display_animated_banner(frame_delay=0.2)
 
-        print(f"{Fore.CYAN}{Style.BRIGHT}Starting VerbalCodeAI Terminal Application...{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{Style.BRIGHT}Starting TaskHeroAI Terminal Application...{Style.RESET_ALL}")
 
         logger = setup_logging()
-        logger.info("Starting VerbalCodeAI Terminal Application")
+        logger.info("Starting TaskHeroAI Terminal Application")
 
         app = VerbalCodeAI()
 
