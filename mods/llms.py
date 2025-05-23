@@ -2015,46 +2015,49 @@ def generate_description(
     max_tokens: Optional[int] = DESCRIPTION_MODEL_MAX_TOKENS,
     project_path: Optional[str] = None,
 ) -> str:
-    """Generate a description using the description model with enhanced features.
+    """Generate a description using the configured AI model with fallback support.
 
     Args:
-        prompt (str): The prompt to generate a description from.
-        template_name (str, optional): Name of a prompt template to use. Defaults to None.
-        template_vars (Dict[str, str], optional): Variables to format the template with. Defaults to None.
+        prompt (str): The prompt text.
+        template_name (str, optional): Name of template to use from templates directory. Defaults to None.
+        template_vars (Dict[str, str], optional): Variables to fill in template. Defaults to None.
         temperature (float, optional): Temperature for response generation. Defaults to DESCRIPTION_MODEL_TEMPERATURE.
         max_tokens (int, optional): Maximum tokens to generate. Defaults to DESCRIPTION_MODEL_MAX_TOKENS.
-        project_path (str, optional): Path to the project for chat logging. Defaults to None.
+        project_path (str, optional): Path to project for logging. Defaults to None.
 
     Returns:
-        str: Generated description text.
+        str: Generated description.
 
     Raises:
         ValueError: If DESCRIPTION_MODEL is not set or if parameters are invalid.
-        ollama.ResponseError: If Ollama encounters an error.
-        Exception: If Google API encounters an error.
+        Exception: If all providers fail.
     """
     if not DESCRIPTION_MODEL:
         raise ValueError("DESCRIPTION_MODEL not set in environment variables")
 
+    if temperature < 0 or temperature > 2:
+        raise ValueError("Temperature must be between 0 and 2")
+
+    if max_tokens is not None and max_tokens <= 0:
+        raise ValueError("max_tokens must be positive")
+
     if template_name:
-        if template_name not in PROMPT_TEMPLATES:
-            raise ValueError(f"Template '{template_name}' not found")
+        template_path = Path("templates") / f"{template_name}.txt"
+        if template_path.exists():
+            with open(template_path, "r", encoding="utf-8") as f:
+                template_content = f.read()
+            if template_vars:
+                prompt = template_content.format(**template_vars)
+            else:
+                prompt = template_content
 
-        template = PROMPT_TEMPLATES[template_name]
-        if template_vars:
-            try:
-                formatted_prompt = template.format(**template_vars)
-            except KeyError as e:
-                raise ValueError(f"Missing template variable: {e}")
-        else:
-            formatted_prompt = template
-
-        prompt = formatted_prompt
-
+    response = None
+    primary_error = None
+    
     try:
+        # Try primary provider first
         if AI_DESCRIPTION_PROVIDER == "google":
-            if DESCRIPTION_API_DELAY_MS > 0:
-                time.sleep(DESCRIPTION_API_DELAY_MS / 1000.0)
+            logger.info(f"Generating description using Google with model: {DESCRIPTION_MODEL}")
             response = _generate_description_google(prompt, temperature, max_tokens)
         elif AI_DESCRIPTION_PROVIDER == "openai":
             response = _generate_description_openai(prompt, temperature, max_tokens)
@@ -2063,20 +2066,80 @@ def generate_description(
         elif AI_DESCRIPTION_PROVIDER == "groq":
             response = _generate_description_groq(prompt, temperature, max_tokens)
         elif AI_DESCRIPTION_PROVIDER == "openrouter":
-            try:
-                response = _generate_description_openrouter(prompt, temperature, max_tokens)
-            except Exception as e:
-                if "rate limit" in str(e).lower():
-                    logger.warning(f"OpenRouter rate limit hit. Falling back to Ollama: {str(e)}")
-                    response = _generate_description_ollama(prompt, temperature, max_tokens)
-                else:
-                    raise
-        else:
+            response = _generate_description_openrouter(prompt, temperature, max_tokens)
+        else:  # Default to ollama
+            logger.info(f"Generating description using Ollama with model: {DESCRIPTION_MODEL}")
             response = _generate_description_ollama(prompt, temperature, max_tokens)
+            
     except Exception as e:
-        error_msg = f"Error generating description with provider '{AI_DESCRIPTION_PROVIDER}': {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        raise Exception(error_msg)
+        primary_error = e
+        error_msg = f"Error generating description with primary provider '{AI_DESCRIPTION_PROVIDER}': {str(e)}"
+        logger.warning(error_msg)
+        
+        # Try fallback providers if primary fails
+        fallback_providers = []
+        
+        # Define fallback order based on what's likely to work
+        if AI_DESCRIPTION_PROVIDER != "openai" and AI_EMBEDDING_API_KEY and AI_EMBEDDING_API_KEY.lower() != 'none':
+            fallback_providers.append(("openai", "Using OpenAI as fallback (same API key as embeddings)"))
+        
+        if AI_DESCRIPTION_PROVIDER != "openrouter" and AI_DESCRIPTION_API_KEY and AI_DESCRIPTION_API_KEY.lower() != 'none':
+            fallback_providers.append(("openrouter", "Using OpenRouter as fallback"))
+            
+        if AI_DESCRIPTION_PROVIDER != "groq" and AI_DESCRIPTION_API_KEY and AI_DESCRIPTION_API_KEY.lower() != 'none':
+            fallback_providers.append(("groq", "Using Groq as fallback"))
+            
+        # Try fallback providers
+        for fallback_provider, reason in fallback_providers:
+            try:
+                logger.info(f"Attempting fallback: {reason}")
+                
+                if fallback_provider == "openai":
+                    # Use OpenAI with the embedding API key if available
+                    temp_api_key = AI_EMBEDDING_API_KEY if AI_EMBEDDING_PROVIDER == "openai" else AI_DESCRIPTION_API_KEY
+                    if temp_api_key and temp_api_key.lower() != 'none':
+                        # Temporarily override the description API key
+                        original_key = AI_DESCRIPTION_API_KEY
+                        globals()['AI_DESCRIPTION_API_KEY'] = temp_api_key
+                        try:
+                            response = _generate_description_openai(prompt, temperature, max_tokens)
+                            logger.info("Successfully generated description using OpenAI fallback")
+                            break
+                        finally:
+                            globals()['AI_DESCRIPTION_API_KEY'] = original_key
+                elif fallback_provider == "openrouter":
+                    response = _generate_description_openrouter(prompt, temperature, max_tokens)
+                    logger.info("Successfully generated description using OpenRouter fallback")
+                    break
+                elif fallback_provider == "groq":
+                    response = _generate_description_groq(prompt, temperature, max_tokens)
+                    logger.info("Successfully generated description using Groq fallback")
+                    break
+                    
+            except Exception as fallback_error:
+                logger.warning(f"Fallback provider {fallback_provider} also failed: {str(fallback_error)}")
+                continue
+        
+        # If all providers failed, raise the original error with helpful message
+        if response is None:
+            if AI_DESCRIPTION_PROVIDER == "ollama":
+                if "EOF" in str(primary_error) or "500" in str(primary_error):
+                    helpful_msg = (
+                        f"Ollama server error (500/EOF). This usually means:\n"
+                        f"1. Ollama is not running - try: 'ollama serve'\n"
+                        f"2. Model '{DESCRIPTION_MODEL}' is not available - try: 'ollama pull {DESCRIPTION_MODEL}'\n"
+                        f"3. Ollama server is having issues - try restarting Ollama\n"
+                        f"\nAlternatively, switch to a cloud provider by setting:\n"
+                        f"AI_DESCRIPTION_PROVIDER=openai (and set AI_DESCRIPTION_API_KEY)\n"
+                        f"Original error: {str(primary_error)}"
+                    )
+                else:
+                    helpful_msg = f"Ollama error: {str(primary_error)}"
+            else:
+                helpful_msg = f"All description providers failed. Primary error: {str(primary_error)}"
+            
+            raise Exception(helpful_msg)
+    
     if CHAT_LOGS_ENABLED and project_path:
         log_chat(prompt, response, project_path)
     return response
