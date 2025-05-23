@@ -142,14 +142,22 @@ class ProjectPlanner:
     def create_new_task(self, title: str, 
                        priority: str = "medium",
                        due_date: Optional[str] = None,
-                       template_name: Optional[str] = None) -> Tuple[bool, str]:
-        """Create a new task with auto-generated ID.
+                       template_name: Optional[str] = None,
+                       assigned_to: str = "Developer",
+                       task_type: str = "Development",
+                       tags: str = "",
+                       sequence: Optional[int] = None) -> Tuple[bool, str]:
+        """Create a new task with auto-generated ID and enhanced metadata.
         
         Args:
             title: Task title
             priority: Task priority (low, medium, high, critical)
             due_date: Optional due date (YYYY-MM-DD format)
             template_name: Optional template to use (defaults to settings)
+            assigned_to: Who the task is assigned to
+            task_type: Type of task (Development, Test Case, etc.)
+            tags: Comma-separated tags
+            sequence: Optional sequence number
             
         Returns:
             Tuple of (success, task_id or error_message)
@@ -157,17 +165,25 @@ class ProjectPlanner:
         # Generate task ID
         task_id = f"{self.settings['task_id_prefix']}-{self.settings['task_id_counter']:03d}"
         
+        # Use sequence number if not provided
+        if sequence is None:
+            sequence = self.settings['task_id_counter']
+        
         # Use default template if none specified
         if not template_name:
             template_name = self.settings.get('default_task_template', 'task-template.md')
         
-        # Create task from template
+        # Create task from template with enhanced metadata
         task = self.task_manager.create_task_from_template(
             title=title, 
             template_name=template_name,
             task_id=task_id,
             priority=priority,
-            due_date=due_date
+            due_date=due_date,
+            assigned_to=assigned_to,
+            task_type=task_type,
+            tags=tags,
+            sequence=sequence
         )
         
         if task:

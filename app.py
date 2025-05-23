@@ -2136,15 +2136,61 @@ class TaskHeroAI:
         input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
 
     def _create_new_task(self) -> None:
-        """Create a new task from user input."""
-        print(f"\n{Fore.CYAN}📝 Create New Task{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*30}{Style.RESET_ALL}")
+        """Create a new task from user input with AI enhancement."""
+        print(f"\n{Fore.CYAN}🤖 AI-Enhanced Task Creation{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
         
         try:
+            # Initialize AI engine if available
+            ai_engine = None
+            try:
+                from taskhero_ai_engine import TaskHeroAIEngine
+                ai_engine = TaskHeroAIEngine()
+                print(f"{Fore.GREEN}✅ AI Engine loaded - Enhanced creation mode{Style.RESET_ALL}")
+            except Exception as e:
+                print(f"{Fore.YELLOW}⚠️  AI Engine unavailable - Basic creation mode{Style.RESET_ALL}")
+                self.logger.warning(f"AI Engine not available: {e}")
+            
+            # Collect basic task information
             title = input(f"{Fore.GREEN}Task title: {Style.RESET_ALL}").strip()
             if not title:
                 print(f"{Fore.RED}Task title cannot be empty.{Style.RESET_ALL}")
                 return
+            
+            # Enhance user input with AI if available
+            enhanced_title = title
+            if ai_engine:
+                try:
+                    print(f"{Fore.CYAN}🔍 AI is analyzing your input...{Style.RESET_ALL}")
+                    enhanced_input = ai_engine.enhance_user_input(title)
+                    if enhanced_input and enhanced_input != title:
+                        print(f"{Fore.CYAN}💡 AI Suggestion: {enhanced_input}{Style.RESET_ALL}")
+                        use_suggestion = input(f"{Fore.GREEN}Use AI suggestion? (y/n, default n): {Style.RESET_ALL}").strip().lower()
+                        if use_suggestion == 'y':
+                            enhanced_title = enhanced_input
+                except Exception as e:
+                    self.logger.warning(f"AI enhancement failed: {e}")
+            
+            # Ask for task type
+            print(f"\n{Fore.CYAN}Task Types:{Style.RESET_ALL}")
+            print("1. Development (DEV)")
+            print("2. Test Case (TEST)")
+            print("3. Documentation (DOC)")
+            print("4. Bug Fix (BUG)")
+            print("5. Feature (FEAT)")
+            print("6. Research (RES)")
+            
+            type_choice = input(f"{Fore.GREEN}Select task type (1-6, default 1): {Style.RESET_ALL}").strip()
+            type_map = {
+                "1": ("Development", "DEV"), 
+                "2": ("Test Case", "TEST"), 
+                "3": ("Documentation", "DOC"),
+                "4": ("Bug Fix", "BUG"), 
+                "5": ("Feature", "FEAT"), 
+                "6": ("Research", "RES")
+            }
+            task_type_info = type_map.get(type_choice, ("Development", "DEV"))
+            task_type, task_prefix = task_type_info
             
             # Ask for priority
             print(f"\n{Fore.CYAN}Priority levels:{Style.RESET_ALL}")
@@ -2157,39 +2203,155 @@ class TaskHeroAI:
             priority_map = {"1": "low", "2": "medium", "3": "high", "4": "critical"}
             priority = priority_map.get(priority_choice, "medium")
             
+            # Ask for assignment
+            print(f"\n{Fore.CYAN}Assignment:{Style.RESET_ALL}")
+            print("1. Developer (default)")
+            print("2. Team Lead")
+            print("3. Designer")
+            print("4. QA Tester")
+            print("5. Product Manager")
+            
+            assign_choice = input(f"{Fore.GREEN}Select assignee (1-5, default 1): {Style.RESET_ALL}").strip()
+            assign_map = {
+                "1": "Developer", "2": "Team Lead", "3": "Designer",
+                "4": "QA Tester", "5": "Product Manager"
+            }
+            assigned_to = assign_map.get(assign_choice, "Developer")
+            
             # Ask for due date (optional)
             due_date = input(f"{Fore.GREEN}Due date (YYYY-MM-DD, optional): {Style.RESET_ALL}").strip()
             if due_date and not re.match(r'^\d{4}-\d{2}-\d{2}$', due_date):
                 print(f"{Fore.YELLOW}Invalid date format, skipping due date.{Style.RESET_ALL}")
                 due_date = None
             
-            # Create the task
+            # Ask for tags (optional)
+            tags_input = input(f"{Fore.GREEN}Tags (comma-separated, optional): {Style.RESET_ALL}").strip()
+            tags = [tag.strip() for tag in tags_input.split(",")] if tags_input else []
+            
+            # Generate detailed task content with AI if available
+            task_content = ""
+            if ai_engine:
+                try:
+                    print(f"\n{Fore.CYAN}🚀 AI is generating detailed task content...{Style.RESET_ALL}")
+                    
+                    # Prepare context for AI
+                    context = {
+                        "title": enhanced_title,
+                        "task_type": task_type,
+                        "priority": priority,
+                        "assigned_to": assigned_to,
+                        "due_date": due_date,
+                        "tags": tags
+                    }
+                    
+                    # Generate content using AI engine
+                    task_content = ai_engine.generate_task_content(
+                        title=enhanced_title,
+                        task_type=task_type,
+                        priority=priority,
+                        context=context
+                    )
+                    
+                    if task_content and len(task_content) > 100:
+                        print(f"{Fore.GREEN}✅ AI generated {len(task_content)} characters of detailed content{Style.RESET_ALL}")
+                    else:
+                        print(f"{Fore.YELLOW}⚠️  AI content generation incomplete - using template{Style.RESET_ALL}")
+                        task_content = ""
+                        
+                except Exception as e:
+                    self.logger.warning(f"AI content generation failed: {e}")
+                    print(f"{Fore.YELLOW}⚠️  AI content generation failed - using template{Style.RESET_ALL}")
+                    task_content = ""
+            
+            # Create the task with enhanced metadata
             success, result = self.project_planner.create_new_task(
-                title=title,
+                title=enhanced_title,
                 priority=priority,
-                due_date=due_date if due_date else None
+                due_date=due_date if due_date else None,
+                assigned_to=assigned_to,
+                task_type=task_type,
+                tags=", ".join(tags) if tags else ""
             )
             
             if success:
                 task_id = result
                 print(f"{Fore.GREEN}✅ Task created successfully: {task_id}{Style.RESET_ALL}")
                 
-                # Generate expected filename based on the task creation logic
-                sanitized_title = re.sub(r'[^\w\s-]', '', title.lower())
-                sanitized_title = re.sub(r'[-\s]+', '-', sanitized_title).strip('-')
-                if len(sanitized_title) > 40:
-                    sanitized_title = sanitized_title[:40].rstrip('-')
-                expected_filename = f"{task_id.lower()}-{sanitized_title}.md"
-                expected_path = Path(f"mods/project_management/planning/todo/{expected_filename}")
+                # Update the filename to include proper prefix
+                # Find the created file and rename it if needed
+                import glob
+                todo_dir = Path("mods/project_management/planning/todo")
+                task_files = list(todo_dir.glob(f"{task_id.lower()}-*.md"))
                 
-                print(f"{Fore.CYAN}📁 File Path: {expected_path.absolute()}{Style.RESET_ALL}")
-                print(f"{Fore.CYAN}📄 File Name: {expected_filename}{Style.RESET_ALL}")
+                if task_files:
+                    old_file = task_files[0]
+                    # Create new filename with prefix
+                    old_name = old_file.name
+                    if not old_name.startswith(f"{task_id.lower()}-{task_prefix.lower()}"):
+                        # Extract title part and rebuild filename
+                        title_part = old_name[len(f"{task_id.lower()}-"):-3]  # Remove task_id- and .md
+                        new_name = f"{task_id.lower()}-{task_prefix.lower()}-{title_part}.md"
+                        new_file = old_file.parent / new_name
+                        
+                        try:
+                            old_file.rename(new_file)
+                            print(f"{Fore.CYAN}📁 File renamed to: {new_name}{Style.RESET_ALL}")
+                            
+                            # Update file content with AI-generated content if available
+                            if task_content and ai_engine:
+                                try:
+                                    # Read current content
+                                    with open(new_file, 'r', encoding='utf-8') as f:
+                                        current_content = f.read()
+                                    
+                                    # Replace the overview section with AI content
+                                    if "## Overview" in current_content:
+                                        parts = current_content.split("## Overview")
+                                        if len(parts) > 1:
+                                            # Find the next section
+                                            next_section_pos = parts[1].find("\n## ")
+                                            if next_section_pos > 0:
+                                                # Replace overview content
+                                                updated_content = (
+                                                    parts[0] + 
+                                                    "## Overview\n" + 
+                                                    task_content + "\n\n" +
+                                                    "## " + parts[1][next_section_pos+4:]
+                                                )
+                                            else:
+                                                # No next section, append to end
+                                                updated_content = (
+                                                    parts[0] + 
+                                                    "## Overview\n" + 
+                                                    task_content
+                                                )
+                                            
+                                            # Write updated content
+                                            with open(new_file, 'w', encoding='utf-8') as f:
+                                                f.write(updated_content)
+                                            
+                                            print(f"{Fore.GREEN}✅ Task enhanced with AI-generated content{Style.RESET_ALL}")
+                                
+                                except Exception as e:
+                                    self.logger.warning(f"Error updating task content: {e}")
+                            
+                        except Exception as e:
+                            print(f"{Fore.YELLOW}⚠️  Could not rename file: {e}{Style.RESET_ALL}")
+                
+                print(f"{Fore.CYAN}📄 Task Type: {task_type} ({task_prefix}){Style.RESET_ALL}")
+                print(f"{Fore.CYAN}👤 Assigned to: {assigned_to}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}📅 Priority: {priority.title()}{Style.RESET_ALL}")
+                if tags:
+                    print(f"{Fore.CYAN}🏷️  Tags: {', '.join(tags)}{Style.RESET_ALL}")
+                
             else:
                 print(f"{Fore.RED}❌ Failed to create task: {result}{Style.RESET_ALL}")
                 
         except Exception as e:
             self.logger.error(f"Error creating task: {e}")
             print(f"{Fore.RED}Error creating task: {e}{Style.RESET_ALL}")
+            import traceback
+            traceback.print_exc()
         
         input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
 
