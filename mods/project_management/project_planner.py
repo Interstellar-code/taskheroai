@@ -162,15 +162,18 @@ class ProjectPlanner:
             template_name = self.settings.get('default_task_template', 'task-template.md')
         
         # Create task from template
-        success = self.task_manager.create_task_from_template(task_id, title, template_name)
+        task = self.task_manager.create_task_from_template(
+            title=title, 
+            template_name=template_name,
+            task_id=task_id,
+            priority=priority,
+            due_date=due_date
+        )
         
-        if success:
+        if task:
             # Increment counter and save settings
             self.settings['task_id_counter'] += 1
             self._save_settings()
-            
-            # If we need to set additional metadata (priority, due_date), we could modify the task file here
-            # For now, this would require manual editing or extending the task creation process
             
             return True, task_id
         else:

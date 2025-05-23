@@ -3,56 +3,151 @@ setlocal enabledelayedexpansion
 
 echo.
 echo ========================================================
-echo  _    __          __          __   ______          __        ___    _
-echo ^| ^|  / /__  _____/ /_  ____ _/ /  / ____/___  ____/ /__     /   ^|  (_)
-echo ^| ^| / / _ \/ ___/ __ \/ __ `/ /  / /   / __ \/ __  / _ \   / /^| ^| / /
-echo ^| ^|/ /  __/ /  / /_/ / /_/ / /  / /___/ /_/ / /_/ /  __/  / ___ ^|/ /
-echo ^|___/\___/_/  /_.___/\__,_/_/   \____/\____/\__,_/\___/  /_/  ^|_/_/
-echo.
+echo               TaskHero AI - Setup Script
 echo ========================================================
 echo Windows Setup Script for TaskHero AI
 echo ========================================================
 echo.
 
-:: Check if Python is installed
-python --version > nul 2>&1
-if %errorlevel% neq 0 (
-    echo [ERROR] Python is not installed or not in PATH.
-    echo Please install Python 3.11.6 or later from https://www.python.org/downloads/
-    echo Make sure to check "Add Python to PATH" during installation.
+:: Skip over function definitions during main execution
+goto :main
+
+:: Function to check if a setup step was completed (batch-only fallback)
+:check_setup_completed_fallback
+set "step_name=%1"
+set "setup_marker_file=.setup_%step_name%.done"
+if exist "%setup_marker_file%" (
+    exit /b 0
+) else (
     exit /b 1
 )
 
-:: Check Python version
-for /f "tokens=2" %%V in ('python --version 2^>^&1') do set PYTHON_VERSION=%%V
-echo [INFO] Detected Python version: %PYTHON_VERSION%
+:: Function to mark a setup step as completed (batch-only fallback)
+:mark_setup_completed_fallback
+set "step_name=%1"
+set "setup_marker_file=.setup_%step_name%.done"
+echo %date% %time% > "%setup_marker_file%"
+exit /b 0
 
-:: Extract version components
-set MAJOR=0
-set MINOR=0
-set PATCH=0
-for /f "tokens=1,2,3 delims=." %%a in ("%PYTHON_VERSION%") do (
-    set MAJOR=%%a
-    set MINOR=%%b
-    set PATCH=%%c
+:: Function to check if a file is newer than a completed step (batch-only fallback)
+:check_file_newer_fallback
+set "file_path=%1"
+set "step_name=%2"
+set "setup_marker_file=.setup_%step_name%.done"
+if not exist "%setup_marker_file%" (
+    exit /b 0
+)
+if not exist "%file_path%" (
+    exit /b 1
+)
+:: Simple check: if requirements.txt exists and marker exists, assume it may need update
+:: This is a simplified check for batch-only mode
+exit /b 0
+
+:: Function to check if a setup step was completed (with Python fallback)
+:check_setup_completed
+set "step_name=%1"
+:: Try Python-based tracking first if available
+python --version >nul 2>&1
+if %errorlevel% equ 0 (
+    if exist setup_tracker.py (
+        python setup_tracker.py check %step_name% >nul 2>&1
+        exit /b %errorlevel%
+    )
+)
+:: Fall back to batch-only tracking
+call :check_setup_completed_fallback %step_name%
+exit /b %errorlevel%
+
+:: Function to mark a setup step as completed (with Python fallback)
+:mark_setup_completed
+set "step_name=%1"
+:: Try Python-based tracking first if available
+python --version >nul 2>&1
+if %errorlevel% equ 0 (
+    if exist setup_tracker.py (
+        python setup_tracker.py mark %step_name% >nul 2>&1
+        exit /b 0
+    )
+)
+:: Fall back to batch-only tracking
+call :mark_setup_completed_fallback %step_name%
+exit /b 0
+
+:: Function to check if a file is newer than a completed step (with Python fallback)
+:check_file_newer
+set "file_path=%1"
+set "step_name=%2"
+:: Try Python-based tracking first if available
+python --version >nul 2>&1
+if %errorlevel% equ 0 (
+    if exist setup_tracker.py (
+        python setup_tracker.py file_newer %file_path% %step_name% >nul 2>&1
+        exit /b %errorlevel%
+    )
+)
+:: Fall back to batch-only tracking
+call :check_file_newer_fallback %file_path% %step_name%
+exit /b %errorlevel%
+
+:: Main execution starts here
+:main
+
+:: Check for --force flag to skip setup tracking
+set FORCE_SETUP=0
+if "%1"=="--force" (
+    set FORCE_SETUP=1
+    echo [INFO] Force setup mode enabled - all steps will be executed.
+    echo.
 )
 
-if %MAJOR% LSS 3 (
-    echo [WARNING] Python version %PYTHON_VERSION% may be too old.
-    echo This application was tested with Python 3.11.6.
-    echo You may encounter issues with older versions.
+:: Check if Python is installed
+python --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [WARNING] Python is not installed or not in PATH.
+    echo [INFO] Setup will use basic tracking without Python-based features.
     echo.
-    set /p CONTINUE="Do you want to continue anyway? (Y/N): "
-    if /i "%CONTINUE%" NEQ "Y" exit /b 1
+    echo Please install Python 3.11.6 or later from https://www.python.org/downloads/
+    echo Make sure to check "Add Python to PATH" during installation.
+    echo.
+    set /p CONTINUE="Do you want to continue with basic setup? (Y/N): "
+    if /i "!CONTINUE!" neq "Y" exit /b 1
+    set PYTHON_AVAILABLE=0
 ) else (
-    if %MAJOR% EQU 3 (
-        if %MINOR% LSS 11 (
-            echo [WARNING] Python version %PYTHON_VERSION% may be too old.
-            echo This application was tested with Python 3.11.6.
-            echo You may encounter issues with older versions.
-            echo.
-            set /p CONTINUE="Do you want to continue anyway? (Y/N): "
-            if /i "%CONTINUE%" NEQ "Y" exit /b 1
+    :: Check Python version
+    for /f "tokens=2" %%V in ('python --version 2^>^&1') do set "PYTHON_VERSION=%%V"
+    echo [INFO] Detected Python version: !PYTHON_VERSION!
+    set PYTHON_AVAILABLE=1
+
+    :: Extract version components safely
+    set "MAJOR=0"
+    set "MINOR=0"
+    set "PATCH=0"
+    
+    :: Parse version string carefully
+    for /f "tokens=1,2,3 delims=." %%a in ("!PYTHON_VERSION!") do (
+        set "MAJOR=%%a"
+        set "MINOR=%%b"
+        set "PATCH=%%c"
+    )
+
+    if !MAJOR! lss 3 (
+        echo [WARNING] Python version !PYTHON_VERSION! may be too old.
+        echo This application was tested with Python 3.11.6.
+        echo You may encounter issues with older versions.
+        echo.
+        set /p CONTINUE="Do you want to continue anyway? (Y/N): "
+        if /i "!CONTINUE!" neq "Y" exit /b 1
+    ) else (
+        if !MAJOR! equ 3 (
+            if !MINOR! lss 11 (
+                echo [WARNING] Python version !PYTHON_VERSION! may be too old.
+                echo This application was tested with Python 3.11.6.
+                echo You may encounter issues with older versions.
+                echo.
+                set /p CONTINUE="Do you want to continue anyway? (Y/N): "
+                if /i "!CONTINUE!" neq "Y" exit /b 1
+            )
         )
     )
 )
@@ -60,16 +155,44 @@ if %MAJOR% LSS 3 (
 :: Create virtual environment
 echo.
 echo [STEP 1] Creating virtual environment...
-if exist venv (
-    echo [INFO] Virtual environment already exists. Skipping creation.
-) else (
-    python -m venv venv
-    if %errorlevel% neq 0 (
-        echo [ERROR] Failed to create virtual environment.
-        exit /b 1
-    )
-    echo [SUCCESS] Virtual environment created.
+
+if %PYTHON_AVAILABLE% equ 0 (
+    echo [ERROR] Cannot create virtual environment without Python.
+    echo Please install Python first and re-run this script.
+    exit /b 1
 )
+
+if %FORCE_SETUP% equ 0 (
+    call :check_setup_completed "venv_created"
+    if !errorlevel! equ 0 (
+        echo [INFO] Virtual environment already created. Skipping creation.
+        goto :skip_venv_creation
+    )
+)
+
+if exist venv (
+    echo [INFO] Virtual environment directory exists. Checking if it's valid...
+    call venv\Scripts\activate >nul 2>&1
+    if !errorlevel! equ 0 (
+        call deactivate >nul 2>&1
+        echo [INFO] Valid virtual environment found. Skipping creation.
+        call :mark_setup_completed "venv_created"
+        goto :skip_venv_creation
+    ) else (
+        echo [WARNING] Invalid virtual environment found. Recreating...
+        rmdir /s /q venv
+    )
+)
+
+python -m venv venv
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to create virtual environment.
+    exit /b 1
+)
+echo [SUCCESS] Virtual environment created.
+call :mark_setup_completed "venv_created"
+
+:skip_venv_creation
 
 :: Activate virtual environment
 echo.
@@ -84,20 +207,57 @@ echo [SUCCESS] Virtual environment activated.
 :: Upgrade pip
 echo.
 echo [STEP 3] Upgrading pip...
+
+if %FORCE_SETUP% equ 0 (
+    call :check_setup_completed "pip_upgraded"
+    if !errorlevel! equ 0 (
+        echo [INFO] Pip already upgraded recently. Skipping upgrade.
+        goto :skip_pip_upgrade
+    )
+)
+
 python -m pip install --upgrade pip
 if %errorlevel% neq 0 (
     echo [WARNING] Failed to upgrade pip, but continuing with installation.
+) else (
+    call :mark_setup_completed "pip_upgraded"
 )
+
+:skip_pip_upgrade
 
 :: Install dependencies
 echo.
 echo [STEP 4] Installing dependencies...
+
+if %FORCE_SETUP% equ 0 (
+    call :check_setup_completed "dependencies_installed"
+    if !errorlevel! equ 0 (
+        echo [INFO] Dependencies already installed. Checking if requirements.txt has changed...
+        :: Check if requirements.txt is newer than the last install
+        if exist requirements.txt (
+            call :check_file_newer "requirements.txt" "dependencies_installed"
+            if !errorlevel! equ 0 (
+                echo [INFO] Requirements unchanged. Skipping dependency installation.
+                goto :skip_dependency_install
+            ) else (
+                echo [INFO] Requirements.txt has been updated. Reinstalling dependencies...
+            )
+        ) else (
+            echo [INFO] Requirements unchanged. Skipping dependency installation.
+            goto :skip_dependency_install
+        )
+    )
+)
+
 pip install -r requirements.txt
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to install dependencies.
     exit /b 1
 )
 echo [SUCCESS] Dependencies installed.
+call :mark_setup_completed "dependencies_installed"
+
+:skip_dependency_install
 
 :: Check if Ollama is installed
 echo.
@@ -109,14 +269,14 @@ if exist .env (
     echo [INFO] Checking existing .env configuration...
     
     :: Check for custom OLLAMA_HOST configuration
-    findstr /i "OLLAMA_HOST=" .env > nul 2>&1
+    findstr /i "OLLAMA_HOST=" .env >nul 2>&1
     if !errorlevel! equ 0 (
         echo [INFO] Custom OLLAMA_HOST found in .env file.
         set SKIP_OLLAMA_CHECK=1
     )
     
     :: Check if any providers are set to non-ollama values
-    findstr /i "AI_.*_PROVIDER=" .env | findstr /v /i "ollama" > nul 2>&1
+    findstr /i "AI_.*_PROVIDER=" .env | findstr /v /i "ollama" >nul 2>&1
     if !errorlevel! equ 0 (
         echo [INFO] Non-Ollama providers configured in .env file.
         set SKIP_OLLAMA_CHECK=1
@@ -129,7 +289,7 @@ if !SKIP_OLLAMA_CHECK! equ 1 (
     goto :skip_ollama
 )
 
-where ollama > nul 2>&1
+where ollama >nul 2>&1
 if %errorlevel% neq 0 (
     echo [WARNING] Ollama is not installed or not in PATH.
     echo You will need to install Ollama to use local models.
@@ -137,7 +297,7 @@ if %errorlevel% neq 0 (
     echo.
     echo Would you like to open the Ollama download page? (Y/N)
     set /p OPEN_OLLAMA="Enter your choice (Y/N): "
-    if /i "%OPEN_OLLAMA%"=="Y" (
+    if /i "!OPEN_OLLAMA!"=="Y" (
         start https://ollama.com/download
     )
 ) else (
@@ -149,6 +309,17 @@ if %errorlevel% neq 0 (
 :: Create .env file if it doesn't exist
 echo.
 echo [STEP 6] Setting up environment variables...
+
+if %FORCE_SETUP% equ 0 (
+    call :check_setup_completed "env_file_created"
+    if !errorlevel! equ 0 (
+        if exist .env (
+            echo [INFO] Environment file already exists and was set up previously. Skipping creation.
+            goto :skip_env_creation
+        )
+    )
+)
+
 if not exist .env (
     echo [INFO] Creating .env file with default settings...
     (
@@ -256,9 +427,13 @@ if not exist .env (
         echo MCP_HTTP_PORT=8000
     ) > .env
     echo [SUCCESS] Created .env file with default settings.
+    call :mark_setup_completed "env_file_created"
 ) else (
     echo [INFO] .env file already exists. Skipping creation.
+    call :mark_setup_completed "env_file_created"
 )
+
+:skip_env_creation
 
 echo.
 echo ========================================================
@@ -268,17 +443,29 @@ echo To start the application, run:
 echo   venv\Scripts\activate
 echo   python app.py
 echo.
+if %PYTHON_AVAILABLE% equ 1 (
+    echo Setup status has been saved to .app_settings.json
+) else (
+    echo Setup status has been saved to .setup_*.done files
+)
+echo To force re-run all steps, use: setup_windows.bat --force
+echo.
 echo For more information, see the README.md file.
 echo ========================================================
 echo.
 
 :: Offer to run the application
-echo Would you like to run TaskHero AI now? (Y/N)
-set /p RUN_APP="Enter your choice (Y/N): "
-if /i "%RUN_APP%"=="Y" (
+if %PYTHON_AVAILABLE% equ 1 (
+    echo Would you like to run TaskHero AI now? (Y/N)
+    set /p RUN_APP="Enter your choice (Y/N): "
+    if /i "!RUN_APP!"=="Y" (
+        echo.
+        echo Starting TaskHero AI...
+        python app.py
+    )
+) else (
     echo.
-    echo Starting TaskHero AI...
-    python app.py
+    echo [INFO] Please install Python and re-run this script to start TaskHero AI.
 )
 
 endlocal

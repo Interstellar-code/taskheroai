@@ -2097,24 +2097,41 @@ class TaskHeroAI:
         print(f"\n{Fore.CYAN}📋 All Tasks{Style.RESET_ALL}")
         print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
         
-        all_tasks = self.task_manager.get_all_tasks()
-        
-        for status, tasks in all_tasks.items():
-            if not tasks:
-                continue
-                
-            status_name = self.project_planner.settings['statuses'].get(status, status.title())
-            print(f"\n{Fore.YELLOW}{status_name} ({len(tasks)}){Style.RESET_ALL}")
-            print(f"{Fore.CYAN}{'-'*30}{Style.RESET_ALL}")
+        try:
+            all_tasks = self.task_manager.get_all_tasks()
             
-            for i, task in enumerate(tasks, 1):
-                priority_indicator = ""
-                if task.priority and task.priority != 'medium':
-                    priority_indicator = f" [{task.priority.upper()}]"
+            for status, tasks in all_tasks.items():
+                if not tasks:
+                    continue
+                    
+                status_name = self.project_planner.settings['statuses'].get(status, status.title())
+                print(f"\n{Fore.YELLOW}{status_name} ({len(tasks)}){Style.RESET_ALL}")
+                print(f"{Fore.CYAN}{'-'*30}{Style.RESET_ALL}")
                 
-                print(f"  {i}. {task.title}{priority_indicator}")
-                if task.due_date:
-                    print(f"     📅 Due: {task.due_date}")
+                for i, task in enumerate(tasks, 1):
+                    priority_indicator = ""
+                    # Handle TaskPriority enum objects
+                    if hasattr(task, 'priority') and task.priority:
+                        priority_value = task.priority.value if hasattr(task.priority, 'value') else str(task.priority)
+                        if priority_value != 'medium':
+                            priority_indicator = f" [{priority_value.upper()}]"
+                    
+                    print(f"  {i}. {task.title}{priority_indicator}")
+                    if hasattr(task, 'due_date') and task.due_date:
+                        print(f"     📅 Due: {task.due_date}")
+                    
+                    # Show file path for debugging
+                    if hasattr(task, 'file_path') and task.file_path:
+                        print(f"     📁 File: {Path(task.file_path).name}")
+            
+            if not any(tasks for tasks in all_tasks.values()):
+                print(f"{Fore.YELLOW}No tasks found.{Style.RESET_ALL}")
+                
+        except Exception as e:
+            self.logger.error(f"Error viewing tasks: {e}")
+            print(f"{Fore.RED}Error loading tasks: {e}{Style.RESET_ALL}")
+            import traceback
+            traceback.print_exc()
         
         input(f"\n{Fore.GREEN}Press Enter to continue...{Style.RESET_ALL}")
 
@@ -2154,8 +2171,19 @@ class TaskHeroAI:
             )
             
             if success:
-                print(f"{Fore.GREEN}✅ Task created successfully: {result}{Style.RESET_ALL}")
-                print(f"{Fore.CYAN}Task file: {result.lower()}-{title.lower().replace(' ', '-')}.md{Style.RESET_ALL}")
+                task_id = result
+                print(f"{Fore.GREEN}✅ Task created successfully: {task_id}{Style.RESET_ALL}")
+                
+                # Generate expected filename based on the task creation logic
+                sanitized_title = re.sub(r'[^\w\s-]', '', title.lower())
+                sanitized_title = re.sub(r'[-\s]+', '-', sanitized_title).strip('-')
+                if len(sanitized_title) > 40:
+                    sanitized_title = sanitized_title[:40].rstrip('-')
+                expected_filename = f"{task_id.lower()}-{sanitized_title}.md"
+                expected_path = Path(f"mods/project_management/planning/todo/{expected_filename}")
+                
+                print(f"{Fore.CYAN}📁 File Path: {expected_path.absolute()}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}📄 File Name: {expected_filename}{Style.RESET_ALL}")
             else:
                 print(f"{Fore.RED}❌ Failed to create task: {result}{Style.RESET_ALL}")
                 
@@ -2261,10 +2289,18 @@ class TaskHeroAI:
                 
                 for i, task in enumerate(results, 1):
                     print(f"{i}. {task.title}")
-                    print(f"   Status: {task.status}")
-                    if task.priority and task.priority != 'medium':
-                        print(f"   Priority: {task.priority}")
-                    if task.due_date:
+                    
+                    # Handle TaskStatus enum objects
+                    status_value = task.status.value if hasattr(task.status, 'value') else str(task.status)
+                    print(f"   Status: {status_value}")
+                    
+                    # Handle TaskPriority enum objects
+                    if hasattr(task, 'priority') and task.priority:
+                        priority_value = task.priority.value if hasattr(task.priority, 'value') else str(task.priority)
+                        if priority_value != 'medium':
+                            print(f"   Priority: {priority_value}")
+                    
+                    if hasattr(task, 'due_date') and task.due_date:
                         print(f"   Due: {task.due_date}")
                     print()
             else:
