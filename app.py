@@ -467,50 +467,162 @@ class VerbalCodeAI:
             outdated_files: List[str] = []
             indexed_files: List[str] = []
 
+            # Progress tracking variables
             indexed_count: List[int] = [0]
             start_time: float = time.time()
             total_files: int = len(files_to_process)
+            activity_chars: str = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+            activity_index: List[int] = [0]
+            last_update_time: List[float] = [time.time()]
+            recent_completion_times: List[float] = []  # Track recent completion times
+            heartbeat_active: List[bool] = [True]
 
             def progress_callback() -> bool:
-                """Callback function to report indexing progress.
-
+                """Enhanced callback function to report indexing progress.
+                
+                This gets called each time a file is completed.
+                    
                 Returns:
                     bool: Always returns False.
                 """
+                nonlocal recent_completion_times
+                
                 indexed_count[0] += 1
-                elapsed: float = time.time() - start_time
-                files_per_second: float = indexed_count[0] / elapsed if elapsed > 0 else 0
-
-                if indexed_count[0] % 5 == 0 or indexed_count[0] == total_files:
-                    percent: int = int((indexed_count[0] / total_files) * 100) if total_files > 0 else 0
-                    eta: float = ((total_files - indexed_count[0]) / files_per_second) if files_per_second > 0 else 0
-                    eta_str: str = f"{int(eta / 60)}m {int(eta % 60)}s" if eta > 0 else "0s"
-
-                    terminal_width: int
-                    terminal_width, _ = get_terminal_size()
-                    bar_width: int = min(50, terminal_width - 30 if terminal_width > 30 else terminal_width)
-
-                    filled_width: int = 0
-                    if total_files > 0:
-                        filled_width = int(bar_width * indexed_count[0] / total_files)
-
-                    bar: str = f"{Fore.GREEN}{'█' * filled_width}{Fore.WHITE}{'░' * (bar_width - filled_width)}"
-
-                    sys.stdout.write("\r" + " " * terminal_width)
-
-                    sys.stdout.write(
-                        f"\r{Fore.CYAN}[{bar}{Fore.CYAN}] {Fore.YELLOW}{percent}%{Fore.CYAN} - "
-                        f"{Style.BRIGHT}{indexed_count[0]}/{total_files}{Style.NORMAL} files - "
-                        f"{files_per_second:.1f} files/sec - "
-                        f"ETA: {Fore.MAGENTA}{eta_str}{Style.RESET_ALL}"
-                    )
+                current_time = time.time()
+                
+                # Track completion times for better ETA calculation
+                recent_completion_times.append(current_time)
+                # Keep only last 10 completion times for rolling average
+                if len(recent_completion_times) > 10:
+                    recent_completion_times.pop(0)
+                
+                last_update_time[0] = current_time
+                
+                elapsed: float = current_time - start_time
+                
+                # Calculate files per second using recent completions for more accurate ETA
+                if len(recent_completion_times) >= 2:
+                    recent_window = recent_completion_times[-1] - recent_completion_times[0]
+                    files_in_window = len(recent_completion_times) - 1
+                    files_per_second = files_in_window / recent_window if recent_window > 0 else 0
+                else:
+                    files_per_second = indexed_count[0] / elapsed if elapsed > 0 else 0
+                
+                # Calculate ETA with better logic
+                remaining_files = total_files - indexed_count[0]
+                if files_per_second > 0 and remaining_files > 0:
+                    eta_seconds = remaining_files / files_per_second
+                    # Cap unrealistic ETAs
+                    if eta_seconds > 7200:  # More than 2 hours
+                        eta_str = "calculating..."
+                    elif eta_seconds > 3600:  # More than 1 hour
+                        eta_str = f"{int(eta_seconds / 3600)}h {int((eta_seconds % 3600) / 60)}m"
+                    elif eta_seconds > 60:  # More than 1 minute
+                        eta_str = f"{int(eta_seconds / 60)}m {int(eta_seconds % 60)}s"
+                    else:
+                        eta_str = f"{int(eta_seconds)}s"
+                else:
+                    eta_str = "calculating..."
+                
+                # Progress calculation
+                percent: int = int((indexed_count[0] / total_files) * 100) if total_files > 0 else 0
+                
+                # Progress bar
+                terminal_width: int
+                terminal_width, _ = get_terminal_size()
+                bar_width: int = min(40, terminal_width - 70 if terminal_width > 90 else 20)
+                
+                filled_width: int = 0
+                if total_files > 0:
+                    filled_width = int(bar_width * indexed_count[0] / total_files)
+                
+                bar: str = f"{Fore.GREEN}{'█' * filled_width}{Fore.WHITE}{'░' * (bar_width - filled_width)}"
+                
+                # Activity indicator
+                if indexed_count[0] == total_files:
+                    activity = f"{Fore.GREEN}✓{Style.RESET_ALL}"
+                    heartbeat_active[0] = False  # Stop heartbeat when complete
+                else:
+                    activity_index[0] = (activity_index[0] + 1) % len(activity_chars)
+                    activity = f"{Fore.YELLOW}{activity_chars[activity_index[0]]}{Style.RESET_ALL}"
+                
+                # Elapsed time display
+                elapsed_str = f"{int(elapsed / 60)}m {int(elapsed % 60)}s" if elapsed >= 60 else f"{int(elapsed)}s"
+                
+                # Clear line and write progress
+                sys.stdout.write("\r" + " " * terminal_width)
+                
+                # Create the progress line with better formatting
+                progress_line = (
+                    f"\r{activity} [{bar}{Fore.CYAN}] {Fore.YELLOW}{percent}%{Fore.CYAN} | "
+                    f"{Style.BRIGHT}{indexed_count[0]}/{total_files}{Style.NORMAL} files | "
+                    f"{Fore.MAGENTA}{files_per_second:.1f}/s{Fore.CYAN} | "
+                    f"⏱️ {Fore.GREEN}{elapsed_str}{Fore.CYAN} | "
+                    f"ETA: {Fore.YELLOW}{eta_str}{Style.RESET_ALL}"
+                )
+                
+                sys.stdout.write(progress_line)
+                sys.stdout.flush()
+                
+                # Add newline when complete
+                if indexed_count[0] == total_files:
+                    sys.stdout.write("\n")
                     sys.stdout.flush()
 
-                    if indexed_count[0] == total_files:
-                        sys.stdout.write("\n")
-                        sys.stdout.flush()
-
                 return False
+
+            # Start a heartbeat thread for activity indication between file completions
+            heartbeat_thread = None
+            
+            def heartbeat_worker():
+                """Background thread to show activity even when no files are completing"""
+                while heartbeat_active[0] and indexed_count[0] < total_files:
+                    current_time = time.time()
+                    time_since_last_update = current_time - last_update_time[0]
+                    
+                    # Only show heartbeat if it's been more than 2 seconds since last file completion
+                    if time_since_last_update > 2.0:
+                        elapsed = current_time - start_time
+                        elapsed_str = f"{int(elapsed / 60)}m {int(elapsed % 60)}s" if elapsed >= 60 else f"{int(elapsed)}s"
+                        
+                        # Calculate files per second
+                        if len(recent_completion_times) >= 2:
+                            recent_window = recent_completion_times[-1] - recent_completion_times[0]
+                            files_in_window = len(recent_completion_times) - 1
+                            files_per_second = files_in_window / recent_window if recent_window > 0 else 0
+                        else:
+                            files_per_second = indexed_count[0] / elapsed if elapsed > 0 else 0
+                        
+                        percent = int((indexed_count[0] / total_files) * 100) if total_files > 0 else 0
+                        
+                        # Heartbeat activity indicator
+                        activity_index[0] = (activity_index[0] + 1) % len(activity_chars)
+                        activity = f"{Fore.CYAN}{activity_chars[activity_index[0]]}{Style.RESET_ALL}"
+                        
+                        # Progress bar
+                        terminal_width, _ = get_terminal_size()
+                        bar_width = min(40, terminal_width - 70 if terminal_width > 90 else 20)
+                        filled_width = int(bar_width * indexed_count[0] / total_files) if total_files > 0 else 0
+                        bar = f"{Fore.GREEN}{'█' * filled_width}{Fore.WHITE}{'░' * (bar_width - filled_width)}"
+                        
+                        # Show "processing..." status
+                        progress_line = (
+                            f"\r{activity} [{bar}{Fore.CYAN}] {Fore.YELLOW}{percent}%{Fore.CYAN} | "
+                            f"{Style.BRIGHT}{indexed_count[0]}/{total_files}{Style.NORMAL} files | "
+                            f"{Fore.MAGENTA}{files_per_second:.1f}/s{Fore.CYAN} | "
+                            f"⏱️ {Fore.GREEN}{elapsed_str}{Fore.CYAN} | "
+                            f"{Fore.BLUE}Processing...{Style.RESET_ALL}"
+                        )
+                        
+                        sys.stdout.write("\r" + " " * terminal_width)
+                        sys.stdout.write(progress_line)
+                        sys.stdout.flush()
+                    
+                    time.sleep(0.5)  # Update heartbeat every 0.5 seconds
+            
+            # Start heartbeat thread
+            heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True)
+            heartbeat_thread.start()
 
             if force_reindex:
                 self.logger.info("Force reindexing all files")
@@ -518,10 +630,19 @@ class VerbalCodeAI:
                     try:
                         indexed_files = self.indexer.force_reindex_all(progress_callback)
                     finally:
+                        # Stop heartbeat thread
+                        heartbeat_active[0] = False
+                        if heartbeat_thread and heartbeat_thread.is_alive():
+                            heartbeat_thread.join(timeout=1.0)
+                        
                         terminal_width, _ = get_terminal_size()
                         sys.stdout.write("\r" + " " * terminal_width + "\r")
                         sys.stdout.flush()
                 else:
+                    # Stop heartbeat thread
+                    heartbeat_active[0] = False
+                    if heartbeat_thread and heartbeat_thread.is_alive():
+                        heartbeat_thread.join(timeout=1.0)
                     indexed_files = []
 
                 self.logger.info(f"[STAT] Force reindexed {len(indexed_files)} files")
@@ -533,6 +654,11 @@ class VerbalCodeAI:
                     try:
                         indexed_files = self.indexer.index_directory(progress_callback)
                     finally:
+                        # Stop heartbeat thread
+                        heartbeat_active[0] = False
+                        if heartbeat_thread and heartbeat_thread.is_alive():
+                            heartbeat_thread.join(timeout=1.0)
+                        
                         terminal_width, _ = get_terminal_size()
                         sys.stdout.write("\r" + " " * terminal_width + "\r")
                         sys.stdout.flush()
@@ -542,6 +668,10 @@ class VerbalCodeAI:
                         f"{Fore.GREEN}✓ Indexed {Style.BRIGHT}{len(indexed_files)}{Style.NORMAL} files{Style.RESET_ALL}"
                     )
                 else:
+                    # Stop heartbeat thread
+                    heartbeat_active[0] = False
+                    if heartbeat_thread and heartbeat_thread.is_alive():
+                        heartbeat_thread.join(timeout=1.0)
                     print(f"{Fore.GREEN}✓ All files are already indexed{Style.RESET_ALL}")
 
             self._save_last_directory(directory)
@@ -554,6 +684,14 @@ class VerbalCodeAI:
                 print(f"{Fore.YELLOW}No new files were indexed.{Style.RESET_ALL}")
 
         except Exception as e:
+            # Stop heartbeat thread in case of error
+            try:
+                heartbeat_active[0] = False
+                if heartbeat_thread and heartbeat_thread.is_alive():
+                    heartbeat_thread.join(timeout=1.0)
+            except:
+                pass  # Ignore cleanup errors
+            
             self.logger.error(f"Error during indexing: {e}", exc_info=True)
             print(f"{Fore.RED}Error during indexing: {e}{Style.RESET_ALL}")
             if "Ollama" in str(e):
@@ -624,21 +762,39 @@ class VerbalCodeAI:
             print(f"\n{Fore.RED}Error: No code has been indexed yet. Please index a directory first.{Style.RESET_ALL}")
             return
 
-        if not self.chat_handler:
-            self.chat_handler: ChatHandler = ChatHandler(self.indexer, self.file_selector, self.project_info)
+        # Ensure all required components are initialized
+        if not self.file_selector:
+            self.logger.info("Initializing FileSelector")
+            self.file_selector = FileSelector()
 
         if not self.project_analyzer:
-            self.project_analyzer: ProjectAnalyzer = ProjectAnalyzer(self.indexer)
+            self.logger.info("Initializing ProjectAnalyzer")
+            self.project_analyzer = ProjectAnalyzer(self.indexer)
+
+        if not self.chat_handler:
+            self.logger.info("Initializing ChatHandler")
+            try:
+                self.chat_handler = ChatHandler(self.indexer, self.file_selector, self.project_info)
+            except Exception as e:
+                self.logger.error(f"Failed to initialize ChatHandler: {e}")
+                print(f"\n{Fore.RED}Error: Failed to initialize chat system: {e}{Style.RESET_ALL}")
+                return
 
         if not self.project_info:
             print(f"\n{Fore.YELLOW}Loading project information before starting chat...{Style.RESET_ALL}")
-            self.project_info = self.project_analyzer.load_project_info()
-
-            if not self.project_info:
-                print(f"\n{Fore.YELLOW}Collecting project information before starting chat...{Style.RESET_ALL}")
-                self.project_info = self.project_analyzer.collect_project_info()
-
-            self.chat_handler.set_project_info(self.project_info)
+            try:
+                self.project_info = self.project_analyzer.load_project_info()
+                if not self.project_info:
+                    print(f"\n{Fore.YELLOW}Collecting project information before starting chat...{Style.RESET_ALL}")
+                    self.project_info = self.project_analyzer.collect_project_info()
+                
+                # Update chat handler with project info
+                self.chat_handler.set_project_info(self.project_info)
+            except Exception as e:
+                self.logger.error(f"Failed to load/collect project info: {e}")
+                print(f"\n{Fore.YELLOW}Warning: Could not load project information: {e}{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}Continuing without project context...{Style.RESET_ALL}")
+                self.project_info = {}
 
         print("\n" + Fore.CYAN + "=" * 50 + Style.RESET_ALL)
         if max_chat_mode:
@@ -1068,9 +1224,56 @@ class VerbalCodeAI:
 
                     if os.path.isdir(project_path):
                         print(f"{Fore.GREEN}Loading project: {project_path}{Style.RESET_ALL}")
-                        self.index_directory()
+                        
+                        # Set the last directory and reinitialize everything
+                        self.last_directory = project_path
+                        self._save_last_directory(project_path)
+                        
+                        # Initialize all components for the selected project
+                        try:
+                            self.indexer = FileIndexer(project_path)
+                            self.file_selector = FileSelector()
+                            self.project_analyzer = ProjectAnalyzer(self.indexer)
+                            
+                            # Check if index exists and is complete
+                            index_status = self.indexer.is_index_complete()
+                            if index_status.get('complete', False):
+                                print(f"{Fore.GREEN}✓ Loaded project with complete index{Style.RESET_ALL}")
+                                
+                                # Load project info if available
+                                try:
+                                    self.project_info = self.project_analyzer.load_project_info()
+                                    if not self.project_info:
+                                        self.project_info = {}
+                                except Exception as e:
+                                    self.logger.warning(f"Could not load project info: {e}")
+                                    self.project_info = {}
+                            else:
+                                print(f"{Fore.YELLOW}⚠ Project has incomplete index. Consider reindexing.{Style.RESET_ALL}")
+                                self.index_outdated = True
+                                self.project_info = {}
+                            
+                            # Initialize chat handler
+                            try:
+                                self.chat_handler = ChatHandler(self.indexer, self.file_selector, self.project_info)
+                            except Exception as e:
+                                self.logger.warning(f"Could not initialize chat handler: {e}")
+                                self.chat_handler = None
+                            
+                            print(f"{Fore.GREEN}✓ Project loaded successfully!{Style.RESET_ALL}")
+                            
+                        except Exception as e:
+                            print(f"{Fore.RED}Error loading project: {e}{Style.RESET_ALL}")
+                            # Reset components on error
+                            self.indexer = None
+                            self.file_selector = None
+                            self.project_analyzer = None
+                            self.chat_handler = None
+                            self.project_info = {}
+                        
                         return
-                    print(f"{Fore.RED}Error: Directory no longer exists: {project_path}{Style.RESET_ALL}")
+                    else:
+                        print(f"{Fore.RED}Error: Directory no longer exists: {project_path}{Style.RESET_ALL}")
                 else:
                     print(f"{Fore.RED}Invalid choice. Please enter a number between 0 and {len(self.recent_projects)}.{Style.RESET_ALL}")
             except ValueError:
@@ -1307,10 +1510,77 @@ class VerbalCodeAI:
 
     def run(self) -> None:
         """Run the application."""
+        # Try to initialize indexer from last directory if available
+        if not self.indexer and self.last_directory and os.path.isdir(self.last_directory):
+            self.logger.info(f"Attempting to load previous project from: {self.last_directory}")
+            try:
+                # Initialize indexer with the last directory
+                self.indexer = FileIndexer(self.last_directory)
+                
+                # Initialize other required components
+                self.file_selector = FileSelector()
+                self.project_analyzer = ProjectAnalyzer(self.indexer)
+                
+                # Check if index exists and is complete
+                index_status = self.indexer.is_index_complete()
+                if index_status.get('complete', False):
+                    self.logger.info(f"Successfully loaded existing index from: {self.last_directory}")
+                    print(f"\n{Fore.GREEN}✓ Loaded existing project: {Fore.CYAN}{os.path.basename(self.last_directory)}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}Path: {self.last_directory}{Style.RESET_ALL}")
+                    
+                    # Load project info if available
+                    try:
+                        self.project_info = self.project_analyzer.load_project_info()
+                        if self.project_info:
+                            self.logger.info("Loaded existing project information")
+                        else:
+                            self.logger.info("No existing project information found")
+                    except Exception as e:
+                        self.logger.warning(f"Could not load project info: {e}")
+                        self.project_info = {}
+                    
+                    # Initialize chat handler with all components
+                    try:
+                        self.chat_handler = ChatHandler(self.indexer, self.file_selector, self.project_info)
+                        self.logger.info("Initialized chat handler")
+                    except Exception as e:
+                        self.logger.warning(f"Could not initialize chat handler: {e}")
+                        self.chat_handler = None
+                    
+                    # Update recent projects list
+                    self._add_to_recent_projects(self.last_directory)
+                else:
+                    self.logger.warning(f"Index exists but is incomplete or outdated in: {self.last_directory}")
+                    self.index_outdated = True
+                    print(f"\n{Fore.YELLOW}⚠ Found incomplete index in: {Fore.CYAN}{os.path.basename(self.last_directory)}{Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}Consider reindexing to ensure completeness.{Style.RESET_ALL}")
+                    
+                    # Still initialize basic components even if incomplete
+                    try:
+                        self.chat_handler = ChatHandler(self.indexer, self.file_selector, {})
+                        self.logger.info("Initialized chat handler for incomplete index")
+                    except Exception as e:
+                        self.logger.warning(f"Could not initialize chat handler: {e}")
+                        self.chat_handler = None
+                    
+                    # Still add to recent projects even if incomplete
+                    self._add_to_recent_projects(self.last_directory)
+                    
+            except Exception as e:
+                self.logger.error(f"Failed to load indexer from {self.last_directory}: {e}")
+                print(f"\n{Fore.RED}Failed to load previous project from: {self.last_directory}{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}Error: {e}{Style.RESET_ALL}")
+                # Reset all components if loading fails
+                self.indexer = None
+                self.file_selector = None
+                self.project_analyzer = None
+                self.chat_handler = None
+        
+        # First time setup or failed to load previous project
         if not self.indexer and not self.last_directory:
             print(f"\n{Fore.YELLOW}Welcome to VerbalCodeAI! Let's start by indexing a code directory.{Style.RESET_ALL}")
             self.index_directory()
-        elif self.recent_projects and not self.indexer:
+        elif not self.indexer and self.recent_projects:
             print(f"\n{Fore.YELLOW}Would you like to load a recent project? (y/n){Style.RESET_ALL}")
             choice = input(f"{Fore.GREEN}> {Style.RESET_ALL}").strip().lower()
             if choice in ("y", "yes"):
