@@ -64,4 +64,8 @@ logs/
 *.temp
 *.bak
 *.backup 
-mods/__pycache__/llms.cpython-313.pyc
+
+
+#cache files
+mods/__pycache__/
+*.pyc
