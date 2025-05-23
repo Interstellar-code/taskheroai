@@ -11,7 +11,7 @@
 - **Tags:** api, http, integration, rest, endpoints
 
 ## Overview
-Extend the existing HTTP API to include task management endpoints for external integration and web interfaces. This will enable TaskHeroAI to be integrated with other tools and provide a foundation for potential web-based interfaces.
+Extend the existing HTTP API to include task management endpoints for external integration and web interfaces. This will enable TaskHero AI to be integrated with other tools and provide a foundation for potential web-based interfaces.
 
 ## Implementation Status
 | Step | Status | Notes |
@@ -99,7 +99,7 @@ No database changes required - integrates with existing file-based task storage.
 - **Actual hours:** TBD
 
 ## References
-- VerbalCodeAI existing HTTP API implementation
+- TaskHero AI existing HTTP API implementation
 - REST API design best practices and standards
 - OpenAPI/Swagger documentation specifications
 - HTTP security best practices and guidelines

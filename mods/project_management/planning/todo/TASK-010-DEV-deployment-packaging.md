@@ -11,7 +11,7 @@
 - **Tags:** deployment, packaging, distribution, setup, installation
 
 ## Overview
-Create a robust deployment and packaging system for TaskHeroAI distribution across different platforms. This system will ensure easy installation and updates for users across Windows, Linux, and macOS platforms.
+Create a robust deployment and packaging system for TaskHero AI distribution across different platforms. This system will ensure easy installation and updates for users across Windows, Linux, and macOS platforms.
 
 ## Implementation Status
 | Step | Status | Notes |
@@ -43,7 +43,7 @@ Key features:
 - Version checking and update notifications
 
 ## Acceptance Criteria
-- [ ] Setup scripts updated for TaskHeroAI with modern installation process
+- [ ] Setup scripts updated for TaskHero AI with modern installation process
 - [ ] Installation packages created for major platforms (Windows, Linux, macOS)
 - [ ] Distribution system functional with automated builds and releases
 - [ ] Update mechanisms implemented with proper version management
@@ -55,7 +55,7 @@ Key features:
 - [ ] Uninstallation process clean and complete
 
 ## Implementation Steps
-1. Update existing setup scripts for TaskHeroAI branding and features
+1. Update existing setup scripts for TaskHero AI branding and features
 2. Create platform-specific installation packages (MSI, deb, rpm)
 3. Implement automated build and distribution system
 4. Add update mechanisms with version checking and notifications

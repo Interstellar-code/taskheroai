@@ -23,7 +23,7 @@ Enhance the existing CLI interface to include task management features alongside
 | Integrate with existing UI | Pending | Maintain current AI features |
 
 ## Detailed Description
-Extend the current VerbalCodeAI menu system to include:
+Extend the current TaskHero AI menu system to include:
 - Task management operations (create, edit, view, delete tasks)
 - Project overview and statistics (completion rates, deadlines, workload)
 - Kanban board access from the main menu
@@ -98,7 +98,7 @@ No database changes required - integrates with existing task file storage.
 - **Actual hours:** TBD
 
 ## References
-- VerbalCodeAI existing terminal UI implementation
+- TaskHero AI existing terminal UI implementation
 - CLI design best practices and patterns
 - Terminal user interface guidelines
 - Accessibility standards for command-line tools

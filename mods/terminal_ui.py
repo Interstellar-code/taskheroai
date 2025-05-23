@@ -1,7 +1,7 @@
-"""Terminal UI components for VerbalCodeAI.
+"""Terminal UI components for TaskHero AI.
 
-This module provides UI components and utilities for the terminal interface,
-including streaming response handling, thinking animations, and other UI elements.
+This module provides user interface components and utilities
+for the TaskHero AI terminal application.
 """
 
 import asyncio

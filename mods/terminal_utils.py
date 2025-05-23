@@ -1,7 +1,7 @@
-"""Terminal utilities for VerbalCodeAI.
+"""Terminal utilities for TaskHero AI.
 
-This module provides utilities for rendering text in the terminal,
-including markdown rendering and AI response processing.
+This module provides various terminal-related utility functions
+for enhanced user experience in the TaskHero AI application.
 """
 
 import os

@@ -10,7 +10,7 @@ echo ^| ^|/ /  __/ /  / /_/ / /_/ / /  / /___/ /_/ / /_/ /  __/  / ___ ^|/ /
 echo ^|___/\___/_/  /_.___/\__,_/_/   \____/\____/\__,_/\___/  /_/  ^|_/_/
 echo.
 echo ========================================================
-echo Windows Setup Script for VerbalCodeAI
+echo Windows Setup Script for TaskHero AI
 echo ========================================================
 echo.
 
@@ -262,7 +262,7 @@ if not exist .env (
 
 echo.
 echo ========================================================
-echo VerbalCodeAI setup completed successfully!
+echo TaskHero AI setup completed successfully!
 echo.
 echo To start the application, run:
 echo   venv\Scripts\activate
@@ -273,11 +273,11 @@ echo ========================================================
 echo.
 
 :: Offer to run the application
-echo Would you like to run VerbalCodeAI now? (Y/N)
+echo Would you like to run TaskHero AI now? (Y/N)
 set /p RUN_APP="Enter your choice (Y/N): "
 if /i "%RUN_APP%"=="Y" (
     echo.
-    echo Starting VerbalCodeAI...
+    echo Starting TaskHero AI...
     python app.py
 )
 

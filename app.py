@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
-VerbalCodeAI - Terminal Application
+TaskHero AI - Terminal Application
 
-A simple terminal-based interface for the VerbalCodeAI code assistant.
+A simple terminal-based interface for the TaskHero AI code assistant.
 Also provides an HTTP API server when run with the --serve option.
 """
 
@@ -70,7 +70,7 @@ def setup_logging() -> logging.Logger:
         print(f"{Fore.YELLOW}Warning: Could not clean up log directory: {e}{Style.RESET_ALL}")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = logs_dir / f"verbalcodeai_{timestamp}.log"
+    log_file = logs_dir / f"taskheroai_{timestamp}.log"
     print(f"{Fore.CYAN}Logging to: {Style.BRIGHT}{log_file}{Style.RESET_ALL}")
 
     root_logger = logging.getLogger()
@@ -111,25 +111,25 @@ def setup_logging() -> logging.Logger:
         indexer_handler = logging.FileHandler(indexer_log_file, mode="w", encoding="utf-8")
         indexer_handler.setLevel(logging.DEBUG)
         indexer_handler.setFormatter(file_formatter)
-        logging.getLogger("VerbalCodeAI.Indexer").addHandler(indexer_handler)
+        logging.getLogger("TaskHeroAI.Indexer").addHandler(indexer_handler)
     except (PermissionError, OSError) as e:
         print(f"{Fore.YELLOW}Warning: Could not create indexer log file: {e}{Style.RESET_ALL}")
-        logging.getLogger("VerbalCodeAI.Indexer").addHandler(file_handler)
+        logging.getLogger("TaskHeroAI.Indexer").addHandler(file_handler)
 
-    logging.getLogger("VerbalCodeAI").setLevel(logging.DEBUG)
-    logging.getLogger("VerbalCodeAI.Indexer").setLevel(logging.DEBUG)
+    logging.getLogger("TaskHeroAI").setLevel(logging.DEBUG)
+    logging.getLogger("TaskHeroAI.Indexer").setLevel(logging.DEBUG)
 
-    return logging.getLogger("VerbalCodeAI")
+    return logging.getLogger("TaskHeroAI")
 
 
-class VerbalCodeAI:
-    """Main application class for the VerbalCodeAI terminal interface."""
+class TaskHeroAI:
+    """Main application class for the TaskHeroAI terminal interface."""
 
     def __init__(self) -> None:
         """Initialize the application."""
         load_dotenv()
 
-        self.logger: logging.Logger = logging.getLogger("VerbalCodeAI")
+        self.logger: logging.Logger = logging.getLogger("TaskHeroAI")
         self.indexer: Optional[FileIndexer] = None
         self.file_selector: Optional[FileSelector] = None
         self.project_analyzer: Optional[ProjectAnalyzer] = None
@@ -1951,7 +1951,7 @@ class VerbalCodeAI:
         
         # First time setup or failed to load previous project
         if not self.indexer and not self.last_directory:
-            print(f"\n{Fore.YELLOW}Welcome to VerbalCodeAI! Let's start by indexing a code directory.{Style.RESET_ALL}")
+            print(f"\n{Fore.YELLOW}Welcome to TaskHero AI! Let's start by indexing a code directory.{Style.RESET_ALL}")
             self.index_directory()
         elif not self.indexer and self.recent_projects:
             print(f"\n{Fore.YELLOW}Would you like to load a recent project? (y/n){Style.RESET_ALL}")
@@ -1987,7 +1987,7 @@ class VerbalCodeAI:
             if choice in actions or choice == "15":
                 if choice == "15":
                     clear_screen()
-                    print(f"\n{Fore.GREEN}Exiting TaskHeroAI. Goodbye!{Style.RESET_ALL}")
+                    print(f"\n{Fore.GREEN}Exiting TaskHero AI. Goodbye!{Style.RESET_ALL}")
                     break
                 else:
                     clear_screen()
@@ -2507,7 +2507,7 @@ def run_http_server(port: int, allow_all_origins: bool = None) -> None:
         allow_all_origins: Whether to allow all origins or only localhost.
                           If None, reads from environment variable.
     """
-    app_instance = VerbalCodeAI()
+    app_instance = TaskHeroAI()
 
     if allow_all_origins is None:
         allow_all_origins = app_instance._get_env_bool("HTTP_ALLOW_ALL_ORIGINS", False)
@@ -2553,7 +2553,7 @@ if __name__ == "__main__":
         logger = setup_logging()
         logger.info("Starting TaskHeroAI Terminal Application")
 
-        app = VerbalCodeAI()
+        app = TaskHeroAI()
 
         if args.directory:
             directory = args.directory

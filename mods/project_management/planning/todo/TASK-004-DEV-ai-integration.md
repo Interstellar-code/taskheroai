@@ -11,7 +11,7 @@
 - **Tags:** ai, integration, features, llm, automation
 
 ## Overview
-Integrate VerbalCodeAI's powerful AI capabilities with the task management system to provide intelligent project assistance. This integration will create unique AI-powered features that differentiate TaskHeroAI from other project management tools.
+Integrate TaskHero AI's powerful AI capabilities with the task management system to provide intelligent project assistance. This integration will create unique AI-powered features that differentiate TaskHero AI from other project management tools.
 
 ## Implementation Status
 | Step | Status | Notes |
@@ -23,7 +23,7 @@ Integrate VerbalCodeAI's powerful AI capabilities with the task management syste
 | Build project insights | Pending | AI-generated project analytics |
 
 ## Detailed Description
-Leverage VerbalCodeAI's AI capabilities to enhance project management:
+Leverage TaskHero AI's AI capabilities to enhance project management:
 - AI-powered task creation from codebase analysis
 - Intelligent task prioritization and scheduling based on dependencies and complexity
 - Code-to-task correlation and tracking for development progress
@@ -82,7 +82,7 @@ Key AI features to integrate:
 - Error handling testing for AI service failures
 
 ## Technical Considerations
-- Leverage existing LLM integrations from VerbalCodeAI
+- Leverage existing LLM integrations from TaskHero AI
 - Maintain compatibility with all supported AI providers (Ollama, OpenAI, etc.)
 - Consider token usage optimization to minimize costs
 - Implement proper error handling for AI service failures
@@ -98,7 +98,7 @@ No database changes required - integrates with existing file-based task storage.
 - **Actual hours:** TBD
 
 ## References
-- VerbalCodeAI LLM integration documentation
+- TaskHero AI LLM integration documentation
 - Existing agent mode tools and capabilities
 - AI prompt engineering best practices
 - Git hooks and integration patterns

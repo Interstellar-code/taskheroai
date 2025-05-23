@@ -41,7 +41,7 @@ Key features:
 - Version control integration for template changes
 
 ## Acceptance Criteria
-- [ ] All TaskHeroMD templates ported and updated for TaskHeroAI
+- [ ] All TaskHeroMD templates ported and updated for TaskHero AI
 - [ ] Template engine functional with Python integration and error handling
 - [ ] Task templates with proper validation and metadata schemas
 - [ ] Template customization features working with user preferences
@@ -66,7 +66,7 @@ Key features:
 
 ## Dependencies
 ### Required By This Task
-- TASK-001 - Set Up TaskHeroAI Project Structure - Todo
+- TASK-001 - Set Up TaskHero AI Project Structure - Complete
 - TASK-002 - Develop Core Task Management Module - Todo
 
 ### Dependent On This Task

@@ -28,7 +28,7 @@ echo "| |/ /  __/ /  / /_/ / /_/ / /  / /___/ /_/ / /_/ /  __/  / ___ |/ /"
 echo "|___/\___/_/  /_.___/\__,_/_/   \____/\____/\__,_/\___/  /_/  |_/_/"
 echo ""
 echo "========================================================"
-echo "Linux Setup Script for VerbalCodeAI"
+echo "Linux Setup Script for TaskHero AI"
 echo "========================================================"
 printf "${NC}"
 
@@ -253,7 +253,7 @@ chmod +x app.py
 
 echo ""
 printf "${CYAN}========================================================\n"
-echo "VerbalCodeAI setup completed successfully!"
+echo "TaskHero AI setup completed successfully!"
 echo ""
 echo "To start the application, run:"
 echo "  source venv/bin/activate"
@@ -264,9 +264,9 @@ printf "========================================================${NC}\n"
 echo ""
 
 # Offer to run the application
-read -p "Would you like to run VerbalCodeAI now? (y/n): " RUN_APP
+read -p "Would you like to run TaskHero AI now? (y/n): " RUN_APP
 if [ "$RUN_APP" = "y" ] || [ "$RUN_APP" = "Y" ]; then
     echo ""
-    echo "Starting VerbalCodeAI..."
+    echo "Starting TaskHero AI..."
     python app.py
 fi

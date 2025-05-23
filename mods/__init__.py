@@ -1,5 +1,6 @@
-"""Mods package for VerbalCodeAI.
-Contains modules for LLM interactions, code processing, and utilities.
+"""Mods package for TaskHero AI.
+
+This package contains various modules and utilities for the TaskHero AI application.
 """
 
 from . import code
