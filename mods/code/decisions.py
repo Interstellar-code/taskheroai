@@ -25,6 +25,7 @@ from typing import (
 )
 
 import numpy as np
+from datetime import datetime
 
 from ..llms import (
     generate_response,
@@ -675,11 +676,8 @@ Respond ONLY with file paths, one per line, between <files> tags. For example:
 
         Args:
             query (str): The user's query or request.
-                query (str): The query string.
             files (List[FileInfo]): List of FileInfo objects containing file information.
-                files (List[FileInfo]): The list of files to pick from.
             use_optimization (bool): Whether to use query optimization. Defaults to True.
-                use_optimization (bool): Flag to use query optimization.
 
         Returns:
             List[str]: List of file paths that are relevant to the query.
@@ -698,9 +696,7 @@ Respond ONLY with file paths, one per line, between <files> tags. For example:
 
         Args:
             query (str): The user's query or request.
-                query (str): The query string.
             files (List[FileInfo]): List of FileInfo objects containing file information.
-                files (List[FileInfo]): The list of files to pick from.
 
         Returns:
             List[str]: List of file paths that are relevant to the query.
@@ -750,11 +746,8 @@ Respond ONLY with file paths, one per line, between <files> tags:
 
         Args:
             query (str): The user's query or request.
-                query (str): The query string.
             files (List[FileInfo]): List of FileInfo objects containing file information.
-                files (List[FileInfo]): The list of files to pick from.
             use_optimization (bool): Whether to use query optimization.
-                use_optimization (bool): Flag to use query optimization.
 
         Returns:
             List[str]: List of file paths that are relevant to the query.
@@ -804,11 +797,8 @@ Respond ONLY with file paths, one per line, between <files> tags:
 
         Args:
             query (str): The user's query or request.
-                query (str): The query string.
             files (List[FileInfo]): List of FileInfo objects containing file information.
-                files (List[FileInfo]): The list of files to pick from.
             use_optimization (bool): Whether to use query optimization.
-                use_optimization (bool): Flag to use query optimization.
 
         Returns:
             List[str]: List of file paths that are relevant to the query.
@@ -991,9 +981,7 @@ Respond ONLY with file paths, one per line, between <files> tags:
 
         Args:
             query (str): The user's natural language query.
-                query (str): The query string.
             max_terms (int): Maximum number of search terms to return. Defaults to 5.
-                max_terms (int): The maximum number of terms.
 
         Returns:
             List[str]: A list of optimized search terms ranked by relevance.
@@ -1010,27 +998,74 @@ class ProjectAnalyzer:
     - AI-based project analysis
     """
 
-    PROJECT_INFO_TEMPLATE = """Analyze the following files from a project and extract key information about the project.
-Focus on identifying:
-1. Project name and purpose
-2. Main programming languages used
-3. Key frameworks, libraries, or dependencies
-4. Project structure and organization
-5. Any other important characteristics
+    PROJECT_INFO_TEMPLATE = """Analyze the following files from a project and extract comprehensive information about the project.
+Perform a deep analysis to understand:
 
-Files:
+1. **Project Identity & Purpose**:
+   - What is the main goal and functionality of this project?
+   - What problem does it solve?
+   - Who is the target audience or use case?
+
+2. **Technical Architecture**:
+   - What are the main programming languages and their roles?
+   - What frameworks, libraries, and tools are used?
+   - What is the overall architecture pattern (MVC, microservices, etc.)?
+   - Are there any notable design patterns or architectural decisions?
+
+3. **Project Structure & Organization**:
+   - How is the codebase organized (modules, packages, directories)?
+   - What are the main components and how do they interact?
+   - Are there clear separation of concerns?
+
+4. **Features & Functionality**:
+   - What are the core features and capabilities?
+   - Are there any notable algorithms or specialized functionality?
+   - What external services or APIs does it integrate with?
+
+5. **Development & Deployment**:
+   - What development tools and practices are evident?
+   - Are there configuration files, build scripts, or deployment setups?
+   - What environment or platform is it designed for?
+
+6. **Data & Storage**:
+   - How does the project handle data storage and persistence?
+   - Are there database schemas, models, or data structures?
+   - What data formats are used (JSON, XML, CSV, etc.)?
+
+7. **User Interface & Interaction**:
+   - Is there a user interface? What type (web, desktop, mobile, CLI)?
+   - How do users interact with the system?
+   - Are there APIs or external interfaces?
+
+8. **Quality & Testing**:
+   - Are there testing frameworks or test files?
+   - What quality assurance practices are evident?
+   - Is there documentation or code comments?
+
+Files to analyze:
 {file_contents}
 
-Based on these files, provide a concise summary of the project in JSON format:
+Based on this comprehensive analysis, provide a detailed summary in JSON format:
 {{
-  "project_name": "Name of the project",
-  "purpose": "Brief description of what the project does",
-  "languages": ["List of main programming languages"],
-  "frameworks": ["List of key frameworks/libraries"],
-  "structure": "Brief description of project organization",
-  "other_notes": "Any other important observations"
+  "project_name": "Descriptive name of the project",
+  "purpose": "Detailed description of what the project does and its main goals (2-3 sentences)",
+  "target_audience": "Who would use this project or what use cases it serves",
+  "languages": ["Primary programming languages with their roles"],
+  "frameworks": ["Key frameworks, libraries, and tools with their purposes"],
+  "architecture": "Description of the overall architecture and design patterns used",
+  "structure": "Detailed description of project organization and main components",
+  "core_features": ["List of main features and capabilities"],
+  "data_handling": "How the project handles data, storage, and persistence",
+  "user_interface": "Description of user interaction methods and interfaces",
+  "development_setup": "Development tools, build processes, and deployment considerations",
+  "integration": "External services, APIs, or systems it integrates with",
+  "notable_aspects": "Any unique, innovative, or particularly interesting technical aspects",
+  "complexity_level": "beginner/intermediate/advanced - based on technical complexity",
+  "project_type": "Type of project (web app, library, tool, service, etc.)",
+  "other_notes": "Any additional important observations or technical details"
 }}
-"""
+
+Ensure the analysis is thorough and provides insights that would help developers understand the project's scope, complexity, and technical approach."""
 
     def __init__(self, indexer):
         """Initialize the ProjectAnalyzer.
@@ -1086,14 +1121,14 @@ Based on these files, provide a concise summary of the project in JSON format:
             self.logger.error(f"Error saving project info to index directory: {e}")
             return False
 
-    def collect_project_info(self, batch_size: int = 10) -> Dict[str, Any]:
+    def collect_project_info(self, batch_size: int = 15) -> Dict[str, Any]:
         """Collect and analyze project information to provide context for AI responses.
 
         This method processes files in batches and extracts important information about the project
         such as project name, key imports, frameworks used, etc.
 
         Args:
-            batch_size (int): Number of files to process in each batch. Defaults to 10.
+            batch_size (int): Number of files to process in each batch. Defaults to 15.
 
         Returns:
             Dict[str, Any]: Dictionary containing project information.
@@ -1102,97 +1137,265 @@ Based on these files, provide a concise summary of the project in JSON format:
             self.logger.warning("Cannot collect project info: No indexer available")
             return {}
 
+        # Check for existing project info first
         existing_info = self.load_project_info()
         if existing_info:
-            return existing_info
+            # Check if it has the new enhanced fields, if not, regenerate
+            enhanced_fields = ['target_audience', 'architecture', 'core_features', 'complexity_level']
+            if any(field in existing_info for field in enhanced_fields):
+                self.logger.info("Found existing enhanced project info")
+                return existing_info
+            else:
+                self.logger.info("Found basic project info, will enhance it")
 
-        self.logger.info("Collecting project information...")
+        self.logger.info("Collecting comprehensive project information...")
 
         try:
+            root_path = self.indexer.root_path
             metadata_dir = os.path.join(self.indexer.index_dir, "metadata")
+            
             if not os.path.exists(metadata_dir):
                 self.logger.warning("Metadata directory does not exist")
                 return {}
 
+            # Collect all available files
             metadata_files = [f for f in os.listdir(metadata_dir) if f.endswith('.json')]
             if not metadata_files:
                 self.logger.warning("No metadata files found")
                 return {}
 
-            files_by_ext = {}
+            # Categorize files by type and importance
+            files_by_category = {
+                'config': [],
+                'documentation': [],
+                'main_code': [],
+                'test': [],
+                'build': [],
+                'other': []
+            }
+
             for file in metadata_files:
                 try:
                     with open(os.path.join(metadata_dir, file), 'r', encoding='utf-8') as f:
                         data = json.load(f)
                         file_path = data.get('path', '')
                         if file_path:
-                            ext = os.path.splitext(file_path)[1].lower()
-                            if ext not in files_by_ext:
-                                files_by_ext[ext] = []
-                            files_by_ext[ext].append(file_path)
+                            file_name = os.path.basename(file_path).lower()
+                            file_dir = os.path.dirname(file_path).lower()
+                            
+                            # Categorize files for better analysis
+                            if any(x in file_name for x in ['readme', 'license', 'changelog', 'contributing', '.md', 'docs']):
+                                files_by_category['documentation'].append(file_path)
+                            elif any(x in file_name for x in ['config', 'settings', '.json', '.yaml', '.yml', '.toml', '.ini', '.env']):
+                                files_by_category['config'].append(file_path)
+                            elif any(x in file_name for x in ['test', 'spec']) or 'test' in file_dir:
+                                files_by_category['test'].append(file_path)
+                            elif any(x in file_name for x in ['build', 'make', 'docker', 'requirements', 'package', 'setup', 'cmake']):
+                                files_by_category['build'].append(file_path)
+                            elif any(file_path.endswith(ext) for ext in ['.py', '.js', '.java', '.c', '.cpp', '.cs', '.go', '.rs', '.php', '.rb']):
+                                files_by_category['main_code'].append(file_path)
+                            else:
+                                files_by_category['other'].append(file_path)
+                                
                 except Exception as e:
                     self.logger.error(f"Error reading metadata file {file}: {e}")
 
-            priority_extensions = ['.md', '.txt', '.py', '.js', '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.go', '.rs', '.json', '.yaml', '.yml']
+            # Select representative files from each category
             sample_files = []
-
-            for ext in priority_extensions:
-                if ext in files_by_ext and files_by_ext[ext]:
-                    sample_files.extend(files_by_ext[ext][:3])
-
-            other_files = []
-            for ext, files in files_by_ext.items():
-                if ext not in priority_extensions:
-                    other_files.extend(files)
-
-            random.shuffle(other_files)
-
-            sample_files.extend(other_files[:batch_size - len(sample_files)])
+            
+            # Prioritize key documentation files
+            priority_docs = []
+            for doc_file in files_by_category['documentation']:
+                doc_name = os.path.basename(doc_file).lower()
+                if 'readme' in doc_name:
+                    priority_docs.insert(0, doc_file)  # README first
+                elif any(x in doc_name for x in ['getting_started', 'quickstart', 'intro']):
+                    priority_docs.insert(1, doc_file)  # Getting started docs second
+                else:
+                    priority_docs.append(doc_file)
+            sample_files.extend(priority_docs[:3])
+            
+            # Add key configuration files
+            priority_configs = []
+            for config_file in files_by_category['config']:
+                config_name = os.path.basename(config_file).lower()
+                if any(x in config_name for x in ['package.json', 'requirements.txt', 'pom.xml', 'cargo.toml', 'go.mod']):
+                    priority_configs.insert(0, config_file)  # Dependency files first
+                else:
+                    priority_configs.append(config_file)
+            sample_files.extend(priority_configs[:3])
+            
+            # Add main code files (prioritize main entry points)
+            main_code_files = files_by_category['main_code']
+            priority_code = []
+            for code_file in main_code_files:
+                code_name = os.path.basename(code_file).lower()
+                if any(x in code_name for x in ['main', 'app', 'index', 'server', '__init__']):
+                    priority_code.insert(0, code_file)  # Entry points first
+                else:
+                    priority_code.append(code_file)
+            
+            # Add diverse code files
+            remaining_slots = batch_size - len(sample_files)
+            sample_files.extend(priority_code[:max(remaining_slots - 2, 5)])
+            
+            # Add build/deployment files
+            sample_files.extend(files_by_category['build'][:2])
+            
+            # Ensure we don't exceed batch_size
             sample_files = sample_files[:batch_size]
 
             if not sample_files:
-                self.logger.warning("No sample files found")
+                self.logger.warning("No sample files found for analysis")
                 return {}
 
+            # Analyze project structure
+            project_stats = self._analyze_project_structure(root_path)
+            
+            # Prepare enhanced file content analysis
             file_contents_text = ""
+            file_contents_text += f"\nPROJECT OVERVIEW:\n"
+            file_contents_text += f"Root Directory: {root_path}\n"
+            file_contents_text += f"Total Files Analyzed: {len(sample_files)}\n"
+            file_contents_text += f"Project Structure Summary: {project_stats}\n\n"
+            
             for file_path in sample_files:
                 try:
+                    relative_path = os.path.relpath(file_path, root_path)
+                    file_size = os.path.getsize(file_path)
+                    
                     with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
                         content = f.read()
-                        if len(content) > 2000:
-                            content = content[:2000] + "..."
-                        file_contents_text += f"\n--- {file_path} ---\n{content[:500]}...\n"
+                        
+                        # Provide more context for each file
+                        if file_size > 3000:
+                            # For larger files, take beginning and end
+                            content_preview = content[:1500] + "\n... [content truncated] ...\n" + content[-500:]
+                        else:
+                            content_preview = content
+                        
+                        file_contents_text += f"\n{'='*60}\n"
+                        file_contents_text += f"FILE: {relative_path}\n"
+                        file_contents_text += f"SIZE: {file_size} bytes\n"
+                        file_contents_text += f"TYPE: {self._get_file_category(file_path, files_by_category)}\n"
+                        file_contents_text += f"{'='*60}\n"
+                        file_contents_text += content_preview + "\n"
+                        
                 except Exception as e:
                     self.logger.error(f"Error reading file {file_path}: {e}")
+                    file_contents_text += f"\n[ERROR reading {file_path}: {e}]\n"
 
+            # Generate project info using AI
             messages = [
-                {"role": "system", "content": "You are a code analysis assistant that extracts project information from code files."},
+                {"role": "system", "content": "You are an expert software architect and code analyst. Analyze projects comprehensively to extract detailed technical information, architecture patterns, and development practices."},
                 {"role": "user", "content": self.PROJECT_INFO_TEMPLATE.format(file_contents=file_contents_text)}
             ]
 
-            self.logger.info("Analyzing project files with AI...")
-            response = generate_response(messages, parse_thinking=False)
+            self.logger.info("Performing comprehensive project analysis with AI...")
+            response = generate_response(messages, parse_thinking=False, temperature=0.1)  # Lower temperature for more consistent analysis
 
+            # Extract JSON from response
             json_pattern = r'\{[\s\S]*\}'
             match = re.search(json_pattern, response)
 
             if match:
                 try:
                     project_info = json.loads(match.group(0))
-
+                    
+                    # Add metadata about the analysis
+                    project_info['analysis_metadata'] = {
+                        'files_analyzed': len(sample_files),
+                        'analysis_date': datetime.now().isoformat(),
+                        'files_by_category': {k: len(v) for k, v in files_by_category.items()},
+                        'root_path': root_path
+                    }
+                    
+                    # Enhance with basic stats if AI missed them
+                    if 'languages' not in project_info or not project_info['languages']:
+                        project_info['languages'] = self._detect_languages(files_by_category['main_code'])
+                    
                     self.save_project_info(project_info)
-
-                    self.logger.info("Project information collected successfully")
+                    self.logger.info("Comprehensive project information collected successfully")
                     return project_info
+                    
                 except json.JSONDecodeError as e:
                     self.logger.error(f"Error parsing project info JSON: {e}")
+                    self.logger.debug(f"Raw AI response: {response}")
 
             self.logger.warning("Failed to extract project information from AI response")
+            self.logger.debug(f"AI response: {response[:500]}...")
             return {}
 
         except Exception as e:
             self.logger.error(f"Error collecting project information: {e}", exc_info=True)
             return {}
+    
+    def _analyze_project_structure(self, root_path: str) -> str:
+        """Analyze the basic structure of the project."""
+        try:
+            stats = {
+                'directories': 0,
+                'total_files': 0,
+                'code_files': 0,
+                'doc_files': 0,
+                'config_files': 0
+            }
+            
+            code_extensions = {'.py', '.js', '.java', '.c', '.cpp', '.cs', '.go', '.rs', '.php', '.rb', '.kt', '.swift'}
+            doc_extensions = {'.md', '.txt', '.rst', '.doc', '.docx'}
+            config_extensions = {'.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf'}
+            
+            for root, dirs, files in os.walk(root_path):
+                # Skip common non-essential directories
+                dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['node_modules', '__pycache__', 'build', 'dist']]
+                stats['directories'] += len(dirs)
+                stats['total_files'] += len(files)
+                
+                for file in files:
+                    ext = os.path.splitext(file)[1].lower()
+                    if ext in code_extensions:
+                        stats['code_files'] += 1
+                    elif ext in doc_extensions:
+                        stats['doc_files'] += 1
+                    elif ext in config_extensions:
+                        stats['config_files'] += 1
+            
+            return f"{stats['total_files']} files in {stats['directories']} directories ({stats['code_files']} code, {stats['doc_files']} docs, {stats['config_files']} config)"
+            
+        except Exception as e:
+            return f"Structure analysis failed: {e}"
+    
+    def _get_file_category(self, file_path: str, files_by_category: Dict[str, List[str]]) -> str:
+        """Get the category of a file."""
+        for category, files in files_by_category.items():
+            if file_path in files:
+                return category.replace('_', ' ').title()
+        return "Other"
+    
+    def _detect_languages(self, code_files: List[str]) -> List[str]:
+        """Basic language detection from file extensions."""
+        lang_map = {
+            '.py': 'Python',
+            '.js': 'JavaScript',
+            '.java': 'Java',
+            '.c': 'C',
+            '.cpp': 'C++',
+            '.cs': 'C#',
+            '.go': 'Go',
+            '.rs': 'Rust',
+            '.php': 'PHP',
+            '.rb': 'Ruby',
+            '.kt': 'Kotlin',
+            '.swift': 'Swift'
+        }
+        
+        languages = set()
+        for file_path in code_files:
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext in lang_map:
+                languages.add(lang_map[ext])
+        
+        return sorted(list(languages))
 
 
 class ChatHandler:

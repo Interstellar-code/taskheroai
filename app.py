@@ -275,7 +275,7 @@ class VerbalCodeAI:
         print(Fore.GREEN + "6. " + Style.BRIGHT + "View Indexed Files" + Style.RESET_ALL)
         print(Fore.GREEN + "7. " + Style.BRIGHT + "View Project Info" + Style.RESET_ALL)
         print(Fore.GREEN + "8. " + Style.BRIGHT + "Recent Projects" + Style.RESET_ALL)
-        print(Fore.RED + "9. " + Style.BRIGHT + "🗑️  Clean Slate (Reset All)" + Style.RESET_ALL)
+        print(Fore.RED + "9. " + Style.BRIGHT + "🗑️  Project Cleanup Manager" + Style.RESET_ALL)
 
         print(Fore.CYAN + "-" * 50 + Style.RESET_ALL)
         print(Fore.CYAN + Style.BRIGHT + "Settings" + Style.RESET_ALL)
@@ -1018,25 +1018,59 @@ class VerbalCodeAI:
 
         markdown_content = "# Project Summary\n\n"
 
-        fields = [
+        # Enhanced field mapping for better display
+        enhanced_fields = [
             ("Project Name", "project_name"),
+            ("Type", "project_type"),
             ("Purpose", "purpose"),
+            ("Target Audience", "target_audience"),
+            ("Complexity Level", "complexity_level"),
             ("Languages", "languages"),
-            ("Frameworks", "frameworks"),
-            ("Structure", "structure"),
+            ("Frameworks & Tools", "frameworks"),
+            ("Architecture", "architecture"),
+            ("Core Features", "core_features"),
+            ("Project Structure", "structure"),
+            ("Data Handling", "data_handling"),
+            ("User Interface", "user_interface"),
+            ("Development Setup", "development_setup"),
+            ("Integration", "integration"),
+            ("Notable Aspects", "notable_aspects"),
             ("Other Notes", "other_notes"),
         ]
 
-        for display_name, field_name in fields:
-            if field_name in self.project_info:
+        for display_name, field_name in enhanced_fields:
+            if field_name in self.project_info and self.project_info[field_name]:
                 value = self.project_info[field_name]
                 if isinstance(value, list):
-                    markdown_content += f"## {display_name}\n\n"
-                    for item in value:
-                        markdown_content += f"- {item}\n"
-                    markdown_content += "\n"
+                    if len(value) > 0:  # Only show if list has content
+                        markdown_content += f"## {display_name}\n\n"
+                        for item in value:
+                            markdown_content += f"• {item}\n"
+                        markdown_content += "\n"
                 else:
-                    markdown_content += f"## {display_name}\n\n{value}\n\n"
+                    # Clean up the value and ensure it's meaningful
+                    if value and value.strip() and value.lower() not in ['unknown', 'n/a', 'none']:
+                        markdown_content += f"## {display_name}\n\n{value}\n\n"
+
+        # Add analysis metadata if available
+        if 'analysis_metadata' in self.project_info:
+            metadata = self.project_info['analysis_metadata']
+            markdown_content += "## Analysis Details\n\n"
+            markdown_content += f"• **Files Analyzed:** {metadata.get('files_analyzed', 'N/A')}\n"
+            markdown_content += f"• **Analysis Date:** {metadata.get('analysis_date', 'N/A')[:19].replace('T', ' ')}\n"
+            
+            if 'files_by_category' in metadata:
+                categories = metadata['files_by_category']
+                total_files = sum(categories.values())
+                if total_files > 0:
+                    markdown_content += f"• **Total Project Files:** {total_files}\n"
+                    markdown_content += f"• **File Categories:** "
+                    cat_details = []
+                    for cat, count in categories.items():
+                        if count > 0:
+                            cat_details.append(f"{count} {cat.replace('_', ' ')}")
+                    markdown_content += ", ".join(cat_details) + "\n"
+            markdown_content += "\n"
 
         rendered_content = render_markdown(markdown_content, width=terminal_width-2)
         print(rendered_content)
@@ -1280,12 +1314,220 @@ class VerbalCodeAI:
                 print(f"{Fore.RED}Invalid input. Please enter a number.{Style.RESET_ALL}")
 
     def clean_slate(self) -> None:
-        """Reset the entire application by deleting all generated files and indexes."""
-        print("\n" + Fore.RED + "=" * 50 + Style.RESET_ALL)
-        print(Fore.RED + Style.BRIGHT + "🗑️  CLEAN SLATE - RESET ALL DATA" + Style.RESET_ALL)
-        print(Fore.RED + "=" * 50 + Style.RESET_ALL)
+        """Enhanced project cleanup - manage individual projects or reset all data."""
+        print("\n" + Fore.CYAN + "=" * 50 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "🗑️  PROJECT CLEANUP MANAGER" + Style.RESET_ALL)
+        print(Fore.CYAN + "=" * 50 + Style.RESET_ALL)
         
-        print(f"{Fore.YELLOW}⚠️  WARNING: This will permanently delete ALL generated data!{Style.RESET_ALL}")
+        # Discover all indexed projects
+        indexed_projects = self._discover_indexed_projects()
+        
+        if not indexed_projects:
+            print(f"{Fore.YELLOW}No indexed projects found.{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Would you like to clean up logs and settings instead?{Style.RESET_ALL}")
+            
+            choice = input(f"\n{Fore.YELLOW}Clean up logs and settings? (y/N): {Style.RESET_ALL}").strip().lower()
+            if choice == 'y':
+                self._clean_logs_and_settings()
+            return
+        
+        print(f"{Fore.CYAN}Select cleanup option:{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}1. {Fore.WHITE}Delete a specific project{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}2. {Fore.WHITE}Delete multiple projects{Style.RESET_ALL}")
+        print(f"{Fore.RED}3. {Fore.WHITE}Delete ALL projects and reset everything{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}4. {Fore.WHITE}Clean up logs and settings only{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}0. {Fore.WHITE}Cancel{Style.RESET_ALL}")
+        
+        try:
+            choice = input(f"\n{Fore.YELLOW}Enter your choice (0-4): {Style.RESET_ALL}").strip()
+            
+            if choice == "0":
+                print(f"{Fore.GREEN}✓ Operation cancelled.{Style.RESET_ALL}")
+                return
+            elif choice == "1":
+                self._delete_specific_project(indexed_projects)
+            elif choice == "2":
+                self._delete_multiple_projects(indexed_projects)
+            elif choice == "3":
+                self._delete_all_projects_and_reset()
+            elif choice == "4":
+                self._clean_logs_and_settings()
+            else:
+                print(f"{Fore.RED}Invalid choice.{Style.RESET_ALL}")
+                
+        except (ValueError, KeyboardInterrupt):
+            print(f"{Fore.GREEN}✓ Operation cancelled.{Style.RESET_ALL}")
+    
+    def _discover_indexed_projects(self) -> List[Dict[str, str]]:
+        """Discover all indexed projects by scanning for .index directories."""
+        projects = []
+        
+        # Check current directory
+        if os.path.exists(".index"):
+            projects.append({
+                "name": os.path.basename(os.getcwd()),
+                "path": os.getcwd(),
+                "index_dir": ".index",
+                "type": "current"
+            })
+        
+        # Check recent projects
+        for recent_project in self.recent_projects:
+            project_path = recent_project.get("path")
+            if project_path and os.path.isdir(project_path):
+                index_dir = os.path.join(project_path, ".index")
+                if os.path.exists(index_dir):
+                    # Check if already added
+                    if not any(p["path"] == project_path for p in projects):
+                        projects.append({
+                            "name": recent_project.get("name", os.path.basename(project_path)),
+                            "path": project_path,
+                            "index_dir": index_dir,
+                            "type": "recent"
+                        })
+        
+        # Sort by name for consistent display
+        projects.sort(key=lambda x: x["name"].lower())
+        return projects
+    
+    def _delete_specific_project(self, projects: List[Dict[str, str]]) -> None:
+        """Delete a specific indexed project."""
+        print(f"\n{Fore.CYAN}Select project to delete:{Style.RESET_ALL}")
+        
+        for i, project in enumerate(projects, 1):
+            project_type = "📂" if project["type"] == "current" else "📁"
+            print(f"{Fore.GREEN}{i}. {project_type} {Fore.WHITE}{project['name']} {Fore.CYAN}({project['path']}){Style.RESET_ALL}")
+        
+        print(f"{Fore.GREEN}0. {Fore.WHITE}Cancel{Style.RESET_ALL}")
+        
+        try:
+            choice = input(f"\n{Fore.YELLOW}Enter project number (0-{len(projects)}): {Style.RESET_ALL}").strip()
+            
+            if choice == "0":
+                return
+            
+            choice_idx = int(choice) - 1
+            if 0 <= choice_idx < len(projects):
+                project = projects[choice_idx]
+                self._confirm_and_delete_project(project)
+            else:
+                print(f"{Fore.RED}Invalid choice.{Style.RESET_ALL}")
+                
+        except ValueError:
+            print(f"{Fore.RED}Invalid input.{Style.RESET_ALL}")
+    
+    def _delete_multiple_projects(self, projects: List[Dict[str, str]]) -> None:
+        """Delete multiple selected projects."""
+        print(f"\n{Fore.CYAN}Select projects to delete (comma-separated numbers):{Style.RESET_ALL}")
+        
+        for i, project in enumerate(projects, 1):
+            project_type = "📂" if project["type"] == "current" else "📁"
+            print(f"{Fore.GREEN}{i}. {project_type} {Fore.WHITE}{project['name']} {Fore.CYAN}({project['path']}){Style.RESET_ALL}")
+        
+        try:
+            choices = input(f"\n{Fore.YELLOW}Enter project numbers (e.g., 1,3,5) or 'all': {Style.RESET_ALL}").strip()
+            
+            if not choices:
+                return
+            
+            if choices.lower() == 'all':
+                selected_projects = projects
+            else:
+                choice_numbers = [int(x.strip()) for x in choices.split(',')]
+                selected_projects = []
+                for num in choice_numbers:
+                    if 1 <= num <= len(projects):
+                        selected_projects.append(projects[num - 1])
+                    else:
+                        print(f"{Fore.YELLOW}Warning: Invalid project number {num} ignored.{Style.RESET_ALL}")
+            
+            if not selected_projects:
+                print(f"{Fore.YELLOW}No valid projects selected.{Style.RESET_ALL}")
+                return
+            
+            # Show what will be deleted
+            print(f"\n{Fore.YELLOW}Projects to delete:{Style.RESET_ALL}")
+            for project in selected_projects:
+                print(f"  {Fore.RED}❌ {project['name']} ({project['path']}){Style.RESET_ALL}")
+            
+            confirm = input(f"\n{Fore.RED}Delete {len(selected_projects)} project(s)? Type 'DELETE' to confirm: {Style.RESET_ALL}").strip()
+            
+            if confirm == "DELETE":
+                self._delete_projects_batch(selected_projects)
+            else:
+                print(f"{Fore.GREEN}✓ Operation cancelled.{Style.RESET_ALL}")
+                
+        except ValueError:
+            print(f"{Fore.RED}Invalid input.{Style.RESET_ALL}")
+    
+    def _confirm_and_delete_project(self, project: Dict[str, str]) -> None:
+        """Confirm and delete a single project."""
+        print(f"\n{Fore.YELLOW}⚠️  WARNING: This will permanently delete the index for:{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Project: {Fore.WHITE}{project['name']}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Path: {Fore.WHITE}{project['path']}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Index: {Fore.WHITE}{project['index_dir']}{Style.RESET_ALL}")
+        
+        # Show what will be deleted
+        index_size = self._get_directory_size(project['index_dir'])
+        print(f"{Fore.CYAN}Size: {Fore.WHITE}{self._format_size(index_size)}{Style.RESET_ALL}")
+        
+        print(f"\n{Fore.RED}⚠️  This action cannot be undone!{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}The source code will NOT be deleted, only the index data.{Style.RESET_ALL}")
+        
+        confirm = input(f"\n{Fore.YELLOW}Delete this project's index? Type 'DELETE' to confirm: {Style.RESET_ALL}").strip()
+        
+        if confirm == "DELETE":
+            success = self._delete_project_index(project)
+            if success:
+                # Remove from recent projects if it exists there
+                self._remove_from_recent_projects(project['path'])
+                
+                # Reset current app state if this is the active project
+                if (self.indexer and 
+                    hasattr(self.indexer, 'root_path') and 
+                    self.indexer.root_path == project['path']):
+                    self._reset_app_state()
+        else:
+            print(f"{Fore.GREEN}✓ Operation cancelled.{Style.RESET_ALL}")
+    
+    def _delete_projects_batch(self, projects: List[Dict[str, str]]) -> None:
+        """Delete multiple projects."""
+        print(f"\n{Fore.YELLOW}🗑️  Deleting {len(projects)} project(s)...{Style.RESET_ALL}")
+        
+        deleted_count = 0
+        errors = []
+        
+        for project in projects:
+            try:
+                if self._delete_project_index(project, show_progress=False):
+                    deleted_count += 1
+                    self._remove_from_recent_projects(project['path'])
+                    print(f"{Fore.GREEN}✓ Deleted: {project['name']}{Style.RESET_ALL}")
+                else:
+                    errors.append(f"Failed to delete: {project['name']}")
+            except Exception as e:
+                errors.append(f"Error deleting {project['name']}: {e}")
+        
+        # Reset app state if current project was deleted
+        if (self.indexer and hasattr(self.indexer, 'root_path') and 
+            any(p['path'] == self.indexer.root_path for p in projects)):
+            self._reset_app_state()
+        
+        # Show results
+        print(f"\n{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}✅ Successfully deleted {deleted_count} project(s){Style.RESET_ALL}")
+        
+        if errors:
+            print(f"{Fore.YELLOW}⚠️  {len(errors)} error(s) occurred:{Style.RESET_ALL}")
+            for error in errors:
+                print(f"  {Fore.RED}❌ {error}{Style.RESET_ALL}")
+        
+        print(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+        input()
+    
+    def _delete_all_projects_and_reset(self) -> None:
+        """Delete all projects and reset everything (original clean slate functionality)."""
+        print(f"\n{Fore.RED}⚠️  WARNING: This will permanently delete ALL generated data!{Style.RESET_ALL}")
         print(f"\n{Fore.CYAN}The following will be deleted:{Style.RESET_ALL}")
         
         # List what will be deleted
@@ -1326,6 +1568,15 @@ class VerbalCodeAI:
                 if f"📁 {item}/" not in [x.split()[1] for x in items_to_delete]:
                     items_to_delete.append(f"📁 {item}/ (orphaned index)")
         
+        # Check recent projects for their indices
+        for recent_project in self.recent_projects:
+            project_path = recent_project.get("path")
+            if project_path and os.path.isdir(project_path):
+                index_dir = os.path.join(project_path, ".index")
+                if os.path.exists(index_dir):
+                    project_name = recent_project.get("name", os.path.basename(project_path))
+                    items_to_delete.append(f"📁 {index_dir}/ ({project_name} index)")
+        
         if not items_to_delete:
             print(f"{Fore.GREEN}✓ No generated files found to delete.{Style.RESET_ALL}")
             print(f"{Fore.CYAN}The application state is already clean.{Style.RESET_ALL}")
@@ -1341,7 +1592,7 @@ class VerbalCodeAI:
         print(f"  {Fore.CYAN}📝 Clear recent projects list{Style.RESET_ALL}")
         
         print(f"\n{Fore.RED}⚠️  This action cannot be undone!{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}You will need to re-index your project after this operation.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}You will need to re-index your projects after this operation.{Style.RESET_ALL}")
         
         # Get confirmation
         confirmation = input(f"\n{Fore.YELLOW}Are you absolutely sure you want to proceed? Type 'DELETE' to confirm: {Style.RESET_ALL}").strip()
@@ -1391,6 +1642,21 @@ class VerbalCodeAI:
                     except Exception as e:
                         errors.append(f"Failed to delete {index_dir}/: {e}")
             
+            # Delete recent project indices
+            for recent_project in self.recent_projects:
+                project_path = recent_project.get("path")
+                if project_path and os.path.isdir(project_path):
+                    index_dir = os.path.join(project_path, ".index")
+                    if os.path.exists(index_dir):
+                        try:
+                            import shutil
+                            shutil.rmtree(index_dir)
+                            project_name = recent_project.get("name", os.path.basename(project_path))
+                            print(f"{Fore.GREEN}✓ Deleted: {project_name} index{Style.RESET_ALL}")
+                            deleted_count += 1
+                        except Exception as e:
+                            errors.append(f"Failed to delete {project_name} index: {e}")
+            
             # Delete logs directory
             if os.path.exists("logs"):
                 try:
@@ -1411,17 +1677,7 @@ class VerbalCodeAI:
                     errors.append(f"Failed to delete {self.settings_path}: {e}")
             
             # Reset application state
-            self.indexer = None
-            self.file_selector = None
-            self.project_analyzer = None
-            self.chat_handler = None
-            self.project_info = {}
-            self.recent_projects = []
-            self.index_outdated = False
-            self.chat_history = []
-            self.agent_mode_instance = None
-            self.last_directory = ""
-            
+            self._reset_app_state()
             print(f"{Fore.GREEN}✓ Reset application state{Style.RESET_ALL}")
             
         except Exception as e:
@@ -1438,9 +1694,110 @@ class VerbalCodeAI:
                 print(f"  {Fore.RED}❌ {error}{Style.RESET_ALL}")
         
         print(f"\n{Fore.GREEN}✓ Clean slate complete! The application has been reset.{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}You can now index a new project using option 1.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}You can now index new projects using option 1.{Style.RESET_ALL}")
         print(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
         input()
+    
+    def _clean_logs_and_settings(self) -> None:
+        """Clean up logs and settings only."""
+        print(f"\n{Fore.CYAN}Cleaning up logs and settings...{Style.RESET_ALL}")
+        
+        deleted_count = 0
+        errors = []
+        
+        # Delete logs directory
+        if os.path.exists("logs"):
+            try:
+                import shutil
+                shutil.rmtree("logs")
+                print(f"{Fore.GREEN}✓ Deleted: logs/{Style.RESET_ALL}")
+                deleted_count += 1
+            except Exception as e:
+                errors.append(f"Failed to delete logs/: {e}")
+        
+        # Delete settings file
+        if os.path.exists(self.settings_path):
+            try:
+                os.remove(self.settings_path)
+                print(f"{Fore.GREEN}✓ Deleted: {os.path.basename(self.settings_path)}{Style.RESET_ALL}")
+                deleted_count += 1
+                # Reset recent projects since settings are gone
+                self.recent_projects = []
+            except Exception as e:
+                errors.append(f"Failed to delete {self.settings_path}: {e}")
+        
+        # Show results
+        print(f"\n{Fore.GREEN}✅ Successfully cleaned up {deleted_count} items{Style.RESET_ALL}")
+        
+        if errors:
+            print(f"{Fore.YELLOW}⚠️  {len(errors)} errors occurred:{Style.RESET_ALL}")
+            for error in errors:
+                print(f"  {Fore.RED}❌ {error}{Style.RESET_ALL}")
+        
+        print(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+        input()
+    
+    def _delete_project_index(self, project: Dict[str, str], show_progress: bool = True) -> bool:
+        """Delete a project's index directory."""
+        try:
+            if os.path.exists(project['index_dir']):
+                import shutil
+                shutil.rmtree(project['index_dir'])
+                if show_progress:
+                    print(f"{Fore.GREEN}✓ Deleted project index: {project['name']}{Style.RESET_ALL}")
+                return True
+            else:
+                if show_progress:
+                    print(f"{Fore.YELLOW}⚠ Index not found: {project['name']}{Style.RESET_ALL}")
+                return False
+        except Exception as e:
+            if show_progress:
+                print(f"{Fore.RED}❌ Error deleting {project['name']}: {e}{Style.RESET_ALL}")
+            return False
+    
+    def _remove_from_recent_projects(self, project_path: str) -> None:
+        """Remove a project from the recent projects list."""
+        self.recent_projects = [p for p in self.recent_projects if p.get('path') != project_path]
+        try:
+            # Save updated recent projects
+            settings = {}
+            if os.path.exists(self.settings_path):
+                with open(self.settings_path, "r") as f:
+                    settings = json.load(f)
+            
+            settings["recent_projects"] = self.recent_projects
+            settings["last_directory"] = ""  # Clear last directory if it was this project
+            
+            with open(self.settings_path, "w") as f:
+                json.dump(settings, f, indent=2)
+                
+        except Exception as e:
+            self.logger.warning(f"Failed to update recent projects: {e}")
+    
+    def _reset_app_state(self) -> None:
+        """Reset the application state."""
+        self.indexer = None
+        self.file_selector = None
+        self.project_analyzer = None
+        self.chat_handler = None
+        self.project_info = {}
+        self.index_outdated = False
+        self.chat_history = []
+        self.agent_mode_instance = None
+        self.last_directory = ""
+    
+    def _get_directory_size(self, directory: str) -> int:
+        """Get the total size of a directory."""
+        total_size = 0
+        if os.path.exists(directory):
+            for dirpath, dirnames, filenames in os.walk(directory):
+                for filename in filenames:
+                    filepath = os.path.join(dirpath, filename)
+                    try:
+                        total_size += os.path.getsize(filepath)
+                    except (OSError, FileNotFoundError):
+                        pass
+        return total_size
 
     def toggle_markdown_rendering(self) -> None:
         """Toggle markdown rendering on/off."""
