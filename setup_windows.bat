@@ -102,6 +102,33 @@ echo [SUCCESS] Dependencies installed.
 :: Check if Ollama is installed
 echo.
 echo [STEP 5] Checking for Ollama...
+
+:: Check if .env file exists and has Ollama configuration
+set SKIP_OLLAMA_CHECK=0
+if exist .env (
+    echo [INFO] Checking existing .env configuration...
+    
+    :: Check for custom OLLAMA_HOST configuration
+    findstr /i "OLLAMA_HOST=" .env > nul 2>&1
+    if !errorlevel! equ 0 (
+        echo [INFO] Custom OLLAMA_HOST found in .env file.
+        set SKIP_OLLAMA_CHECK=1
+    )
+    
+    :: Check if any providers are set to non-ollama values
+    findstr /i "AI_.*_PROVIDER=" .env | findstr /v /i "ollama" > nul 2>&1
+    if !errorlevel! equ 0 (
+        echo [INFO] Non-Ollama providers configured in .env file.
+        set SKIP_OLLAMA_CHECK=1
+    )
+)
+
+if !SKIP_OLLAMA_CHECK! equ 1 (
+    echo [INFO] Ollama configuration found in .env file. Skipping Ollama installation check.
+    echo [INFO] Using existing configuration from .env file.
+    goto :skip_ollama
+)
+
 where ollama > nul 2>&1
 if %errorlevel% neq 0 (
     echo [WARNING] Ollama is not installed or not in PATH.
@@ -116,6 +143,8 @@ if %errorlevel% neq 0 (
 ) else (
     echo [SUCCESS] Ollama is installed.
 )
+
+:skip_ollama
 
 :: Create .env file if it doesn't exist
 echo.

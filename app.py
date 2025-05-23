@@ -275,6 +275,7 @@ class VerbalCodeAI:
         print(Fore.GREEN + "6. " + Style.BRIGHT + "View Indexed Files" + Style.RESET_ALL)
         print(Fore.GREEN + "7. " + Style.BRIGHT + "View Project Info" + Style.RESET_ALL)
         print(Fore.GREEN + "8. " + Style.BRIGHT + "Recent Projects" + Style.RESET_ALL)
+        print(Fore.RED + "9. " + Style.BRIGHT + "🗑️  Clean Slate (Reset All)" + Style.RESET_ALL)
 
         print(Fore.CYAN + "-" * 50 + Style.RESET_ALL)
         print(Fore.CYAN + Style.BRIGHT + "Settings" + Style.RESET_ALL)
@@ -284,24 +285,24 @@ class VerbalCodeAI:
             if self.enable_markdown_rendering
             else f"{Fore.RED}Disabled{Style.RESET_ALL}"
         )
-        print(f"{Fore.GREEN}9. {Style.BRIGHT}Toggle Markdown Rendering{Style.RESET_ALL} [{markdown_status}]")
+        print(f"{Fore.GREEN}10. {Style.BRIGHT}Toggle Markdown Rendering{Style.RESET_ALL} [{markdown_status}]")
 
         thinking_status: str = (
             f"{Fore.GREEN}Enabled{Style.RESET_ALL}"
             if self.show_thinking_blocks
             else f"{Fore.RED}Disabled{Style.RESET_ALL}"
         )
-        print(f"{Fore.GREEN}10. {Style.BRIGHT}Toggle Thinking Blocks{Style.RESET_ALL} [{thinking_status}]")
+        print(f"{Fore.GREEN}11. {Style.BRIGHT}Toggle Thinking Blocks{Style.RESET_ALL} [{thinking_status}]")
 
         streaming_status: str = (
             f"{Fore.GREEN}Enabled{Style.RESET_ALL}"
             if self.enable_streaming_mode
             else f"{Fore.RED}Disabled{Style.RESET_ALL}"
         )
-        print(f"{Fore.GREEN}11. {Style.BRIGHT}Toggle Streaming Mode{Style.RESET_ALL} [{streaming_status}]")
+        print(f"{Fore.GREEN}12. {Style.BRIGHT}Toggle Streaming Mode{Style.RESET_ALL} [{streaming_status}]")
 
-        print(f"{Fore.GREEN}12. {Style.BRIGHT}Clear Screen{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}13. {Style.BRIGHT}Exit{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}13. {Style.BRIGHT}Clear Screen{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}14. {Style.BRIGHT}Exit{Style.RESET_ALL}")
 
         print(Fore.CYAN + "=" * 50 + Style.RESET_ALL)
 
@@ -338,7 +339,6 @@ class VerbalCodeAI:
                 return
 
         print(f"{Fore.CYAN}Indexing directory: {Style.BRIGHT}{directory}{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}This may take some time depending on the size of the codebase...{Style.RESET_ALL}")
 
         try:
             if not self.indexer or self.indexer.root_path != directory:
@@ -355,15 +355,121 @@ class VerbalCodeAI:
             index_status: Dict[str, Any] = self.indexer.is_index_complete()
             self.index_outdated: bool = not index_status.get("complete", False)
 
+            # Pre-scan files and get user confirmation
+            print(f"{Fore.CYAN}Scanning files to be indexed...{Style.RESET_ALL}")
+            
+            spinner = create_spinner()
+            stop_spinner_flag: List[bool] = [False]
+
+            def spin_fn():
+                while not stop_spinner_flag[0]:
+                    spinner()
+                    time.sleep(0.1)
+
+            spinner_thread: threading.Thread = threading.Thread(target=spin_fn)
+            spinner_thread.daemon = True
+            spinner_thread.start()
+            stop_spinner_flag[0] = False
+
+            try:
+                if force_reindex:
+                    files_to_process: List[str] = self.indexer._get_all_indexable_files()
+                    operation_type = "reindex"
+                else:
+                    files_to_process = self.indexer.get_outdated_files()
+                    operation_type = "index"
+            except Exception as e:
+                self.logger.error(f"Error scanning files: {e}", exc_info=True)
+                files_to_process = []
+                operation_type = "index"
+            finally:
+                stop_spinner_flag[0] = True
+                if spinner_thread.is_alive():
+                    spinner_thread.join(timeout=1.0)
+                terminal_width, _ = get_terminal_size()
+                sys.stdout.write("\r" + " " * terminal_width + "\r")
+                sys.stdout.flush()
+
+            # Create logs directory if it doesn't exist
+            logs_dir = Path("logs")
+            logs_dir.mkdir(exist_ok=True)
+            
+            # Create file list log
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_list_path = logs_dir / f"files_to_{operation_type}_{timestamp}.txt"
+            
+            try:
+                with open(file_list_path, 'w', encoding='utf-8') as f:
+                    f.write(f"Files to {operation_type} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"Directory: {directory}\n")
+                    f.write(f"Total files: {len(files_to_process)}\n")
+                    f.write("=" * 50 + "\n\n")
+                    
+                    for file_path in files_to_process:
+                        # Make path relative to directory for better readability
+                        try:
+                            rel_path = os.path.relpath(file_path, directory)
+                            f.write(f"{rel_path}\n")
+                        except ValueError:
+                            # If relpath fails, use the full path
+                            f.write(f"{file_path}\n")
+                
+                print(f"{Fore.GREEN}File list saved to: {Fore.CYAN}{file_list_path}{Style.RESET_ALL}")
+                
+            except Exception as e:
+                print(f"{Fore.YELLOW}Warning: Could not save file list: {e}{Style.RESET_ALL}")
+
+            # Display summary and ask for confirmation
+            if files_to_process:
+                print(f"\n{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}📋 {operation_type.title()} Summary:{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}   Directory: {Style.BRIGHT}{directory}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}   Files to {operation_type}: {Style.BRIGHT}{len(files_to_process)}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}   File list saved to: {Style.BRIGHT}{file_list_path.name}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+                
+                # Ask for thread count
+                default_threads = int(os.getenv("MAX_THREADS", "8"))
+                print(f"\n{Fore.YELLOW}🧵 Thread Configuration:{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}   Current default: {Style.BRIGHT}{default_threads}{Style.NORMAL} threads{Style.RESET_ALL}")
+                thread_input = input(f"{Fore.GREEN}Enter number of threads to use (1-32, default {default_threads}): {Style.RESET_ALL}").strip()
+                
+                if thread_input:
+                    try:
+                        thread_count = int(thread_input)
+                        if 1 <= thread_count <= 32:
+                            # Temporarily set the thread count for this session
+                            os.environ["MAX_THREADS"] = str(thread_count)
+                            print(f"{Fore.GREEN}✓ Using {thread_count} threads for this operation{Style.RESET_ALL}")
+                        else:
+                            print(f"{Fore.YELLOW}⚠ Invalid thread count. Using default: {default_threads}{Style.RESET_ALL}")
+                    except ValueError:
+                        print(f"{Fore.YELLOW}⚠ Invalid input. Using default: {default_threads}{Style.RESET_ALL}")
+                else:
+                    print(f"{Fore.CYAN}Using default: {default_threads} threads{Style.RESET_ALL}")
+                
+                # Ask for confirmation
+                print(f"\n{Fore.YELLOW}⚠ This may take some time depending on the number of files and your system performance.{Style.RESET_ALL}")
+                confirmation = input(f"{Fore.GREEN}Do you want to proceed with {operation_type}ing? (y/N): {Style.RESET_ALL}").strip().lower()
+                
+                if confirmation not in ['y', 'yes']:
+                    print(f"{Fore.YELLOW}Operation cancelled by user.{Style.RESET_ALL}")
+                    return
+                    
+                print(f"{Fore.GREEN}✓ Proceeding with {operation_type}ing {len(files_to_process)} files...{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.GREEN}✓ No files need to be {operation_type}ed. Index is up to date!{Style.RESET_ALL}")
+                return
+
             self.logger.info("Starting indexing process")
-            print(f"{Fore.CYAN}Starting indexing process...{Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}Starting {operation_type}ing process...{Style.RESET_ALL}")
 
             outdated_files: List[str] = []
             indexed_files: List[str] = []
 
             indexed_count: List[int] = [0]
             start_time: float = time.time()
-            total_files: int = 0
+            total_files: int = len(files_to_process)
 
             def progress_callback() -> bool:
                 """Callback function to report indexing progress.
@@ -406,49 +512,9 @@ class VerbalCodeAI:
 
                 return False
 
-            spinner = create_spinner()
-
-            stop_spinner_flag: List[bool] = [False]
-
-            def spin_fn():
-                while not stop_spinner_flag[0]:
-                    spinner()
-                    time.sleep(0.1)
-
-            spinner_thread: threading.Thread = threading.Thread(target=spin_fn)
-            spinner_thread.daemon = True
-
             if force_reindex:
                 self.logger.info("Force reindexing all files")
-                print(f"{Fore.YELLOW}Force reindexing all files...{Style.RESET_ALL}")
-                print(f"{Fore.CYAN}Preparing to reindex...{Style.RESET_ALL}")
-
-                stop_spinner_flag[0] = False
-                spinner_thread.start()
-
-                try:
-                    all_files: List[str] = self.indexer._get_all_indexable_files()
-                    total_files = len(all_files)
-                    self.logger.info(f"[STAT] Estimated {total_files} files to reindex")
-                except Exception as e:
-                    self.logger.error(f"Error estimating files to reindex: {e}", exc_info=True)
-                finally:
-                    stop_spinner_flag[0] = True
-                    if spinner_thread.is_alive():
-                        spinner_thread.join(timeout=1.0)
-                    terminal_width, _ = get_terminal_size()
-                    sys.stdout.write("\r" + " " * terminal_width + "\r")
-                    sys.stdout.flush()
-
                 if total_files > 0:
-                    print(
-                        f"{Fore.CYAN}Found approximately {Style.BRIGHT}{total_files}{Style.NORMAL} files to reindex{Style.RESET_ALL}"
-                    )
-                else:
-                    print(f"{Fore.YELLOW}Could not estimate file count or no files found to reindex.{Style.RESET_ALL}")
-
-                if total_files > 0:
-                    print(f"{Fore.CYAN}Starting reindexing process...{Style.RESET_ALL}")
                     try:
                         indexed_files = self.indexer.force_reindex_all(progress_callback)
                     finally:
@@ -460,81 +526,38 @@ class VerbalCodeAI:
 
                 self.logger.info(f"[STAT] Force reindexed {len(indexed_files)} files")
                 print(
-                    f"{Fore.GREEN}Force reindexed {Style.BRIGHT}{len(indexed_files)}{Style.NORMAL} files{Style.RESET_ALL}"
+                    f"{Fore.GREEN}✓ Force reindexed {Style.BRIGHT}{len(indexed_files)}{Style.NORMAL} files{Style.RESET_ALL}"
                 )
             else:
-                print(f"{Fore.CYAN}Finding files to index...{Style.RESET_ALL}")
-
-                if not spinner_thread.is_alive():
-                    spinner_thread = threading.Thread(target=spin_fn)
-                    spinner_thread.daemon = True
-
-                stop_spinner_flag[0] = False
-                spinner_thread.start()
-
-                try:
-                    outdated_files = self.indexer.get_outdated_files()
-                    total_files = len(outdated_files)
-                except Exception as e:
-                    self.logger.error(f"Error getting outdated files: {e}", exc_info=True)
-                    outdated_files = []
-                    total_files = 0
-                    print(f"{Fore.RED}Error getting outdated files: {e}{Style.RESET_ALL}")
-                finally:
-                    stop_spinner_flag[0] = True
-                    if spinner_thread.is_alive():
-                        spinner_thread.join(timeout=1.0)
-                    terminal_width, _ = get_terminal_size()
-                    sys.stdout.write("\r" + " " * terminal_width + "\r")
-                    sys.stdout.flush()
-
-                if outdated_files:
-                    self.logger.info(f"[STAT] Found {len(outdated_files)} files to index")
-                    print(
-                        f"{Fore.GREEN}Found {Style.BRIGHT}{len(outdated_files)}{Style.NORMAL} files to index{Style.RESET_ALL}"
-                    )
-                    print(f"\n{Fore.CYAN}Starting indexing process...{Style.RESET_ALL}")
+                if files_to_process:
                     try:
                         indexed_files = self.indexer.index_directory(progress_callback)
                     finally:
                         terminal_width, _ = get_terminal_size()
                         sys.stdout.write("\r" + " " * terminal_width + "\r")
                         sys.stdout.flush()
+
+                    self.logger.info(f"[STAT] Indexed {len(indexed_files)} files")
+                    print(
+                        f"{Fore.GREEN}✓ Indexed {Style.BRIGHT}{len(indexed_files)}{Style.NORMAL} files{Style.RESET_ALL}"
+                    )
                 else:
-                    self.logger.info("[STAT] No files need to be indexed")
-                    print(f"{Fore.GREEN}No files need to be indexed{Style.RESET_ALL}")
-                    indexed_files = []
+                    print(f"{Fore.GREEN}✓ All files are already indexed{Style.RESET_ALL}")
 
             self._save_last_directory(directory)
-            self.index_outdated = False
 
-            self.logger.info(f"[STAT] Indexing complete! Successfully indexed {len(indexed_files)} files.")
-            print(
-                f"\n{Fore.GREEN}{Style.BRIGHT}Indexing complete! {Style.NORMAL}Successfully indexed {Style.BRIGHT}{len(indexed_files)}{Style.NORMAL} files.{Style.RESET_ALL}"
-            )
-
-            project_info_path: str = os.path.join(self.indexer.index_dir, "project_info.json")
-            update_project_info: bool = True
-            if len(indexed_files) > 0:
-                if os.path.exists(project_info_path):
-                    print(
-                        f"\n{Fore.YELLOW}Project information already exists. Would you like to update it? (y/n){Style.RESET_ALL}"
-                    )
-                    choice: str = input(f"{Fore.GREEN}> {Style.RESET_ALL}").strip().lower()
-                    update_project_info = choice == "y" or choice == "yes"
-
-                if update_project_info:
-                    if self.project_analyzer:
-                        self.project_info = self.project_analyzer.collect_project_info()
-
-                        if self.chat_handler:
-                            self.chat_handler.set_project_info(self.project_info)
-                    else:
-                        self.logger.error("ProjectAnalyzer not initialized")
+            if indexed_files:
+                self.index_outdated = False
+                print(f"{Fore.GREEN}✓ Indexing completed successfully!{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}📁 You can now use chat or agent mode to interact with your codebase.{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}No new files were indexed.{Style.RESET_ALL}")
 
         except Exception as e:
             self.logger.error(f"Error during indexing: {e}", exc_info=True)
-            print(f"{Fore.RED}{Style.BRIGHT}Error during indexing: {e}{Style.RESET_ALL}")
+            print(f"{Fore.RED}Error during indexing: {e}{Style.RESET_ALL}")
+            if "Ollama" in str(e):
+                print(f"{Fore.YELLOW}Make sure Ollama is running and accessible at the configured host.{Style.RESET_ALL}")
 
     async def agent_mode(self) -> None:
         """Run the AI agent mode for interactive codebase exploration."""
@@ -1053,6 +1076,169 @@ class VerbalCodeAI:
             except ValueError:
                 print(f"{Fore.RED}Invalid input. Please enter a number.{Style.RESET_ALL}")
 
+    def clean_slate(self) -> None:
+        """Reset the entire application by deleting all generated files and indexes."""
+        print("\n" + Fore.RED + "=" * 50 + Style.RESET_ALL)
+        print(Fore.RED + Style.BRIGHT + "🗑️  CLEAN SLATE - RESET ALL DATA" + Style.RESET_ALL)
+        print(Fore.RED + "=" * 50 + Style.RESET_ALL)
+        
+        print(f"{Fore.YELLOW}⚠️  WARNING: This will permanently delete ALL generated data!{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}The following will be deleted:{Style.RESET_ALL}")
+        
+        # List what will be deleted
+        items_to_delete = []
+        
+        # Check for .index directories in current directory and any indexed project
+        if self.indexer:
+            index_dir = self.indexer.index_dir
+            if os.path.exists(index_dir):
+                items_to_delete.append(f"📁 {index_dir}/ (index data)")
+        
+        # Check for .index in current directory
+        current_index = ".index"
+        if os.path.exists(current_index):
+            items_to_delete.append(f"📁 {current_index}/ (current directory index)")
+        
+        # Check for logs directory
+        logs_dir = "logs"
+        if os.path.exists(logs_dir):
+            log_files = []
+            try:
+                for file in os.listdir(logs_dir):
+                    if file.endswith(('.log', '.txt')):
+                        log_files.append(file)
+            except (PermissionError, OSError):
+                log_files = ["(unable to list files)"]
+            
+            if log_files:
+                items_to_delete.append(f"📁 {logs_dir}/ ({len(log_files)} log files)")
+        
+        # Check for settings file
+        if os.path.exists(self.settings_path):
+            items_to_delete.append(f"📄 {os.path.basename(self.settings_path)} (app settings)")
+        
+        # Check for any other index directories that might exist
+        for item in os.listdir('.'):
+            if os.path.isdir(item) and item.startswith('.index'):
+                if f"📁 {item}/" not in [x.split()[1] for x in items_to_delete]:
+                    items_to_delete.append(f"📁 {item}/ (orphaned index)")
+        
+        if not items_to_delete:
+            print(f"{Fore.GREEN}✓ No generated files found to delete.{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}The application state is already clean.{Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+            input()
+            return
+        
+        for item in items_to_delete:
+            print(f"  {Fore.RED}❌ {item}{Style.RESET_ALL}")
+        
+        print(f"\n{Fore.YELLOW}Additional actions:{Style.RESET_ALL}")
+        print(f"  {Fore.CYAN}🔄 Reset application state (indexer, chat history, etc.){Style.RESET_ALL}")
+        print(f"  {Fore.CYAN}📝 Clear recent projects list{Style.RESET_ALL}")
+        
+        print(f"\n{Fore.RED}⚠️  This action cannot be undone!{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}You will need to re-index your project after this operation.{Style.RESET_ALL}")
+        
+        # Get confirmation
+        confirmation = input(f"\n{Fore.YELLOW}Are you absolutely sure you want to proceed? Type 'DELETE' to confirm: {Style.RESET_ALL}").strip()
+        
+        if confirmation != "DELETE":
+            print(f"{Fore.GREEN}✓ Operation cancelled. No files were deleted.{Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+            input()
+            return
+        
+        # Final confirmation
+        final_confirm = input(f"{Fore.RED}Last chance! Type 'YES' to permanently delete all data: {Style.RESET_ALL}").strip().upper()
+        
+        if final_confirm != "YES":
+            print(f"{Fore.GREEN}✓ Operation cancelled. No files were deleted.{Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+            input()
+            return
+        
+        # Perform the deletion
+        print(f"\n{Fore.YELLOW}🗑️  Deleting files...{Style.RESET_ALL}")
+        
+        deleted_count = 0
+        errors = []
+        
+        try:
+            # Delete index directories
+            for item in [".index"]:
+                if os.path.exists(item):
+                    try:
+                        import shutil
+                        shutil.rmtree(item)
+                        print(f"{Fore.GREEN}✓ Deleted: {item}/{Style.RESET_ALL}")
+                        deleted_count += 1
+                    except Exception as e:
+                        errors.append(f"Failed to delete {item}/: {e}")
+            
+            # Delete indexer-specific index directory if different
+            if self.indexer and hasattr(self.indexer, 'index_dir'):
+                index_dir = self.indexer.index_dir
+                if os.path.exists(index_dir) and index_dir != ".index":
+                    try:
+                        import shutil
+                        shutil.rmtree(index_dir)
+                        print(f"{Fore.GREEN}✓ Deleted: {index_dir}/{Style.RESET_ALL}")
+                        deleted_count += 1
+                    except Exception as e:
+                        errors.append(f"Failed to delete {index_dir}/: {e}")
+            
+            # Delete logs directory
+            if os.path.exists("logs"):
+                try:
+                    import shutil
+                    shutil.rmtree("logs")
+                    print(f"{Fore.GREEN}✓ Deleted: logs/{Style.RESET_ALL}")
+                    deleted_count += 1
+                except Exception as e:
+                    errors.append(f"Failed to delete logs/: {e}")
+            
+            # Delete settings file
+            if os.path.exists(self.settings_path):
+                try:
+                    os.remove(self.settings_path)
+                    print(f"{Fore.GREEN}✓ Deleted: {os.path.basename(self.settings_path)}{Style.RESET_ALL}")
+                    deleted_count += 1
+                except Exception as e:
+                    errors.append(f"Failed to delete {self.settings_path}: {e}")
+            
+            # Reset application state
+            self.indexer = None
+            self.file_selector = None
+            self.project_analyzer = None
+            self.chat_handler = None
+            self.project_info = {}
+            self.recent_projects = []
+            self.index_outdated = False
+            self.chat_history = []
+            self.agent_mode_instance = None
+            self.last_directory = ""
+            
+            print(f"{Fore.GREEN}✓ Reset application state{Style.RESET_ALL}")
+            
+        except Exception as e:
+            errors.append(f"Unexpected error during cleanup: {e}")
+        
+        # Show results
+        print(f"\n{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}🧹 Clean Slate Results:{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}✅ Successfully deleted {deleted_count} items{Style.RESET_ALL}")
+        
+        if errors:
+            print(f"{Fore.YELLOW}⚠️  {len(errors)} errors occurred:{Style.RESET_ALL}")
+            for error in errors:
+                print(f"  {Fore.RED}❌ {error}{Style.RESET_ALL}")
+        
+        print(f"\n{Fore.GREEN}✓ Clean slate complete! The application has been reset.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}You can now index a new project using option 1.{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+        input()
+
     def toggle_markdown_rendering(self) -> None:
         """Toggle markdown rendering on/off."""
         self.enable_markdown_rendering = not self.enable_markdown_rendering
@@ -1136,7 +1322,7 @@ class VerbalCodeAI:
                 self.index_outdated = not index_status.get('complete', False)
 
             self.display_menu()
-            choice = input(f"{Fore.YELLOW}Enter your choice (1-13): {Style.RESET_ALL}").strip()
+            choice = input(f"{Fore.YELLOW}Enter your choice (1-14): {Style.RESET_ALL}").strip()
 
             actions = {
                 "1": lambda: self.index_directory(),
@@ -1147,14 +1333,15 @@ class VerbalCodeAI:
                 "6": lambda: self.view_indexed_files(),
                 "7": lambda: self.view_project_info(),
                 "8": lambda: self.view_recent_projects(),
-                "9": lambda: self.toggle_markdown_rendering(),
-                "10": lambda: self.toggle_thinking_blocks(),
-                "11": lambda: self.toggle_streaming_mode(),
-                "12": lambda: clear_screen(),
+                "9": lambda: self.clean_slate(),
+                "10": lambda: self.toggle_markdown_rendering(),
+                "11": lambda: self.toggle_thinking_blocks(),
+                "12": lambda: self.toggle_streaming_mode(),
+                "13": lambda: clear_screen(),
             }
 
-            if choice in actions or choice == "13":
-                if choice == "13":
+            if choice in actions or choice == "14":
+                if choice == "14":
                     clear_screen()
                     print(f"\n{Fore.GREEN}Exiting VerbalCodeAI. Goodbye!{Style.RESET_ALL}")
                     break
@@ -1162,7 +1349,7 @@ class VerbalCodeAI:
                     clear_screen()
                     actions[choice]()
             else:
-                print(f"\n{Fore.RED}Invalid choice. Please enter a number between 1 and 13.{Style.RESET_ALL}")
+                print(f"\n{Fore.RED}Invalid choice. Please enter a number between 1 and 14.{Style.RESET_ALL}")
 
 def run_http_server(port: int, allow_all_origins: bool = None) -> None:
     """Run the HTTP API server.
