@@ -1,0 +1,44 @@
+2025-05-23 11:21:17.632176 - FileIndexer.__init__ ENTRY: root_path=C:\laragon\www\taskheroai
+2025-05-23 11:21:17.632976 - Processing arguments: index_dir=.index
+2025-05-23 11:21:17.633202 - Absolute root_path: C:\laragon\www\taskheroai
+2025-05-23 11:21:17.633397 - Computed index_dir: C:\laragon\www\taskheroai\.index
+2025-05-23 11:21:17.633582 - Set up excluded_extensions with 38 extensions
+2025-05-23 11:21:17.633780 - Setting up gitignore path...
+2025-05-23 11:21:17.634012 - Using default gitignore file: C:\laragon\www\taskheroai\.gitignore
+2025-05-23 11:21:17.634297 - Set chunk_size: 1000
+2025-05-23 11:21:17.634836 - Creating CodeEmbedding instance
+2025-05-23 11:21:17.649212 - CodeEmbedding instance created successfully
+2025-05-23 11:21:17.649535 - Initialized empty metadata_cache
+2025-05-23 11:21:17.649829 - Calling _create_index_structure()
+2025-05-23 11:21:17.650149 - _create_index_structure() ENTRY: index_dir=C:\laragon\www\taskheroai\.index
+2025-05-23 11:21:17.650526 - CHECKPOINT: [DIR.1] Creating index directory structure at C:\laragon\www\taskheroai\.index
+2025-05-23 11:21:17.650860 - CHECKPOINT: [DIR.2] Checking write permissions for parent directory: C:\laragon\www\taskheroai
+2025-05-23 11:21:17.651161 - CHECKPOINT: [DIR.4] Parent directory is writable: C:\laragon\www\taskheroai
+2025-05-23 11:21:17.651616 - CHECKPOINT: [DIR.5] Will create the following subdirectories: ['', 'metadata', 'embeddings', 'descriptions']
+2025-05-23 11:21:17.651967 - CHECKPOINT: [DIR.6] Creating directory: C:\laragon\www\taskheroai\.index
+2025-05-23 11:21:17.652351 - CHECKPOINT: [DIR.7] Created directory: C:\laragon\www\taskheroai\.index
+2025-05-23 11:21:17.652661 - CHECKPOINT: [DIR.9] Verified directory exists: C:\laragon\www\taskheroai\.index
+2025-05-23 11:21:17.652956 - CHECKPOINT: [DIR.10] Testing write permissions with test file: C:\laragon\www\taskheroai\.index\.write_test
+2025-05-23 11:21:17.653729 - CHECKPOINT: [DIR.11] Successfully wrote and removed test file in C:\laragon\www\taskheroai\.index
+2025-05-23 11:21:17.653981 - CHECKPOINT: [DIR.6] Creating directory: C:\laragon\www\taskheroai\.index\metadata
+2025-05-23 11:21:17.654382 - CHECKPOINT: [DIR.7] Created directory: C:\laragon\www\taskheroai\.index\metadata
+2025-05-23 11:21:17.654710 - CHECKPOINT: [DIR.9] Verified directory exists: C:\laragon\www\taskheroai\.index\metadata
+2025-05-23 11:21:17.654956 - CHECKPOINT: [DIR.10] Testing write permissions with test file: C:\laragon\www\taskheroai\.index\metadata\.write_test
+2025-05-23 11:21:17.655641 - CHECKPOINT: [DIR.11] Successfully wrote and removed test file in C:\laragon\www\taskheroai\.index\metadata
+2025-05-23 11:21:17.655879 - CHECKPOINT: [DIR.6] Creating directory: C:\laragon\www\taskheroai\.index\embeddings
+2025-05-23 11:21:17.656238 - CHECKPOINT: [DIR.7] Created directory: C:\laragon\www\taskheroai\.index\embeddings
+2025-05-23 11:21:17.656590 - CHECKPOINT: [DIR.9] Verified directory exists: C:\laragon\www\taskheroai\.index\embeddings
+2025-05-23 11:21:17.656967 - CHECKPOINT: [DIR.10] Testing write permissions with test file: C:\laragon\www\taskheroai\.index\embeddings\.write_test
+2025-05-23 11:21:17.657958 - CHECKPOINT: [DIR.11] Successfully wrote and removed test file in C:\laragon\www\taskheroai\.index\embeddings
+2025-05-23 11:21:17.658336 - CHECKPOINT: [DIR.6] Creating directory: C:\laragon\www\taskheroai\.index\descriptions
+2025-05-23 11:21:17.658748 - CHECKPOINT: [DIR.7] Created directory: C:\laragon\www\taskheroai\.index\descriptions
+2025-05-23 11:21:17.659105 - CHECKPOINT: [DIR.9] Verified directory exists: C:\laragon\www\taskheroai\.index\descriptions
+2025-05-23 11:21:17.659431 - CHECKPOINT: [DIR.10] Testing write permissions with test file: C:\laragon\www\taskheroai\.index\descriptions\.write_test
+2025-05-23 11:21:17.660187 - CHECKPOINT: [DIR.11] Successfully wrote and removed test file in C:\laragon\www\taskheroai\.index\descriptions
+2025-05-23 11:21:17.660458 - CHECKPOINT: [DIR.14] Index directory structure created successfully at C:\laragon\www\taskheroai\.index
+2025-05-23 11:21:17.660649 - _create_index_structure() completed
+2025-05-23 11:21:17.660868 - Calling _load_metadata_cache()
+2025-05-23 11:21:17.744954 - _load_metadata_cache() completed
+2025-05-23 11:21:17.745189 - Initializing SimilaritySearch
+2025-05-23 11:21:18.495787 - SimilaritySearch initialization completed
+2025-05-23 11:21:18.496034 - FileIndexer.__init__ completed successfully
