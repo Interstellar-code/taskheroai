@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import json
 
 from colorama import Fore, Style
 from ..core import BaseManager
@@ -179,15 +180,16 @@ class CLIManager(BaseManager):
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
     
     def _handle_index_code(self) -> None:
-        """Handle index code option."""
-        print("\n" + Fore.CYAN + "=" * 50 + Style.RESET_ALL)
-        print(Fore.CYAN + Style.BRIGHT + "Index Code Directory" + Style.RESET_ALL)
-        print(Fore.CYAN + "=" * 50 + Style.RESET_ALL)
+        """Handle index code option with pre-analysis and detailed logging."""
+        print("\n" + Fore.CYAN + "=" * 70 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "🔍 Smart Code Directory Indexing" + Style.RESET_ALL)
+        print(Fore.CYAN + "=" * 70 + Style.RESET_ALL)
         
         try:
             # Import required modules
             from ..code.indexer import FileIndexer
             from ..code.decisions import FileSelector, ProjectAnalyzer
+            from ..code.indexing_logger import IndexingLogger, PreIndexingAnalyzer
             
             # Get directory to index
             if self.indexer and self.index_outdated:
@@ -209,7 +211,36 @@ class CLIManager(BaseManager):
                     print(f"{Fore.RED}Error: '{directory}' is not a valid directory.{Style.RESET_ALL}")
                     return
             
-            print(f"{Fore.CYAN}Indexing directory: {Style.BRIGHT}{directory}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Target directory: {Style.BRIGHT}{directory}{Style.RESET_ALL}")
+            
+            # Step 1: Pre-indexing analysis
+            print(f"\n{Fore.GREEN}🔍 Step 1: Analyzing directory structure...{Style.RESET_ALL}")
+            
+            gitignore_path = os.path.join(directory, '.gitignore')
+            if not os.path.exists(gitignore_path):
+                gitignore_path = None
+                print(f"{Fore.YELLOW}ℹ️  No .gitignore file found - will use default exclusions{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.GREEN}✓ Found .gitignore file{Style.RESET_ALL}")
+            
+            # Perform pre-analysis
+            analyzer = PreIndexingAnalyzer(directory, gitignore_path)
+            analysis = analyzer.analyze()
+            
+            # Display pre-analysis results
+            self._display_pre_analysis(analysis)
+            
+            # Ask for confirmation
+            print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+            confirmation = input(f"{Fore.GREEN}Proceed with indexing? (y/N): {Style.RESET_ALL}").strip().lower()
+            
+            if confirmation not in ['y', 'yes']:
+                print(f"{Fore.YELLOW}Operation cancelled by user.{Style.RESET_ALL}")
+                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                return
+            
+            # Step 2: Initialize indexer and logger
+            print(f"\n{Fore.GREEN}🚀 Step 2: Initializing indexing components...{Style.RESET_ALL}")
             
             # Initialize or reuse indexer
             if not self.indexer or self.indexer.root_path != directory:
@@ -222,46 +253,92 @@ class CLIManager(BaseManager):
                 if self.ai_manager:
                     self.ai_manager.set_dependencies(self.indexer, self.file_selector, self.project_analyzer)
             
-            # Check what files need indexing
-            print(f"{Fore.CYAN}Scanning files to be indexed...{Style.RESET_ALL}")
+            # Initialize detailed logger
+            indexing_logger = IndexingLogger(directory)
+            indexing_logger.log_pre_analysis(analysis)
+            
+            print(f"{Fore.GREEN}✓ Indexing logger initialized{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}📄 Log file: {indexing_logger.log_file}{Style.RESET_ALL}")
+            
+            # Step 3: Get files to process
+            print(f"\n{Fore.GREEN}📂 Step 3: Scanning for files to process...{Style.RESET_ALL}")
             
             try:
                 files_to_process = self.indexer.get_outdated_files()
             except Exception as e:
                 self.logger.error(f"Error scanning files: {e}")
                 files_to_process = []
+                indexing_logger.log_file_failed("scan_error", str(e))
             
             if files_to_process:
-                print(f"\n{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}📋 Index Summary:{Style.RESET_ALL}")
-                print(f"{Fore.CYAN}   Directory: {Style.BRIGHT}{directory}{Style.RESET_ALL}")
-                print(f"{Fore.CYAN}   Files to index: {Style.BRIGHT}{len(files_to_process)}{Style.RESET_ALL}")
-                print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+                # Step 4: Index files with detailed logging
+                print(f"\n{Fore.GREEN}⚡ Step 4: Indexing files...{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}Files to process: {Style.BRIGHT}{len(files_to_process)}{Style.RESET_ALL}")
                 
-                # Ask for confirmation
-                confirmation = input(f"\n{Fore.GREEN}Proceed with indexing? (y/N): {Style.RESET_ALL}").strip().lower()
-                
-                if confirmation not in ['y', 'yes']:
-                    print(f"{Fore.YELLOW}Operation cancelled by user.{Style.RESET_ALL}")
-                    return
-                
-                print(f"{Fore.GREEN}✓ Starting indexing process...{Style.RESET_ALL}")
-                
-                # Simple progress tracking
                 indexed_count = 0
+                failed_count = 0
                 start_time = time.time()
                 
-                def progress_callback():
+                def enhanced_progress_callback():
                     nonlocal indexed_count
                     indexed_count += 1
                     percent = int((indexed_count / len(files_to_process)) * 100)
-                    print(f"\r{Fore.YELLOW}Progress: {percent}% ({indexed_count}/{len(files_to_process)}){Style.RESET_ALL}", end="", flush=True)
+                    elapsed = time.time() - start_time
+                    if elapsed > 0:
+                        rate = indexed_count / elapsed
+                        eta = (len(files_to_process) - indexed_count) / rate if rate > 0 else 0
+                        print(f"\r{Fore.YELLOW}Progress: {percent}% ({indexed_count}/{len(files_to_process)}) | Rate: {rate:.1f} files/sec | ETA: {eta:.0f}s{Style.RESET_ALL}", end="", flush=True)
+                    else:
+                        print(f"\r{Fore.YELLOW}Progress: {percent}% ({indexed_count}/{len(files_to_process)}){Style.RESET_ALL}", end="", flush=True)
+                    
+                    # Log progress periodically
+                    if indexed_count % 10 == 0:
+                        indexing_logger.log_progress(indexed_count, len(files_to_process))
+                    
                     return False
                 
-                # Index the files
-                indexed_files = self.indexer.index_directory(progress_callback)
+                # Enhanced indexing with detailed logging
+                try:
+                    indexed_files = []
+                    for file_path in files_to_process:
+                        try:
+                            file_start_time = time.time()
+                            
+                            # Index the file using proper FileIndexer method
+                            metadata = self.indexer.reindex_file(file_path)
+                            success = metadata is not None
+                            
+                            if success:
+                                file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+                                processing_time = time.time() - file_start_time
+                                indexing_logger.log_file_indexed(file_path, file_size, processing_time)
+                                indexed_files.append(file_path)
+                            else:
+                                indexing_logger.log_file_failed(file_path, "Indexing failed")
+                                failed_count += 1
+                                
+                        except Exception as file_error:
+                            indexing_logger.log_file_failed(file_path, str(file_error))
+                            failed_count += 1
+                            self.logger.error(f"Error indexing {file_path}: {file_error}")
+                        
+                        enhanced_progress_callback()
+                    
+                    print(f"\n{Fore.GREEN}✅ Indexing process completed!{Style.RESET_ALL}")
+                    
+                except Exception as indexing_error:
+                    print(f"\n{Fore.RED}❌ Indexing error: {indexing_error}{Style.RESET_ALL}")
+                    indexing_logger.log_file_failed("indexing_process", str(indexing_error))
                 
-                print(f"\n{Fore.GREEN}✓ Indexed {Style.BRIGHT}{len(indexed_files)}{Style.NORMAL} files{Style.RESET_ALL}")
+                # Step 5: Finalize and display results
+                print(f"\n{Fore.GREEN}📊 Step 5: Finalizing and generating reports...{Style.RESET_ALL}")
+                
+                # Finalize logging
+                log_file = indexing_logger.finalize()
+                log_summary = indexing_logger.get_log_summary()
+                
+                # Display final results
+                self._display_indexing_results(log_summary, failed_count)
                 
                 # Save the directory
                 if self.settings_manager:
@@ -272,17 +349,119 @@ class CLIManager(BaseManager):
                     self.ai_manager.set_dependencies(self.indexer, self.file_selector, self.project_analyzer)
                     
                 self.index_outdated = False
-                print(f"{Fore.GREEN}✓ Indexing completed successfully!{Style.RESET_ALL}")
-                print(f"{Fore.CYAN}📁 You can now use chat or agent mode to interact with your codebase.{Style.RESET_ALL}")
                 
             else:
-                print(f"{Fore.GREEN}✓ All files are already indexed{Style.RESET_ALL}")
+                print(f"{Fore.GREEN}✅ All files are already indexed - no processing needed{Style.RESET_ALL}")
+                indexing_logger.finalize()
                 
         except Exception as e:
-            self.logger.error(f"Error indexing code: {e}")
+            self.logger.error(f"Error in enhanced indexing: {e}")
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
         
         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+    
+    def _display_pre_analysis(self, analysis: Dict[str, Any]) -> None:
+        """Display pre-indexing analysis results."""
+        print(f"\n{Fore.CYAN}📋 Pre-Indexing Analysis Results:{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'-'*50}{Style.RESET_ALL}")
+        
+        # Overall stats
+        total_files = analysis.get('total_files', 0)
+        files_to_index = analysis.get('files_to_index', 0)
+        files_to_ignore = analysis.get('files_to_ignore', 0)
+        total_size = analysis.get('total_size', 0)
+        
+        print(f"{Fore.GREEN}📁 Total files found: {Style.BRIGHT}{total_files}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}✅ Files to index: {Style.BRIGHT}{files_to_index}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}⏭️ Files to ignore: {Style.BRIGHT}{files_to_ignore}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}📊 Total size to process: {Style.BRIGHT}{self._format_size(total_size)}{Style.RESET_ALL}")
+        
+        # Directory breakdown
+        directories = analysis.get('directories', {})
+        if directories:
+            print(f"\n{Fore.CYAN}📂 Directory Breakdown (files to index):{Style.RESET_ALL}")
+            sorted_dirs = sorted(directories.items(), key=lambda x: x[1]['file_count'], reverse=True)
+            
+            for i, (dir_path, info) in enumerate(sorted_dirs[:10]):  # Show top 10
+                file_count = info['file_count']
+                if file_count > 0:
+                    dir_display = dir_path if dir_path != "." else "(root)"
+                    print(f"  {Fore.GREEN}{dir_display:<30}{Style.RESET_ALL}: {Fore.YELLOW}{file_count} files{Style.RESET_ALL}")
+            
+            if len(directories) > 10:
+                print(f"  {Fore.CYAN}... and {len(directories) - 10} more directories{Style.RESET_ALL}")
+        
+        # File types
+        file_types = analysis.get('file_types', {})
+        if file_types:
+            print(f"\n{Fore.CYAN}📄 File Types to Index:{Style.RESET_ALL}")
+            sorted_types = sorted(file_types.items(), key=lambda x: x[1], reverse=True)
+            
+            for i, (file_ext, count) in enumerate(sorted_types[:8]):  # Show top 8
+                ext_display = file_ext if file_ext else "(no extension)"
+                print(f"  {Fore.CYAN}{ext_display:<15}{Style.RESET_ALL}: {Fore.YELLOW}{count} files{Style.RESET_ALL}")
+        
+        # Large files warning
+        large_files = analysis.get('large_files', [])
+        if large_files:
+            print(f"\n{Fore.YELLOW}⚠️  Large Files (>1MB) detected:{Style.RESET_ALL}")
+            for large_file in large_files[:3]:  # Show first 3
+                size_str = self._format_size(large_file['size'])
+                print(f"  {Fore.YELLOW}{large_file['path']:<40}{Style.RESET_ALL}: {Fore.RED}{size_str}{Style.RESET_ALL}")
+            
+            if len(large_files) > 3:
+                print(f"  {Fore.CYAN}... and {len(large_files) - 3} more large files{Style.RESET_ALL}")
+        
+        # Gitignore patterns
+        gitignore_patterns = analysis.get('gitignore_patterns', [])
+        if gitignore_patterns:
+            print(f"\n{Fore.CYAN}🚫 Active .gitignore patterns (first 5):{Style.RESET_ALL}")
+            for pattern in gitignore_patterns[:5]:
+                print(f"  {Fore.MAGENTA}{pattern}{Style.RESET_ALL}")
+    
+    def _display_indexing_results(self, log_summary: Dict[str, Any], failed_count: int) -> None:
+        """Display final indexing results."""
+        print(f"\n{Fore.CYAN}🎉 Indexing Complete - Final Results:{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+        
+        stats = log_summary.get('statistics', {})
+        
+        # Main statistics
+        files_indexed = stats.get('files_indexed', 0)
+        files_ignored = stats.get('files_ignored', 0)
+        total_size = stats.get('total_size', 0)
+        processing_time = stats.get('processing_time', 0)
+        
+        print(f"{Fore.GREEN}✅ Files successfully indexed: {Style.BRIGHT}{files_indexed}{Style.RESET_ALL}")
+        if failed_count > 0:
+            print(f"{Fore.RED}❌ Files failed to index: {Style.BRIGHT}{failed_count}{Style.RESET_ALL}")
+        if files_ignored > 0:
+            print(f"{Fore.YELLOW}⏭️ Files ignored: {Style.BRIGHT}{files_ignored}{Style.RESET_ALL}")
+        
+        print(f"{Fore.CYAN}📊 Total size processed: {Style.BRIGHT}{self._format_size(total_size)}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}⏱️ Processing time: {Style.BRIGHT}{processing_time:.2f} seconds{Style.RESET_ALL}")
+        
+        if processing_time > 0 and files_indexed > 0:
+            rate = files_indexed / processing_time
+            print(f"{Fore.CYAN}⚡ Average rate: {Style.BRIGHT}{rate:.1f} files/second{Style.RESET_ALL}")
+        
+        # File types summary
+        file_types = log_summary.get('file_types', {})
+        if file_types:
+            print(f"\n{Fore.CYAN}📄 File Types Indexed:{Style.RESET_ALL}")
+            sorted_types = sorted(file_types.items(), key=lambda x: x[1], reverse=True)
+            for file_ext, count in sorted_types[:5]:  # Show top 5
+                ext_display = file_ext if file_ext else "(no extension)"
+                print(f"  {Fore.GREEN}{ext_display:<12}{Style.RESET_ALL}: {Fore.YELLOW}{count} files{Style.RESET_ALL}")
+        
+        # Log files info
+        print(f"\n{Fore.CYAN}📋 Detailed Logs Created:{Style.RESET_ALL}")
+        print(f"  {Fore.GREEN}📄 Text log: {Style.BRIGHT}{log_summary.get('log_file', 'N/A')}{Style.RESET_ALL}")
+        print(f"  {Fore.GREEN}📊 JSON log: {Style.BRIGHT}{log_summary.get('json_file', 'N/A')}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}💡 Use these logs to review detailed indexing information{Style.RESET_ALL}")
+        
+        print(f"\n{Fore.GREEN}🚀 Ready for AI interactions!{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}You can now use chat, max chat, or agent mode to interact with your indexed codebase.{Style.RESET_ALL}")
     
     def _handle_exit(self) -> None:
         """Handle exit option."""
@@ -392,11 +571,70 @@ class CLIManager(BaseManager):
             except Exception:
                 pass
 
+            # Show recent indexing logs if available
+            self._show_recent_indexing_logs()
+
         except Exception as e:
             self.logger.error(f"Error viewing indexed files: {e}", exc_info=True)
             print(f"{Fore.RED}{Style.BRIGHT}Error viewing indexed files: {e}{Style.RESET_ALL}")
         
         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+    
+    def _show_recent_indexing_logs(self) -> None:
+        """Show recent indexing logs if available."""
+        try:
+            logs_dir = "logs"
+            if not os.path.exists(logs_dir):
+                return
+            
+            # Find recent indexing logs
+            project_name = os.path.basename(self.indexer.root_path) if self.indexer else "unknown"
+            log_files = []
+            
+            for file in os.listdir(logs_dir):
+                if file.startswith(f"indexing_{project_name}") and file.endswith(".log"):
+                    log_path = os.path.join(logs_dir, file)
+                    log_files.append((log_path, os.path.getmtime(log_path)))
+            
+            if log_files:
+                # Sort by modification time (newest first)
+                log_files.sort(key=lambda x: x[1], reverse=True)
+                
+                print(f"\n{Fore.CYAN}{Style.BRIGHT}📋 Recent Indexing Logs:{Style.RESET_ALL}")
+                
+                # Show most recent 3 logs
+                for i, (log_path, mtime) in enumerate(log_files[:3]):
+                    log_name = os.path.basename(log_path)
+                    log_date = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+                    log_size = self._format_size(os.path.getsize(log_path))
+                    
+                    print(f"  {i+1}. {Fore.GREEN}{log_name}{Style.RESET_ALL}")
+                    print(f"     📅 {log_date} | 📊 {log_size}")
+                    
+                    # Try to show summary from JSON file if available
+                    json_file = log_path.replace('.log', '.json')
+                    if os.path.exists(json_file):
+                        try:
+                            with open(json_file, 'r', encoding='utf-8') as f:
+                                log_data = json.load(f)
+                                stats = log_data.get('statistics', {})
+                                indexed = stats.get('files_indexed', 0)
+                                ignored = stats.get('files_ignored', 0)
+                                failed = stats.get('files_failed', 0)
+                                processing_time = stats.get('processing_time', 0)
+                                
+                                print(f"     ✅ {indexed} indexed | ⏭️ {ignored} ignored | ❌ {failed} failed | ⏱️ {processing_time:.1f}s")
+                        except Exception:
+                            print(f"     📄 Log available for detailed review")
+                    print()
+                
+                if len(log_files) > 3:
+                    print(f"  {Fore.CYAN}... and {len(log_files) - 3} older log files{Style.RESET_ALL}")
+                
+                print(f"{Fore.CYAN}💡 Check log files for detailed indexing information and file lists{Style.RESET_ALL}")
+                
+        except Exception as e:
+            self.logger.debug(f"Error showing recent indexing logs: {e}")
     
     def _format_size(self, size_bytes: int) -> str:
         """Format file size in human readable format."""
@@ -619,10 +857,10 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
         try:
             from ..ai.providers import ProviderFactory
             
-            # Create provider configuration
+            # Create provider configuration with conservative token limits
             provider_config = {
                 'model': model,
-                'max_tokens': 2000,
+                'max_tokens': 1500,  # Reduced from 2000 for safer context management
                 'temperature': 0.3
             }
             
@@ -633,12 +871,16 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
                 ai_settings.initialize()
                 openai_settings = ai_settings.get_openai_settings()
                 provider_config['api_key'] = openai_settings.get('API_KEY')
+                # Further reduce tokens for OpenAI to avoid context issues
+                provider_config['max_tokens'] = 1000
             elif provider == 'ollama':
                 from ..settings import AISettingsManager
                 ai_settings = AISettingsManager()
                 ai_settings.initialize()
                 ollama_settings = ai_settings.get_ollama_settings()
                 provider_config['host'] = ollama_settings.get('HOST', 'http://127.0.0.1:11434')
+                # Ollama can handle more tokens
+                provider_config['max_tokens'] = 3000
             
             # Create provider factory and get response
             factory = ProviderFactory()
@@ -991,7 +1233,7 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
                                     print(f"      📅 Due: {task.due_date}")
                             
                             if len(tasks) > 5:
-                                print(f"      {Fore.DIM}... and {len(tasks) - 5} more{Style.RESET_ALL}")
+                                print(f"      {Style.DIM}... and {len(tasks) - 5} more{Style.RESET_ALL}")
                             print()
                     
                     if task_count >= 15 and total_tasks > 15:
@@ -1112,12 +1354,756 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
     
     def _handle_project_cleanup(self) -> None:
-        """Handle project cleanup option."""
-        print(f"\n{Fore.CYAN}🗑️ Project Cleanup{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}Project cleanup functionality available.{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}Will include options to clean index data and reset projects.{Style.RESET_ALL}")
+        """Handle project cleanup option with comprehensive cleanup management."""
+        print(f"\n{Fore.CYAN}🗑️ Project Cleanup Manager{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}⚠️  WARNING: This will permanently delete project data!{Style.RESET_ALL}")
+        
+        try:
+            # Get current project info
+            project_root = self.indexer.root_path if self.indexer else os.getcwd()
+            project_name = os.path.basename(project_root)
+            
+            print(f"\n{Fore.CYAN}📁 Current Project: {Fore.WHITE}{project_name}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}📂 Project Path: {Fore.WHITE}{project_root}{Style.RESET_ALL}")
+            
+            # Analyze what can be cleaned
+            cleanup_analysis = self._analyze_cleanup_targets(project_root, project_name)
+            
+            # Display cleanup menu
+            while True:
+                self._display_cleanup_menu(cleanup_analysis)
+                
+                choice = input(f"\n{Fore.GREEN}Select cleanup option (1-8 or 0 to cancel): {Style.RESET_ALL}").strip()
+                
+                if choice == "0":
+                    print(f"{Fore.YELLOW}Cleanup cancelled.{Style.RESET_ALL}")
+                    break
+                elif choice == "1":
+                    self._cleanup_index_data(project_root)
+                elif choice == "2":
+                    self._cleanup_logs(project_name)
+                elif choice == "3":
+                    self._cleanup_temp_files(project_root)
+                elif choice == "4":
+                    self._cleanup_project_settings(project_root)
+                elif choice == "5":
+                    self._cleanup_ai_cache()
+                elif choice == "6":
+                    self._cleanup_task_data()
+                elif choice == "7":
+                    self._selective_cleanup(cleanup_analysis)
+                elif choice == "8":
+                    self._complete_project_reset(project_root, project_name)
+                    break  # Exit after complete reset
+                else:
+                    print(f"{Fore.RED}Invalid choice. Please enter 1-8 or 0.{Style.RESET_ALL}")
+                
+                # Refresh analysis after cleanup
+                cleanup_analysis = self._analyze_cleanup_targets(project_root, project_name)
+                
+        except Exception as e:
+            self.logger.error(f"Error in project cleanup: {e}")
+            print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+        
         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+    
+    def _analyze_cleanup_targets(self, project_root: str, project_name: str) -> Dict[str, Any]:
+        """Analyze what can be cleaned up in the project."""
+        analysis = {
+            "index_data": {"exists": False, "size": 0, "files": 0},
+            "logs": {"exists": False, "size": 0, "files": 0},
+            "temp_files": {"exists": False, "size": 0, "files": 0},
+            "settings": {"exists": False, "size": 0, "files": 0},
+            "ai_cache": {"exists": False, "size": 0, "files": 0},
+            "task_data": {"exists": False, "size": 0, "files": 0},
+            "total_size": 0
+        }
+        
+        try:
+            # Check index data (.index directory)
+            index_dir = os.path.join(project_root, ".index")
+            if os.path.exists(index_dir):
+                size, files = self._calculate_directory_size(index_dir)
+                analysis["index_data"] = {"exists": True, "size": size, "files": files}
+                analysis["total_size"] += size
+            
+            # Check logs directory
+            logs_dir = "logs"
+            if os.path.exists(logs_dir):
+                # Count project-specific logs
+                project_logs = [f for f in os.listdir(logs_dir) 
+                               if f.startswith(project_name) or f.startswith("indexing_")]
+                if project_logs:
+                    total_size = sum(os.path.getsize(os.path.join(logs_dir, f)) 
+                                   for f in project_logs if os.path.isfile(os.path.join(logs_dir, f)))
+                    analysis["logs"] = {"exists": True, "size": total_size, "files": len(project_logs)}
+                    analysis["total_size"] += total_size
+            
+            # Check temp files (common temp patterns)
+            temp_patterns = ["*.tmp", "*.temp", "*~", "*.bak", "*.old", "*.orig"]
+            temp_size = 0
+            temp_count = 0
+            
+            for root, dirs, files in os.walk(project_root):
+                # Skip .index and other system directories
+                dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['__pycache__', 'node_modules']]
+                
+                for file in files:
+                    if any(file.endswith(pattern.replace('*', '')) for pattern in temp_patterns) or file.startswith('.tmp'):
+                        file_path = os.path.join(root, file)
+                        try:
+                            temp_size += os.path.getsize(file_path)
+                            temp_count += 1
+                        except OSError:
+                            pass
+            
+            if temp_count > 0:
+                analysis["temp_files"] = {"exists": True, "size": temp_size, "files": temp_count}
+                analysis["total_size"] += temp_size
+            
+            # Check settings files
+            settings_files = [".app_settings.json", ".env.backup*", "*.log"]
+            settings_size = 0
+            settings_count = 0
+            
+            for pattern in settings_files:
+                if '*' in pattern:
+                    # Handle wildcard patterns
+                    import glob
+                    matches = glob.glob(os.path.join(project_root, pattern))
+                    for match in matches:
+                        if os.path.isfile(match):
+                            try:
+                                settings_size += os.path.getsize(match)
+                                settings_count += 1
+                            except OSError:
+                                pass
+                else:
+                    file_path = os.path.join(project_root, pattern)
+                    if os.path.exists(file_path):
+                        try:
+                            settings_size += os.path.getsize(file_path)
+                            settings_count += 1
+                        except OSError:
+                            pass
+            
+            if settings_count > 0:
+                analysis["settings"] = {"exists": True, "size": settings_size, "files": settings_count}
+                analysis["total_size"] += settings_size
+            
+            # Check task management data
+            task_dirs = ["taskheromd/project docs", "taskheromd/project planning"]
+            task_size = 0
+            task_count = 0
+            
+            for task_dir in task_dirs:
+                task_path = os.path.join(project_root, task_dir)
+                if os.path.exists(task_path):
+                    size, files = self._calculate_directory_size(task_path)
+                    task_size += size
+                    task_count += files
+            
+            if task_count > 0:
+                analysis["task_data"] = {"exists": True, "size": task_size, "files": task_count}
+                analysis["total_size"] += task_size
+            
+        except Exception as e:
+            self.logger.error(f"Error analyzing cleanup targets: {e}")
+        
+        return analysis
+    
+    def _calculate_directory_size(self, directory: str) -> tuple:
+        """Calculate total size and file count of a directory."""
+        total_size = 0
+        file_count = 0
+        
+        try:
+            for root, dirs, files in os.walk(directory):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    try:
+                        total_size += os.path.getsize(file_path)
+                        file_count += 1
+                    except OSError:
+                        pass
+        except Exception:
+            pass
+        
+        return total_size, file_count
+    
+    def _display_cleanup_menu(self, analysis: Dict[str, Any]) -> None:
+        """Display the cleanup options menu."""
+        print(f"\n{Fore.CYAN}🧹 Cleanup Options:{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'-'*60}{Style.RESET_ALL}")
+        
+        total_recoverable = analysis["total_size"]
+        
+        # Option 1: Index Data
+        index_info = analysis["index_data"]
+        if index_info["exists"]:
+            size_str = self._format_size(index_info["size"])
+            print(f"{Fore.GREEN}1. 🗂️ Delete Index Data{Style.RESET_ALL} - {size_str} ({index_info['files']} files)")
+            print(f"   {Fore.CYAN}   Removes all indexed embeddings, metadata, and descriptions{Style.RESET_ALL}")
+        else:
+            print(f"{Style.DIM}1. 🗂️ Delete Index Data - No index data found{Style.RESET_ALL}")
+        
+        # Option 2: Logs
+        logs_info = analysis["logs"]
+        if logs_info["exists"]:
+            size_str = self._format_size(logs_info["size"])
+            print(f"{Fore.GREEN}2. 📋 Clear Project Logs{Style.RESET_ALL} - {size_str} ({logs_info['files']} files)")
+            print(f"   {Fore.CYAN}   Removes indexing logs and project-specific log files{Style.RESET_ALL}")
+        else:
+            print(f"{Style.DIM}2. 📋 Clear Project Logs - No logs found{Style.RESET_ALL}")
+        
+        # Option 3: Temp Files
+        temp_info = analysis["temp_files"]
+        if temp_info["exists"]:
+            size_str = self._format_size(temp_info["size"])
+            print(f"{Fore.GREEN}3. 🗑️ Remove Temp Files{Style.RESET_ALL} - {size_str} ({temp_info['files']} files)")
+            print(f"   {Fore.CYAN}   Removes .tmp, .bak, .old, and other temporary files{Style.RESET_ALL}")
+        else:
+            print(f"{Style.DIM}3. 🗑️ Remove Temp Files - No temp files found{Style.RESET_ALL}")
+        
+        # Option 4: Settings
+        settings_info = analysis["settings"]
+        if settings_info["exists"]:
+            size_str = self._format_size(settings_info["size"])
+            print(f"{Fore.YELLOW}4. ⚙️ Reset Project Settings{Style.RESET_ALL} - {size_str} ({settings_info['files']} files)")
+            print(f"   {Fore.CYAN}   Removes app settings and backup configurations{Style.RESET_ALL}")
+        else:
+            print(f"{Style.DIM}4. ⚙️ Reset Project Settings - No settings to reset{Style.RESET_ALL}")
+        
+        # Option 5: AI Cache
+        print(f"{Fore.GREEN}5. 🤖 Clear AI Cache{Style.RESET_ALL}")
+        print(f"   {Fore.CYAN}   Clears AI conversation history and cached responses{Style.RESET_ALL}")
+        
+        # Option 6: Task Data
+        task_info = analysis["task_data"]
+        if task_info["exists"]:
+            size_str = self._format_size(task_info["size"])
+            print(f"{Fore.YELLOW}6. 📋 Clear Task Data{Style.RESET_ALL} - {size_str} ({task_info['files']} files)")
+            print(f"   {Fore.CYAN}   Removes task management data and project planning files{Style.RESET_ALL}")
+        else:
+            print(f"{Style.DIM}6. 📋 Clear Task Data - No task data found{Style.RESET_ALL}")
+        
+        # Advanced options
+        print(f"\n{Fore.YELLOW}Advanced Options:{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}7. 🎯 Selective Cleanup{Style.RESET_ALL} - Choose specific items to delete")
+        print(f"{Fore.RED}8. 💥 Complete Project Reset{Style.RESET_ALL} - Delete EVERYTHING and start fresh")
+        
+        print(f"\n{Fore.CYAN}0. ❌ Cancel Cleanup{Style.RESET_ALL}")
+        
+        if total_recoverable > 0:
+            total_str = self._format_size(total_recoverable)
+            print(f"\n{Fore.GREEN}💾 Total Space Recoverable: {Style.BRIGHT}{total_str}{Style.RESET_ALL}")
+    
+    def _cleanup_index_data(self, project_root: str) -> None:
+        """Clean up index data (.index directory)."""
+        index_dir = os.path.join(project_root, ".index")
+        
+        if not os.path.exists(index_dir):
+            print(f"{Fore.YELLOW}No index data found to clean.{Style.RESET_ALL}")
+            return
+        
+        # Calculate size before deletion
+        size, files = self._calculate_directory_size(index_dir)
+        size_str = self._format_size(size)
+        
+        print(f"\n{Fore.YELLOW}⚠️  About to delete index data:{Style.RESET_ALL}")
+        print(f"   📂 Directory: {index_dir}")
+        print(f"   📊 Size: {size_str}")
+        print(f"   📄 Files: {files}")
+        print(f"\n{Fore.RED}This will remove all embeddings, metadata, and descriptions!{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}You will need to re-index your code to use AI features.{Style.RESET_ALL}")
+        
+        confirm = input(f"\n{Fore.RED}Type 'DELETE' to confirm: {Style.RESET_ALL}").strip()
+        
+        if confirm == "DELETE":
+            try:
+                import shutil
+                shutil.rmtree(index_dir)
+                print(f"\n{Fore.GREEN}✅ Successfully deleted index data ({size_str} recovered){Style.RESET_ALL}")
+                
+                # Reset indexer state
+                self.indexer = None
+                self.index_outdated = False
+                
+                # Clear last directory if it matches
+                if self.settings_manager:
+                    last_dir = self.settings_manager.get_last_directory()
+                    if last_dir == project_root:
+                        self.settings_manager.set_last_directory("")
+                
+            except Exception as e:
+                print(f"{Fore.RED}❌ Error deleting index data: {e}{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}Index data deletion cancelled.{Style.RESET_ALL}")
+    
+    def _cleanup_logs(self, project_name: str) -> None:
+        """Clean up project-specific log files."""
+        logs_dir = "logs"
+        
+        if not os.path.exists(logs_dir):
+            print(f"{Fore.YELLOW}No logs directory found.{Style.RESET_ALL}")
+            return
+        
+        # Find project-specific logs
+        project_logs = []
+        total_size = 0
+        
+        for file in os.listdir(logs_dir):
+            if (file.startswith(project_name) or file.startswith("indexing_")) and os.path.isfile(os.path.join(logs_dir, file)):
+                file_path = os.path.join(logs_dir, file)
+                try:
+                    size = os.path.getsize(file_path)
+                    project_logs.append((file, file_path, size))
+                    total_size += size
+                except OSError:
+                    pass
+        
+        if not project_logs:
+            print(f"{Fore.YELLOW}No project logs found to clean.{Style.RESET_ALL}")
+            return
+        
+        size_str = self._format_size(total_size)
+        
+        print(f"\n{Fore.YELLOW}⚠️  About to delete {len(project_logs)} log files:{Style.RESET_ALL}")
+        print(f"   📊 Total size: {size_str}")
+        
+        # Show first few files
+        for i, (filename, _, file_size) in enumerate(project_logs[:5]):
+            file_size_str = self._format_size(file_size)
+            print(f"   📄 {filename} ({file_size_str})")
+        
+        if len(project_logs) > 5:
+            print(f"   📄 ... and {len(project_logs) - 5} more files")
+        
+        confirm = input(f"\n{Fore.YELLOW}Delete these log files? (y/N): {Style.RESET_ALL}").strip().lower()
+        
+        if confirm in ['y', 'yes']:
+            deleted_count = 0
+            deleted_size = 0
+            
+            for filename, file_path, file_size in project_logs:
+                try:
+                    os.remove(file_path)
+                    deleted_count += 1
+                    deleted_size += file_size
+                except Exception as e:
+                    print(f"{Fore.RED}❌ Error deleting {filename}: {e}{Style.RESET_ALL}")
+            
+            if deleted_count > 0:
+                deleted_size_str = self._format_size(deleted_size)
+                print(f"\n{Fore.GREEN}✅ Successfully deleted {deleted_count} log files ({deleted_size_str} recovered){Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}Log cleanup cancelled.{Style.RESET_ALL}")
+    
+    def _cleanup_temp_files(self, project_root: str) -> None:
+        """Clean up temporary files."""
+        temp_patterns = ["*.tmp", "*.temp", "*~", "*.bak", "*.old", "*.orig"]
+        temp_files = []
+        total_size = 0
+        
+        print(f"\n{Fore.CYAN}🔍 Scanning for temporary files...{Style.RESET_ALL}")
+        
+        for root, dirs, files in os.walk(project_root):
+            # Skip .index and system directories
+            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['__pycache__', 'node_modules', 'venv']]
+            
+            for file in files:
+                if any(file.endswith(pattern.replace('*', '')) for pattern in temp_patterns) or file.startswith('.tmp'):
+                    file_path = os.path.join(root, file)
+                    try:
+                        size = os.path.getsize(file_path)
+                        rel_path = os.path.relpath(file_path, project_root)
+                        temp_files.append((rel_path, file_path, size))
+                        total_size += size
+                    except OSError:
+                        pass
+        
+        if not temp_files:
+            print(f"{Fore.GREEN}✅ No temporary files found to clean.{Style.RESET_ALL}")
+            return
+        
+        size_str = self._format_size(total_size)
+        
+        print(f"\n{Fore.YELLOW}Found {len(temp_files)} temporary files ({size_str}):{Style.RESET_ALL}")
+        
+        # Show first few files
+        for i, (rel_path, _, file_size) in enumerate(temp_files[:8]):
+            file_size_str = self._format_size(file_size)
+            print(f"   🗑️ {rel_path} ({file_size_str})")
+        
+        if len(temp_files) > 8:
+            print(f"   🗑️ ... and {len(temp_files) - 8} more files")
+        
+        confirm = input(f"\n{Fore.YELLOW}Delete these temporary files? (y/N): {Style.RESET_ALL}").strip().lower()
+        
+        if confirm in ['y', 'yes']:
+            deleted_count = 0
+            deleted_size = 0
+            
+            for rel_path, file_path, file_size in temp_files:
+                try:
+                    os.remove(file_path)
+                    deleted_count += 1
+                    deleted_size += file_size
+                except Exception as e:
+                    print(f"{Fore.RED}❌ Error deleting {rel_path}: {e}{Style.RESET_ALL}")
+            
+            if deleted_count > 0:
+                deleted_size_str = self._format_size(deleted_size)
+                print(f"\n{Fore.GREEN}✅ Successfully deleted {deleted_count} temporary files ({deleted_size_str} recovered){Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}Temporary file cleanup cancelled.{Style.RESET_ALL}")
+    
+    def _cleanup_project_settings(self, project_root: str) -> None:
+        """Clean up project settings and configuration files."""
+        print(f"\n{Fore.RED}⚠️  WARNING: This will reset ALL project settings!{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}This includes:{Style.RESET_ALL}")
+        print(f"   • Application settings")
+        print(f"   • Environment backups")
+        print(f"   • User preferences")
+        print(f"   • AI provider configurations")
+        
+        confirm = input(f"\n{Fore.RED}Type 'RESET' to confirm settings reset: {Style.RESET_ALL}").strip()
+        
+        if confirm == "RESET":
+            settings_files = [
+                ".app_settings.json",
+                ".env.backup",
+                ".env.backup.legacy"
+            ]
+            
+            deleted_files = []
+            deleted_size = 0
+            
+            for settings_file in settings_files:
+                file_path = os.path.join(project_root, settings_file)
+                if os.path.exists(file_path):
+                    try:
+                        size = os.path.getsize(file_path)
+                        os.remove(file_path)
+                        deleted_files.append(settings_file)
+                        deleted_size += size
+                    except Exception as e:
+                        print(f"{Fore.RED}❌ Error deleting {settings_file}: {e}{Style.RESET_ALL}")
+            
+            # Clear env backups directory
+            env_backups_dir = os.path.join(project_root, ".env_backups")
+            if os.path.exists(env_backups_dir):
+                try:
+                    import shutil
+                    backup_size, _ = self._calculate_directory_size(env_backups_dir)
+                    shutil.rmtree(env_backups_dir)
+                    deleted_files.append(".env_backups/")
+                    deleted_size += backup_size
+                except Exception as e:
+                    print(f"{Fore.RED}❌ Error deleting .env_backups: {e}{Style.RESET_ALL}")
+            
+            if deleted_files:
+                size_str = self._format_size(deleted_size)
+                print(f"\n{Fore.GREEN}✅ Reset project settings:{Style.RESET_ALL}")
+                for file in deleted_files:
+                    print(f"   🗑️ {file}")
+                print(f"\n{Fore.GREEN}💾 Space recovered: {size_str}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}💡 Settings will be recreated with defaults on next run.{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}No settings files found to reset.{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}Settings reset cancelled.{Style.RESET_ALL}")
+    
+    def _cleanup_ai_cache(self) -> None:
+        """Clear AI cache and conversation history."""
+        print(f"\n{Fore.CYAN}🤖 Clearing AI cache and conversation history...{Style.RESET_ALL}")
+        
+        # Clear AI manager cache if available
+        if self.ai_manager and hasattr(self.ai_manager, 'clear_cache'):
+            try:
+                self.ai_manager.clear_cache()
+                print(f"{Fore.GREEN}✅ AI conversation history cleared{Style.RESET_ALL}")
+            except Exception as e:
+                print(f"{Fore.RED}❌ Error clearing AI cache: {e}{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}AI cache clearing not available{Style.RESET_ALL}")
+        
+        print(f"{Fore.CYAN}💡 AI providers will start fresh on next interaction.{Style.RESET_ALL}")
+    
+    def _cleanup_task_data(self) -> None:
+        """Clear task management data."""
+        print(f"\n{Fore.YELLOW}⚠️  This will delete ALL task management data!{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Including:{Style.RESET_ALL}")
+        print(f"   • Project planning files")
+        print(f"   • Task boards and statuses")
+        print(f"   • Task history and metadata")
+        
+        confirm = input(f"\n{Fore.RED}Type 'DELETE' to confirm task data deletion: {Style.RESET_ALL}").strip()
+        
+        if confirm == "DELETE":
+            task_dirs = ["taskheromd/project docs", "taskheromd/project planning"]
+            deleted_size = 0
+            deleted_dirs = []
+            
+            for task_dir in task_dirs:
+                if os.path.exists(task_dir):
+                    try:
+                        import shutil
+                        size, _ = self._calculate_directory_size(task_dir)
+                        shutil.rmtree(task_dir)
+                        deleted_dirs.append(task_dir)
+                        deleted_size += size
+                    except Exception as e:
+                        print(f"{Fore.RED}❌ Error deleting {task_dir}: {e}{Style.RESET_ALL}")
+            
+            if deleted_dirs:
+                size_str = self._format_size(deleted_size)
+                print(f"\n{Fore.GREEN}✅ Deleted task management data:{Style.RESET_ALL}")
+                for dir_name in deleted_dirs:
+                    print(f"   🗑️ {dir_name}")
+                print(f"\n{Fore.GREEN}💾 Space recovered: {size_str}{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}No task data found to delete.{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}Task data deletion cancelled.{Style.RESET_ALL}")
+    
+    def _selective_cleanup(self, analysis: Dict[str, Any]) -> None:
+        """Allow user to selectively choose what to clean."""
+        print(f"\n{Fore.CYAN}🎯 Selective Cleanup{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'-'*50}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Select items to delete (space-separated numbers):{Style.RESET_ALL}")
+        
+        options = []
+        if analysis["index_data"]["exists"]:
+            size_str = self._format_size(analysis["index_data"]["size"])
+            options.append(("Index Data", f"🗂️ Index Data ({size_str})", "index_data"))
+            print(f"   1. 🗂️ Index Data ({size_str})")
+        
+        if analysis["logs"]["exists"]:
+            size_str = self._format_size(analysis["logs"]["size"])
+            options.append(("Logs", f"📋 Project Logs ({size_str})", "logs"))
+            print(f"   2. 📋 Project Logs ({size_str})")
+        
+        if analysis["temp_files"]["exists"]:
+            size_str = self._format_size(analysis["temp_files"]["size"])
+            options.append(("Temp Files", f"🗑️ Temporary Files ({size_str})", "temp_files"))
+            print(f"   3. 🗑️ Temporary Files ({size_str})")
+        
+        if analysis["settings"]["exists"]:
+            size_str = self._format_size(analysis["settings"]["size"])
+            options.append(("Settings", f"⚙️ Project Settings ({size_str})", "settings"))
+            print(f"   4. ⚙️ Project Settings ({size_str})")
+        
+        if analysis["task_data"]["exists"]:
+            size_str = self._format_size(analysis["task_data"]["size"])
+            options.append(("Task Data", f"📋 Task Data ({size_str})", "task_data"))
+            print(f"   5. 📋 Task Data ({size_str})")
+        
+        if not options:
+            print(f"{Fore.YELLOW}No cleanup options available.{Style.RESET_ALL}")
+            return
+        
+        selection = input(f"\n{Fore.GREEN}Enter numbers (e.g., '1 3 5') or 'all': {Style.RESET_ALL}").strip()
+        
+        if not selection:
+            print(f"{Fore.YELLOW}Selective cleanup cancelled.{Style.RESET_ALL}")
+            return
+        
+        selected_items = []
+        
+        if selection.lower() == 'all':
+            selected_items = options
+        else:
+            try:
+                numbers = [int(x) for x in selection.split()]
+                for num in numbers:
+                    if 1 <= num <= len(options):
+                        selected_items.append(options[num - 1])
+                    else:
+                        print(f"{Fore.RED}Invalid option: {num}{Style.RESET_ALL}")
+            except ValueError:
+                print(f"{Fore.RED}Invalid input. Please enter numbers separated by spaces.{Style.RESET_ALL}")
+                return
+        
+        if not selected_items:
+            print(f"{Fore.YELLOW}No valid items selected.{Style.RESET_ALL}")
+            return
+        
+        # Show confirmation
+        total_size = sum(analysis[item[2]]["size"] for item in selected_items)
+        total_size_str = self._format_size(total_size)
+        
+        print(f"\n{Fore.YELLOW}⚠️  About to delete:{Style.RESET_ALL}")
+        for _, description, _ in selected_items:
+            print(f"   {description}")
+        print(f"\n{Fore.GREEN}Total space to recover: {total_size_str}{Style.RESET_ALL}")
+        
+        confirm = input(f"\n{Fore.RED}Type 'DELETE' to confirm: {Style.RESET_ALL}").strip()
+        
+        if confirm == "DELETE":
+            print(f"\n{Fore.CYAN}🧹 Performing selective cleanup...{Style.RESET_ALL}")
+            
+            for name, description, item_type in selected_items:
+                print(f"\n{Fore.CYAN}Cleaning {name}...{Style.RESET_ALL}")
+                
+                if item_type == "index_data":
+                    self._cleanup_index_data(os.getcwd())
+                elif item_type == "logs":
+                    project_name = os.path.basename(os.getcwd())
+                    self._cleanup_logs(project_name)
+                elif item_type == "temp_files":
+                    self._cleanup_temp_files(os.getcwd())
+                elif item_type == "settings":
+                    self._cleanup_project_settings(os.getcwd())
+                elif item_type == "task_data":
+                    self._cleanup_task_data()
+            
+            print(f"\n{Fore.GREEN}🎉 Selective cleanup completed!{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}Selective cleanup cancelled.{Style.RESET_ALL}")
+    
+    def _complete_project_reset(self, project_root: str, project_name: str) -> None:
+        """Perform complete project reset - delete everything."""
+        print(f"\n{Fore.RED}💥 COMPLETE PROJECT RESET{Style.RESET_ALL}")
+        print(f"{Fore.RED}{'='*50}{Style.RESET_ALL}")
+        print(f"{Fore.RED}⚠️  DANGER: This will delete ALL project data!{Style.RESET_ALL}")
+        print(f"\n{Fore.YELLOW}This will permanently remove:{Style.RESET_ALL}")
+        print(f"   • All index data and embeddings")
+        print(f"   • All logs and history")
+        print(f"   • All settings and configurations")
+        print(f"   • All task management data")
+        print(f"   • All temporary and backup files")
+        print(f"   • ALL project-related data")
+        
+        print(f"\n{Fore.RED}🚨 THIS CANNOT BE UNDONE! 🚨{Style.RESET_ALL}")
+        
+        # Three-stage confirmation
+        confirm1 = input(f"\n{Fore.RED}Type the project name '{project_name}' to continue: {Style.RESET_ALL}").strip()
+        
+        if confirm1 != project_name:
+            print(f"{Fore.YELLOW}Project reset cancelled.{Style.RESET_ALL}")
+            return
+        
+        confirm2 = input(f"\n{Fore.RED}Type 'I UNDERSTAND' to confirm you understand this is permanent: {Style.RESET_ALL}").strip()
+        
+        if confirm2 != "I UNDERSTAND":
+            print(f"{Fore.YELLOW}Project reset cancelled.{Style.RESET_ALL}")
+            return
+        
+        confirm3 = input(f"\n{Fore.RED}Type 'DELETE EVERYTHING' for final confirmation: {Style.RESET_ALL}").strip()
+        
+        if confirm3 != "DELETE EVERYTHING":
+            print(f"{Fore.YELLOW}Project reset cancelled.{Style.RESET_ALL}")
+            return
+        
+        print(f"\n{Fore.RED}🔥 Performing complete project reset...{Style.RESET_ALL}")
+        
+        total_deleted_size = 0
+        deleted_items = []
+        
+        # Delete index data
+        index_dir = os.path.join(project_root, ".index")
+        if os.path.exists(index_dir):
+            try:
+                import shutil
+                size, _ = self._calculate_directory_size(index_dir)
+                shutil.rmtree(index_dir)
+                deleted_items.append(f"Index data ({self._format_size(size)})")
+                total_deleted_size += size
+            except Exception as e:
+                print(f"{Fore.RED}❌ Error deleting index: {e}{Style.RESET_ALL}")
+        
+        # Delete logs
+        logs_dir = "logs"
+        if os.path.exists(logs_dir):
+            try:
+                import shutil
+                size, _ = self._calculate_directory_size(logs_dir)
+                shutil.rmtree(logs_dir)
+                deleted_items.append(f"All logs ({self._format_size(size)})")
+                total_deleted_size += size
+            except Exception as e:
+                print(f"{Fore.RED}❌ Error deleting logs: {e}{Style.RESET_ALL}")
+        
+        # Delete settings files
+        settings_patterns = [".app_settings.json", ".env_backups", ".env.backup*"]
+        for pattern in settings_patterns:
+            if '*' in pattern:
+                import glob
+                matches = glob.glob(os.path.join(project_root, pattern))
+                for match in matches:
+                    try:
+                        if os.path.isfile(match):
+                            size = os.path.getsize(match)
+                            os.remove(match)
+                            total_deleted_size += size
+                        elif os.path.isdir(match):
+                            import shutil
+                            size, _ = self._calculate_directory_size(match)
+                            shutil.rmtree(match)
+                            total_deleted_size += size
+                    except Exception as e:
+                        print(f"{Fore.RED}❌ Error deleting {match}: {e}{Style.RESET_ALL}")
+            else:
+                file_path = os.path.join(project_root, pattern)
+                if os.path.exists(file_path):
+                    try:
+                        if os.path.isfile(file_path):
+                            size = os.path.getsize(file_path)
+                            os.remove(file_path)
+                            total_deleted_size += size
+                        elif os.path.isdir(file_path):
+                            import shutil
+                            size, _ = self._calculate_directory_size(file_path)
+                            shutil.rmtree(file_path)
+                            total_deleted_size += size
+                    except Exception as e:
+                        print(f"{Fore.RED}❌ Error deleting {pattern}: {e}{Style.RESET_ALL}")
+        
+        deleted_items.append("All settings and configurations")
+        
+        # Delete task data
+        task_dirs = ["taskheromd"]
+        for task_dir in task_dirs:
+            if os.path.exists(task_dir):
+                try:
+                    import shutil
+                    size, _ = self._calculate_directory_size(task_dir)
+                    shutil.rmtree(task_dir)
+                    deleted_items.append(f"Task data ({self._format_size(size)})")
+                    total_deleted_size += size
+                except Exception as e:
+                    print(f"{Fore.RED}❌ Error deleting {task_dir}: {e}{Style.RESET_ALL}")
+        
+        # Reset internal state
+        self.indexer = None
+        self.index_outdated = False
+        
+        if self.settings_manager:
+            self.settings_manager.set_last_directory("")
+        
+        # Clear AI cache
+        if self.ai_manager and hasattr(self.ai_manager, 'clear_cache'):
+            try:
+                self.ai_manager.clear_cache()
+                deleted_items.append("AI cache and history")
+            except Exception:
+                pass
+        
+        total_size_str = self._format_size(total_deleted_size)
+        
+        print(f"\n{Fore.GREEN}🎉 COMPLETE PROJECT RESET SUCCESSFUL!{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}{'='*50}{Style.RESET_ALL}")
+        print(f"\n{Fore.GREEN}Deleted items:{Style.RESET_ALL}")
+        for item in deleted_items:
+            print(f"   ✅ {item}")
+        
+        print(f"\n{Fore.GREEN}💾 Total space recovered: {Style.BRIGHT}{total_size_str}{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}🚀 Project has been completely reset!{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}You can now start fresh by indexing your code again.{Style.RESET_ALL}")
+        
+        input(f"\n{Fore.GREEN}Press Enter to return to main menu...{Style.RESET_ALL}")
 
     def _handle_ai_settings(self) -> None:
         """Handle AI settings option."""

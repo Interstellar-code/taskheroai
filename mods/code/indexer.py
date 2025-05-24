@@ -312,9 +312,6 @@ class FileIndexer:
                 )
                 if not os.path.exists(self.gitignore_path):
                     direct_logger.log(f"Warning: Specified gitignore file not found at {self.gitignore_path}")
-                    print(
-                        f"Warning: Specified gitignore file not found at {self.gitignore_path}"
-                    )
                     self.gitignore_path = None
                 else:
                     direct_logger.log(f"Using specified gitignore file: {self.gitignore_path}")
@@ -323,7 +320,6 @@ class FileIndexer:
                 if os.path.exists(default_gitignore):
                     self.gitignore_path: str = default_gitignore
                     direct_logger.log(f"Using default gitignore file: {self.gitignore_path}")
-                    print(f"Using default gitignore file at {self.gitignore_path}")
                 else:
                     self.gitignore_path: None = None
                     direct_logger.log("No gitignore file found")
