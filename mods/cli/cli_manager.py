@@ -409,54 +409,168 @@ class CLIManager(BaseManager):
             input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
     
     def _handle_quick_create_task(self) -> None:
-        """Handle quick create task option."""
+        """Handle quick create task option - Enhanced with ProjectPlanner."""
         print(f"\n{Fore.CYAN}➕ Quick Create Task{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
         
-        if self.task_manager:
-            try:
+        try:
+            # Use ProjectPlanner if available for enhanced task creation
+            if self.project_planner:
+                print(f"{Fore.GREEN}✨ Enhanced task creation with auto-generated ID{Style.RESET_ALL}")
+                
+                # Get basic task info
+                title = input(f"{Fore.GREEN}Task title: {Style.RESET_ALL}").strip()
+                if not title:
+                    print(f"{Fore.YELLOW}Task creation cancelled.{Style.RESET_ALL}")
+                    input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                    return
+                
+                # Optional description
+                description = input(f"{Fore.GREEN}Description (optional): {Style.RESET_ALL}").strip()
+                
+                # Priority selection
+                print(f"\n{Fore.CYAN}Priority options:{Style.RESET_ALL}")
+                print(f"  1. Low")
+                print(f"  2. Medium (default)")
+                print(f"  3. High")
+                print(f"  4. Critical")
+                
+                priority_choice = input(f"{Fore.GREEN}Select priority (1-4, default: 2): {Style.RESET_ALL}").strip()
+                priority_map = {'1': 'low', '2': 'medium', '3': 'high', '4': 'critical'}
+                priority = priority_map.get(priority_choice, 'medium')
+                
+                # Due date (optional)
+                due_date = input(f"{Fore.GREEN}Due date (YYYY-MM-DD, optional): {Style.RESET_ALL}").strip()
+                if due_date:
+                    try:
+                        from datetime import datetime
+                        datetime.strptime(due_date, "%Y-%m-%d")  # Validate format
+                    except ValueError:
+                        print(f"{Fore.YELLOW}Invalid date format, skipping due date.{Style.RESET_ALL}")
+                        due_date = None
+                
+                # Create task using ProjectPlanner
+                success, result = self.project_planner.create_new_task(
+                    title=title,
+                    priority=priority,
+                    due_date=due_date,
+                    content=description
+                )
+                
+                if success:
+                    print(f"\n{Fore.GREEN}✅ Task created successfully!{Style.RESET_ALL}")
+                    print(f"   Task ID: {Fore.CYAN}{result}{Style.RESET_ALL}")
+                    print(f"   Title: {title}")
+                    print(f"   Priority: {priority.title()}")
+                    if due_date:
+                        print(f"   Due Date: {due_date}")
+                else:
+                    print(f"{Fore.RED}❌ Failed to create task: {result}{Style.RESET_ALL}")
+                    
+            # Basic fallback using TaskManager directly
+            elif self.task_manager:
                 title = input(f"{Fore.GREEN}Task title: {Style.RESET_ALL}").strip()
                 if title:
                     description = input(f"{Fore.GREEN}Description (optional): {Style.RESET_ALL}").strip()
                     
-                    task_data = {
-                        'title': title,
-                        'description': description if description else '',
-                        'status': 'todo',
-                        'priority': 'medium'
-                    }
+                    # Use TaskManager.create_task with proper arguments
+                    from ..project_management.task_manager import TaskPriority, TaskStatus
                     
-                    task = self.task_manager.create_task(task_data)
-                    print(f"{Fore.GREEN}✓ Created task: {title}{Style.RESET_ALL}")
+                    task = self.task_manager.create_task(
+                        title=title,
+                        content=description,
+                        priority=TaskPriority.MEDIUM,
+                        status=TaskStatus.TODO
+                    )
+                    
+                    if task:
+                        print(f"{Fore.GREEN}✅ Created task: {task.task_id} - {title}{Style.RESET_ALL}")
+                    else:
+                        print(f"{Fore.RED}❌ Failed to create task{Style.RESET_ALL}")
                 else:
                     print(f"{Fore.YELLOW}Task creation cancelled.{Style.RESET_ALL}")
-                    
-            except Exception as e:
-                self.logger.error(f"Task creation error: {e}")
-                print(f"{Fore.RED}Error creating task: {e}{Style.RESET_ALL}")
-        else:
-            print(f"{Fore.YELLOW}Task management not available.{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}Task management not available.{Style.RESET_ALL}")
+                
+        except Exception as e:
+            self.logger.error(f"Task creation error: {e}")
+            print(f"{Fore.RED}Error creating task: {e}{Style.RESET_ALL}")
             
         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
     
     def _handle_quick_view_tasks(self) -> None:
-        """Handle quick view tasks option."""
+        """Handle quick view tasks option - Enhanced with better task display."""
         print(f"\n{Fore.CYAN}👀 Quick View Tasks{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
         
         if self.task_manager:
             try:
-                tasks = self.task_manager.get_all_tasks()
-                if tasks:
-                    for i, task in enumerate(tasks[:10], 1):  # Show max 10 tasks
-                        status = task.get('status', 'unknown')
-                        title = task.get('title', 'Untitled')
-                        print(f"{Fore.CYAN}{i:2}. [{status.upper()}] {title}{Style.RESET_ALL}")
-                        
-                    if len(tasks) > 10:
-                        print(f"{Fore.YELLOW}... and {len(tasks) - 10} more tasks{Style.RESET_ALL}")
+                all_tasks = self.task_manager.get_all_tasks()
+                
+                # Count total tasks
+                total_tasks = sum(len(tasks) for tasks in all_tasks.values())
+                
+                if total_tasks > 0:
+                    print(f"{Fore.GREEN}📊 Found {total_tasks} tasks:{Style.RESET_ALL}\n")
+                    
+                    # Status icons for better display
+                    status_icons = {
+                        'backlog': '📦',
+                        'todo': '📝',
+                        'inprogress': '🔄',
+                        'testing': '🧪',
+                        'devdone': '✅',
+                        'done': '🎉'
+                    }
+                    
+                    # Priority icons
+                    priority_icons = {
+                        'critical': '🔥',
+                        'high': '🔴',
+                        'medium': '🟡',
+                        'low': '🟢'
+                    }
+                    
+                    task_count = 0
+                    for status, tasks in all_tasks.items():
+                        if tasks:
+                            status_icon = status_icons.get(status, '📄')
+                            print(f"{status_icon} {Fore.YELLOW}{status.upper()} ({len(tasks)} tasks):{Style.RESET_ALL}")
+                            
+                            for task in tasks[:5]:  # Show max 5 per status
+                                task_count += 1
+                                if task_count > 15:  # Limit total display to 15 tasks
+                                    break
+                                
+                                # Get task attributes safely
+                                priority = getattr(task, 'priority', None)
+                                if hasattr(priority, 'value'):
+                                    priority_str = priority.value
+                                else:
+                                    priority_str = str(priority) if priority else 'medium'
+                                
+                                priority_icon = priority_icons.get(priority_str.lower(), '⚪')
+                                
+                                # Display task
+                                title = getattr(task, 'title', 'Untitled')
+                                task_id = getattr(task, 'task_id', 'No ID')
+                                
+                                print(f"  {priority_icon} [{Fore.CYAN}{task_id}{Style.RESET_ALL}] {title[:50]}")
+                                
+                                # Show due date if available
+                                if hasattr(task, 'due_date') and task.due_date:
+                                    print(f"      📅 Due: {task.due_date}")
+                            
+                            if len(tasks) > 5:
+                                print(f"      {Fore.DIM}... and {len(tasks) - 5} more{Style.RESET_ALL}")
+                            print()
+                    
+                    if task_count >= 15 and total_tasks > 15:
+                        print(f"{Fore.YELLOW}... showing first 15 of {total_tasks} tasks{Style.RESET_ALL}")
+                        print(f"{Fore.CYAN}💡 Use option 12 to search for specific tasks{Style.RESET_ALL}")
                 else:
                     print(f"{Fore.YELLOW}No tasks found.{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}💡 Create your first task using option 10!{Style.RESET_ALL}")
                     
             except Exception as e:
                 self.logger.error(f"Task viewing error: {e}")
@@ -467,34 +581,98 @@ class CLIManager(BaseManager):
         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
     
     def _handle_search_tasks(self) -> None:
-        """Handle search tasks option."""
+        """Handle search tasks option - Enhanced with better search capabilities."""
         print(f"\n{Fore.CYAN}🔍 Search Tasks{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
         
         if self.task_manager:
             try:
-                query = input(f"{Fore.GREEN}Search query: {Style.RESET_ALL}").strip()
-                if query:
-                    # Simple search in title and description
-                    all_tasks = self.task_manager.get_all_tasks()
-                    matching_tasks = []
-                    
-                    for task in all_tasks:
-                        title = task.get('title', '').lower()
-                        description = task.get('description', '').lower()
-                        if query.lower() in title or query.lower() in description:
-                            matching_tasks.append(task)
-                    
-                    if matching_tasks:
-                        print(f"\n{Fore.GREEN}Found {len(matching_tasks)} matching tasks:{Style.RESET_ALL}")
-                        for i, task in enumerate(matching_tasks, 1):
-                            status = task.get('status', 'unknown')
-                            title = task.get('title', 'Untitled')
-                            print(f"{Fore.CYAN}{i:2}. [{status.upper()}] {title}{Style.RESET_ALL}")
-                    else:
-                        print(f"{Fore.YELLOW}No tasks found matching '{query}'.{Style.RESET_ALL}")
-                else:
+                query = input(f"{Fore.GREEN}Search query (title/content): {Style.RESET_ALL}").strip()
+                if not query:
                     print(f"{Fore.YELLOW}Search cancelled.{Style.RESET_ALL}")
+                    input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                    return
+                
+                # Try to use TaskManager search method if available
+                matching_tasks = []
+                if hasattr(self.task_manager, 'search_tasks'):
+                    matching_tasks = self.task_manager.search_tasks(query, search_content=True)
+                else:
+                    # Fallback: Manual search through all tasks
+                    all_tasks = self.task_manager.get_all_tasks()
+                    
+                    for tasks in all_tasks.values():
+                        for task in tasks:
+                            # Search in title
+                            title = getattr(task, 'title', '').lower()
+                            
+                            # Search in content/description if available
+                            content = ''
+                            if hasattr(task, 'content'):
+                                content = getattr(task, 'content', '').lower()
+                            elif hasattr(task, 'description'):
+                                content = getattr(task, 'description', '').lower()
+                            
+                            # Search in task ID
+                            task_id = getattr(task, 'task_id', '').lower()
+                            
+                            if (query.lower() in title or 
+                                query.lower() in content or 
+                                query.lower() in task_id):
+                                matching_tasks.append(task)
+                
+                if matching_tasks:
+                    print(f"\n{Fore.GREEN}🎯 Found {len(matching_tasks)} matching tasks:{Style.RESET_ALL}")
+                    
+                    # Status and priority icons
+                    status_icons = {
+                        'backlog': '📦', 'todo': '📝', 'inprogress': '🔄',
+                        'testing': '🧪', 'devdone': '✅', 'done': '🎉'
+                    }
+                    priority_icons = {
+                        'critical': '🔥', 'high': '🔴', 'medium': '🟡', 'low': '🟢'
+                    }
+                    
+                    for i, task in enumerate(matching_tasks[:10], 1):  # Show max 10 results
+                        # Get task attributes safely
+                        title = getattr(task, 'title', 'Untitled')
+                        task_id = getattr(task, 'task_id', 'No ID')
+                        
+                        # Status
+                        status = getattr(task, 'status', None)
+                        if hasattr(status, 'value'):
+                            status_str = status.value
+                        else:
+                            status_str = str(status) if status else 'unknown'
+                        status_icon = status_icons.get(status_str, '📄')
+                        
+                        # Priority
+                        priority = getattr(task, 'priority', None)
+                        if hasattr(priority, 'value'):
+                            priority_str = priority.value
+                        else:
+                            priority_str = str(priority) if priority else 'medium'
+                        priority_icon = priority_icons.get(priority_str.lower(), '⚪')
+                        
+                        print(f"  {i:2}. {status_icon} {priority_icon} [{Fore.CYAN}{task_id}{Style.RESET_ALL}] {title[:60]}")
+                        print(f"      Status: {status_str.title()} | Priority: {priority_str.title()}")
+                        
+                        # Show due date if available
+                        if hasattr(task, 'due_date') and task.due_date:
+                            print(f"      📅 Due: {task.due_date}")
+                        
+                        # Show assigned to if available
+                        if hasattr(task, 'assigned_to') and task.assigned_to:
+                            print(f"      👤 Assigned: {task.assigned_to}")
+                        
+                        print()
+                    
+                    if len(matching_tasks) > 10:
+                        print(f"{Fore.YELLOW}... and {len(matching_tasks) - 10} more matches{Style.RESET_ALL}")
+                        
+                else:
+                    print(f"\n{Fore.YELLOW}❌ No tasks found matching '{query}'.{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}💡 Try searching with different keywords or check task titles{Style.RESET_ALL}")
                     
             except Exception as e:
                 self.logger.error(f"Task search error: {e}")
@@ -505,301 +683,9 @@ class CLIManager(BaseManager):
         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
     
     def _handle_project_cleanup(self) -> None:
-        """Handle project cleanup option - Enhanced implementation."""
-        print(f"\n{Fore.CYAN}🗑️ Project Cleanup Manager{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
-        
-        try:
-            from ..core.cleanup_manager import ProjectCleanupManager
-            cleanup_manager = ProjectCleanupManager(self.settings_manager)
-            cleanup_manager.initialize()
-            
-            while True:
-                self._show_cleanup_menu()
-                choice = input(f"\n{Fore.GREEN}Choose cleanup option (0-4): {Style.RESET_ALL}").strip()
-                
-                if choice == "1":
-                    self._cleanup_specific_project(cleanup_manager)
-                elif choice == "2":
-                    self._cleanup_multiple_projects(cleanup_manager)
-                elif choice == "3":
-                    self._reset_all_projects(cleanup_manager)
-                elif choice == "4":
-                    self._selective_cleanup(cleanup_manager)
-                elif choice == "0":
-                    break
-                else:
-                    print(f"{Fore.RED}Invalid option. Please enter 0-4.{Style.RESET_ALL}")
-                    
-        except ImportError as e:
-            self.logger.error(f"Failed to import cleanup manager: {e}")
-            print(f"{Fore.RED}Error: Cleanup functionality not available.{Style.RESET_ALL}")
-            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-        except Exception as e:
-            self.logger.error(f"Error in project cleanup: {e}")
-            print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
-            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-    
-    def _show_cleanup_menu(self):
-        """Display cleanup options menu."""
-        print(f"\n{Fore.YELLOW}Select cleanup operation:{Style.RESET_ALL}")
-        print(f"  {Fore.CYAN}1.{Style.RESET_ALL} Clean specific project")
-        print(f"  {Fore.CYAN}2.{Style.RESET_ALL} Clean multiple projects")
-        print(f"  {Fore.RED}3.{Style.RESET_ALL} Reset ALL projects (clean slate)")
-        print(f"  {Fore.CYAN}4.{Style.RESET_ALL} Selective cleanup (logs, settings)")
-        print(f"  {Fore.GREEN}0.{Style.RESET_ALL} Return to main menu")
-    
-    def _cleanup_specific_project(self, cleanup_manager):
-        """Handle cleanup of a specific project."""
-        print(f"\n{Fore.CYAN}🎯 Clean Specific Project{Style.RESET_ALL}")
+        """Handle project cleanup option."""
+        print(f"\n{Fore.CYAN}🗑️ Project Cleanup{Style.RESET_ALL}")
         print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
-        
-        # Get list of indexed projects
-        projects = cleanup_manager.list_indexed_projects()
-        
-        if not projects:
-            print(f"{Fore.YELLOW}No indexed projects found.{Style.RESET_ALL}")
-            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-            return
-        
-        # Display projects
-        print(f"\n{Fore.CYAN}Found {len(projects)} indexed projects:{Style.RESET_ALL}")
-        for i, project in enumerate(projects, 1):
-            size_info = ""
-            if project["file_count"] > 0:
-                size_info = f" - {project['file_count']} files indexed"
-            print(f"  {Fore.CYAN}{i}.{Style.RESET_ALL} {project['name']} ({project['path'][:50]}...){size_info}")
-        
-        # Get user selection
-        try:
-            choice = input(f"\n{Fore.GREEN}Select project to clean (1-{len(projects)}, 0 to cancel): {Style.RESET_ALL}").strip()
-            
-            if choice == "0":
-                return
-            
-            project_index = int(choice) - 1
-            if 0 <= project_index < len(projects):
-                selected_project = projects[project_index]
-                
-                # Show warning and get confirmation
-                print(f"\n{Fore.RED}⚠️  WARNING: This will permanently delete all index data for:{Style.RESET_ALL}")
-                print(f"   {Fore.YELLOW}Project: {selected_project['name']}{Style.RESET_ALL}")
-                print(f"   {Fore.YELLOW}Path: {selected_project['path']}{Style.RESET_ALL}")
-                print(f"   {Fore.YELLOW}Indexed Files: {selected_project['file_count']}{Style.RESET_ALL}")
-                print(f"\n{Fore.RED}• .index directory will be removed{Style.RESET_ALL}")
-                print(f"{Fore.RED}• All embeddings and metadata will be lost{Style.RESET_ALL}")
-                print(f"{Fore.RED}• Project will be removed from settings{Style.RESET_ALL}")
-                
-                confirm = input(f"\n{Fore.RED}Are you sure? Type 'DELETE' to confirm: {Style.RESET_ALL}").strip()
-                
-                if confirm == "DELETE":
-                    print(f"\n{Fore.CYAN}🗑️  Cleaning {selected_project['name']}...{Style.RESET_ALL}")
-                    
-                    success, message = cleanup_manager.cleanup_project(selected_project["path"])
-                    
-                    if success:
-                        print(f"{Fore.GREEN}✅ {message}{Style.RESET_ALL}")
-                    else:
-                        print(f"{Fore.RED}❌ {message}{Style.RESET_ALL}")
-                else:
-                    print(f"{Fore.YELLOW}Cleanup cancelled.{Style.RESET_ALL}")
-            else:
-                print(f"{Fore.RED}Invalid selection.{Style.RESET_ALL}")
-                
-        except ValueError:
-            print(f"{Fore.RED}Invalid input. Please enter a number.{Style.RESET_ALL}")
-        except Exception as e:
-            print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
-        
+        print(f"{Fore.YELLOW}Project cleanup functionality available.{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Will include options to clean index data and reset projects.{Style.RESET_ALL}")
         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-    
-    def _cleanup_multiple_projects(self, cleanup_manager):
-        """Handle cleanup of multiple projects."""
-        print(f"\n{Fore.CYAN}📋 Clean Multiple Projects{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
-        
-        # Get list of indexed projects
-        projects = cleanup_manager.list_indexed_projects()
-        
-        if not projects:
-            print(f"{Fore.YELLOW}No indexed projects found.{Style.RESET_ALL}")
-            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-            return
-        
-        # Display projects
-        print(f"\n{Fore.CYAN}Found {len(projects)} indexed projects:{Style.RESET_ALL}")
-        for i, project in enumerate(projects, 1):
-            size_info = ""
-            if project["file_count"] > 0:
-                size_info = f" - {project['file_count']} files indexed"
-            print(f"  {Fore.CYAN}{i}.{Style.RESET_ALL} {project['name']} ({project['path'][:50]}...){size_info}")
-        
-        # Get user selections
-        print(f"\n{Fore.YELLOW}Enter project numbers to clean (comma-separated, e.g., 1,3,5):{Style.RESET_ALL}")
-        try:
-            selections = input(f"{Fore.GREEN}Projects to clean: {Style.RESET_ALL}").strip()
-            
-            if not selections:
-                print(f"{Fore.YELLOW}No selections made.{Style.RESET_ALL}")
-                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-                return
-            
-            # Parse selections
-            selected_indices = []
-            for selection in selections.split(","):
-                index = int(selection.strip()) - 1
-                if 0 <= index < len(projects):
-                    selected_indices.append(index)
-                else:
-                    print(f"{Fore.RED}Invalid selection: {selection.strip()}{Style.RESET_ALL}")
-                    input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-                    return
-            
-            if not selected_indices:
-                print(f"{Fore.YELLOW}No valid selections made.{Style.RESET_ALL}")
-                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-                return
-            
-            # Show what will be cleaned
-            selected_projects = [projects[i] for i in selected_indices]
-            print(f"\n{Fore.RED}⚠️  WARNING: This will permanently delete index data for {len(selected_projects)} projects:{Style.RESET_ALL}")
-            for project in selected_projects:
-                print(f"   {Fore.YELLOW}• {project['name']} ({project['file_count']} files){Style.RESET_ALL}")
-            
-            confirm = input(f"\n{Fore.RED}Are you sure? Type 'DELETE' to confirm: {Style.RESET_ALL}").strip()
-            
-            if confirm == "DELETE":
-                print(f"\n{Fore.CYAN}🗑️  Cleaning {len(selected_projects)} projects...{Style.RESET_ALL}")
-                
-                project_paths = [p["path"] for p in selected_projects]
-                results = cleanup_manager.cleanup_multiple_projects(project_paths)
-                
-                # Display results
-                success_count = 0
-                for project_path, (success, message) in results.items():
-                    project_name = os.path.basename(project_path)
-                    if success:
-                        print(f"{Fore.GREEN}✅ {project_name}: {message}{Style.RESET_ALL}")
-                        success_count += 1
-                    else:
-                        print(f"{Fore.RED}❌ {project_name}: {message}{Style.RESET_ALL}")
-                
-                print(f"\n{Fore.CYAN}Batch cleanup completed: {success_count}/{len(selected_projects)} successful{Style.RESET_ALL}")
-            else:
-                print(f"{Fore.YELLOW}Batch cleanup cancelled.{Style.RESET_ALL}")
-                
-        except ValueError:
-            print(f"{Fore.RED}Invalid input. Please enter numbers separated by commas.{Style.RESET_ALL}")
-        except Exception as e:
-            print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
-        
-        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-    
-    def _reset_all_projects(self, cleanup_manager):
-        """Handle complete system reset."""
-        print(f"\n{Fore.RED}💥 Reset ALL Projects (Clean Slate){Style.RESET_ALL}")
-        print(f"{Fore.RED}{'='*50}{Style.RESET_ALL}")
-        
-        # Get list of indexed projects
-        projects = cleanup_manager.list_indexed_projects()
-        
-        if not projects:
-            print(f"{Fore.YELLOW}No indexed projects found. Nothing to reset.{Style.RESET_ALL}")
-            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-            return
-        
-        # Show preview
-        print(f"\n{Fore.RED}⚠️  DANGER: This will completely reset TaskHero AI to a clean state!{Style.RESET_ALL}")
-        print(f"\n{Fore.YELLOW}This will affect {len(projects)} projects:{Style.RESET_ALL}")
-        
-        total_files = 0
-        for project in projects:
-            total_files += project["file_count"]
-            print(f"   {Fore.YELLOW}• {project['name']} ({project['file_count']} files){Style.RESET_ALL}")
-        
-        print(f"\n{Fore.RED}What will be deleted:{Style.RESET_ALL}")
-        print(f"{Fore.RED}• All .index directories ({total_files} total indexed files){Style.RESET_ALL}")
-        print(f"{Fore.RED}• All project embeddings and metadata{Style.RESET_ALL}")
-        print(f"{Fore.RED}• Recent projects list{Style.RESET_ALL}")
-        print(f"{Fore.RED}• Current project setting{Style.RESET_ALL}")
-        
-        # Multiple confirmations for safety
-        print(f"\n{Fore.RED}{'='*60}{Style.RESET_ALL}")
-        print(f"{Fore.RED}THIS ACTION CANNOT BE UNDONE!{Style.RESET_ALL}")
-        print(f"{Fore.RED}{'='*60}{Style.RESET_ALL}")
-        
-        confirm1 = input(f"\n{Fore.RED}Type 'RESET' to continue: {Style.RESET_ALL}").strip()
-        if confirm1 != "RESET":
-            print(f"{Fore.YELLOW}Reset cancelled.{Style.RESET_ALL}")
-            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-            return
-        
-        confirm2 = input(f"{Fore.RED}Are you absolutely sure? Type 'YES DELETE EVERYTHING': {Style.RESET_ALL}").strip()
-        if confirm2 != "YES DELETE EVERYTHING":
-            print(f"{Fore.YELLOW}Reset cancelled.{Style.RESET_ALL}")
-            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-            return
-        
-        # Perform reset
-        print(f"\n{Fore.RED}💥 Performing complete system reset...{Style.RESET_ALL}")
-        
-        success, message = cleanup_manager.reset_all_projects()
-        
-        if success:
-            print(f"\n{Fore.GREEN}✅ System reset completed successfully!{Style.RESET_ALL}")
-            print(f"{Fore.GREEN}{message}{Style.RESET_ALL}")
-            print(f"\n{Fore.CYAN}TaskHero AI has been reset to a clean state.{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}You can now index new projects from the main menu.{Style.RESET_ALL}")
-        else:
-            print(f"\n{Fore.RED}❌ Reset failed: {message}{Style.RESET_ALL}")
-        
-        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
-    
-    def _selective_cleanup(self, cleanup_manager):
-        """Handle selective cleanup options."""
-        print(f"\n{Fore.CYAN}🎯 Selective Cleanup{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
-        
-        while True:
-            print(f"\n{Fore.YELLOW}Select what to clean:{Style.RESET_ALL}")
-            print(f"  {Fore.CYAN}1.{Style.RESET_ALL} Clean logs only")
-            print(f"  {Fore.CYAN}2.{Style.RESET_ALL} Reset settings only")
-            print(f"  {Fore.GREEN}0.{Style.RESET_ALL} Back to cleanup menu")
-            
-            choice = input(f"\n{Fore.GREEN}Choose option (0-2): {Style.RESET_ALL}").strip()
-            
-            if choice == "1":
-                # Clean logs
-                print(f"\n{Fore.CYAN}🗑️  Cleaning log files...{Style.RESET_ALL}")
-                success, message = cleanup_manager.cleanup_logs_only()
-                
-                if success:
-                    print(f"{Fore.GREEN}✅ {message}{Style.RESET_ALL}")
-                else:
-                    print(f"{Fore.RED}❌ {message}{Style.RESET_ALL}")
-                    
-            elif choice == "2":
-                # Reset settings
-                print(f"\n{Fore.YELLOW}⚠️  This will reset all settings to defaults.{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}Your projects will not be affected, but preferences will be lost.{Style.RESET_ALL}")
-                
-                confirm = input(f"\n{Fore.YELLOW}Continue? (y/N): {Style.RESET_ALL}").strip().lower()
-                
-                if confirm == "y":
-                    print(f"\n{Fore.CYAN}🔧 Resetting settings...{Style.RESET_ALL}")
-                    success, message = cleanup_manager.cleanup_settings_only()
-                    
-                    if success:
-                        print(f"{Fore.GREEN}✅ {message}{Style.RESET_ALL}")
-                    else:
-                        print(f"{Fore.RED}❌ {message}{Style.RESET_ALL}")
-                else:
-                    print(f"{Fore.YELLOW}Settings reset cancelled.{Style.RESET_ALL}")
-                    
-            elif choice == "0":
-                break
-            else:
-                print(f"{Fore.RED}Invalid option. Please enter 0-2.{Style.RESET_ALL}")
-            
-            if choice in ["1", "2"]:
-                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")

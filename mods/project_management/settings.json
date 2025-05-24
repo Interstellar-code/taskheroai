@@ -2,7 +2,7 @@
   "project_name": "TaskHeroAI Project",
   "default_task_template": "task-template.md",
   "task_id_prefix": "TASK",
-  "task_id_counter": 15,
+  "task_id_counter": 16,
   "statuses": {
     "todo": "To Do",
     "inprogress": "In Progress",
@@ -18,7 +18,7 @@
     "critical"
   ],
   "created": "2025-01-27T16:00:00.000000",
-  "modified": "2025-05-23T23:07:51.971784",
+  "modified": "2025-05-24T13:58:52.631226",
   "openrouter": {
     "api_key": "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",
     "site_url": "https://taskhero.test/",
