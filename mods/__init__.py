@@ -1,10 +1,27 @@
-"""Mods package for TaskHero AI.
+"""
+Mods package for TaskHero AI.
 
-This package contains various modules and utilities for the TaskHero AI application.
+This package contains the modular architecture for the TaskHero AI application.
 """
 
-from . import code
-from . import llms
+# Import new modular architecture
+from . import core
+from . import settings
+from . import ai
+from . import ui
+from . import cli
 
+# Legacy modules (commented out during refactoring)
+# from . import code
+# from . import llms
 
-__all__ = ["llms", "code"]
+__all__ = [
+    "core",
+    "settings", 
+    "ai",
+    "ui",
+    "cli",
+    # Legacy modules
+    # "llms", 
+    # "code"
+]
