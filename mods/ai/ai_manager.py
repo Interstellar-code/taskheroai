@@ -63,6 +63,7 @@ class AIManager(BaseManager):
         """
         if not self.indexer:
             print(f"\n{Fore.RED}Error: No code has been indexed yet. Please index a directory first.{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}The AI manager dependencies might not be set properly. This is a known issue being fixed.{Style.RESET_ALL}")
             return
         
         print("\n" + Fore.CYAN + "=" * 50 + Style.RESET_ALL)

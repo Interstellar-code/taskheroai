@@ -35,10 +35,10 @@ class MenuManager(BaseManager):
         self.update_status("app_state_set", True)
     
     def display_main_menu(self) -> None:
-        """Display the main menu."""
-        print("\n" + Fore.CYAN + "=" * 50 + Style.RESET_ALL)
-        print(Fore.CYAN + Style.BRIGHT + "TaskHeroAI - AI-Powered Code & Project Assistant" + Style.RESET_ALL)
-        print(Fore.CYAN + "=" * 50 + Style.RESET_ALL)
+        """Display the enhanced main menu with reorganized sections."""
+        print("\n" + Fore.CYAN + "=" * 70 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "TaskHeroAI - AI-Powered Code & Project Assistant".center(70) + Style.RESET_ALL)
+        print(Fore.CYAN + "=" * 70 + Style.RESET_ALL)
 
         # Status messages
         if not self.indexer:
@@ -49,15 +49,40 @@ class MenuManager(BaseManager):
                 Fore.YELLOW + "Please select option 1 to update the index." + Style.RESET_ALL
             )
 
-        # AI Features Section
-        print(Fore.CYAN + "-" * 50 + Style.RESET_ALL)
-        print(Fore.CYAN + Style.BRIGHT + "AI Features" + Style.RESET_ALL)
-        print(Fore.GREEN + "1. " + Style.BRIGHT + "Index Code" + Style.RESET_ALL)
-        print(Fore.GREEN + "2. " + Style.BRIGHT + "Chat with AI (Expensive)" + Style.RESET_ALL)
-        print(Fore.GREEN + "3. " + Style.BRIGHT + "Max Chat Mode (Expensive)" + Style.RESET_ALL)
-        print(Fore.GREEN + "4. " + Style.BRIGHT + "Agent Mode (Cheapest Option)" + Style.RESET_ALL)
+        # Indexing & Embedding Section
+        print(Fore.CYAN + "-" * 70 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "📚 Indexing & Embedding" + Style.RESET_ALL)
+        print(Fore.GREEN + "1. " + Style.BRIGHT + "💡 Index Code" + Style.RESET_ALL + f" {Fore.CYAN}(Start here){Style.RESET_ALL}")
+        print(Fore.GREEN + "2. " + Style.BRIGHT + "📁 View Indexed Files" + Style.RESET_ALL)
+        print(Fore.GREEN + "3. " + Style.BRIGHT + "📊 View Project Info" + Style.RESET_ALL)
+        print(Fore.GREEN + "4. " + Style.BRIGHT + "🕒 Recent Projects" + Style.RESET_ALL)
+        
+        # Chat with Code Section
+        print(Fore.CYAN + "-" * 70 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "💬 Chat with Code" + Style.RESET_ALL)
+        print(Fore.BLUE + "5. " + Style.BRIGHT + "💬 Chat with AI" + Style.RESET_ALL + f" {Fore.YELLOW}(Expensive){Style.RESET_ALL}")
+        print(Fore.BLUE + "6. " + Style.BRIGHT + "🚀 Max Chat Mode" + Style.RESET_ALL + f" {Fore.RED}(Very Expensive){Style.RESET_ALL}")
+        print(Fore.BLUE + "7. " + Style.BRIGHT + "🤖 Agent Mode" + Style.RESET_ALL + f" {Fore.GREEN}(Recommended){Style.RESET_ALL}")
+        
+        # TaskHero Management Section (TASK-005 Enhanced Features)
+        print(Fore.CYAN + "-" * 70 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "🎯 TaskHero Management" + Style.RESET_ALL)
+        print(Fore.MAGENTA + "8. " + Style.BRIGHT + "📋 Task Dashboard" + Style.RESET_ALL + f" {Fore.CYAN}(Full features){Style.RESET_ALL}")
+        print(Fore.MAGENTA + "9. " + Style.BRIGHT + "🎯 Kanban Board" + Style.RESET_ALL + f" {Fore.GREEN}(Visual tasks){Style.RESET_ALL}")
+        print(Fore.MAGENTA + "10. " + Style.BRIGHT + "➕ Quick Create Task" + Style.RESET_ALL)
+        print(Fore.MAGENTA + "11. " + Style.BRIGHT + "👀 Quick View Tasks" + Style.RESET_ALL)
+        print(Fore.MAGENTA + "12. " + Style.BRIGHT + "🔍 Search Tasks" + Style.RESET_ALL)
+        
+        # Settings & Tools Section  
+        print(Fore.CYAN + "-" * 70 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "⚙️ Settings & Tools" + Style.RESET_ALL)
+        print(Fore.RED + "13. " + Style.BRIGHT + "🗑️ Project Cleanup Manager" + Style.RESET_ALL + f" {Fore.YELLOW}(Delete indices){Style.RESET_ALL}")
+        print(Fore.BLUE + "0. " + Style.BRIGHT + "🚪 Exit" + Style.RESET_ALL)
 
-        print(Fore.CYAN + "=" * 50 + Style.RESET_ALL)
+        print(Fore.CYAN + "=" * 70 + Style.RESET_ALL)
+        
+        # Show keyboard shortcuts
+        print(f"{Fore.CYAN}💡 Quick shortcuts: {Fore.YELLOW}Ctrl+C{Fore.CYAN} = Cancel | {Fore.YELLOW}0{Fore.CYAN} = Exit{Style.RESET_ALL}")
     
     def get_user_choice(self) -> str:
         """Get user menu choice."""
