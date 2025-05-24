@@ -10,7 +10,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from colorama import Fore, Style
 from ..core import BaseManager
@@ -291,19 +291,446 @@ class CLIManager(BaseManager):
     
     def _handle_view_files(self) -> None:
         """Handle view indexed files option."""
-        print(f"\n{Fore.CYAN}📁 View Indexed Files{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}This functionality will be implemented in the next phase.{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}Will display all indexed files with metadata and filtering options.{Style.RESET_ALL}")
+        if not self.indexer:
+            print(f"\n{Fore.RED}Error: No code has been indexed yet. Please index a directory first.{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+            return
+
+        print("\n" + Fore.CYAN + "=" * 50 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "📁 Indexed Files" + Style.RESET_ALL)
+        print(Fore.CYAN + "=" * 50 + Style.RESET_ALL)
+
+        try:
+            self.logger.info("[STAT] Viewing indexed files information")
+
+            # Check index status
+            index_status = self.indexer.is_index_complete()
+            status_str = "Complete" if index_status["complete"] else "Incomplete"
+            status_color = Fore.GREEN if index_status["complete"] else Fore.YELLOW
+            print(f"{Fore.CYAN}Index Status: {status_color}{Style.BRIGHT}{status_str}{Style.RESET_ALL}")
+
+            if not index_status["complete"] and "reason" in index_status:
+                print(f"{Fore.YELLOW}Reason: {index_status['reason']}{Style.RESET_ALL}")
+
+            # Show index directory info
+            index_dir = self.indexer.index_dir
+            print(f"\n{Fore.CYAN}Index Directory: {Fore.WHITE}{index_dir}{Style.RESET_ALL}")
+
+            if os.path.exists(index_dir):
+                metadata_dir = os.path.join(index_dir, "metadata")
+                embeddings_dir = os.path.join(index_dir, "embeddings")
+                descriptions_dir = os.path.join(index_dir, "descriptions")
+
+                print(f"\n{Fore.CYAN}{Style.BRIGHT}Index Directory Structure:{Style.RESET_ALL}")
+                header = f"  {Fore.CYAN}{'Directory':<15} {'Exists':<10} {'Files':<10} {'Size':<10}{Style.RESET_ALL}"
+                separator = f"  {Fore.CYAN}{'-'*15} {'-'*10} {'-'*10} {'-'*10}{Style.RESET_ALL}"
+                print(header)
+                print(separator)
+
+                # Check metadata directory
+                if os.path.exists(metadata_dir):
+                    files = [f for f in os.listdir(metadata_dir) if f.endswith(".json")]
+                    size = sum(os.path.getsize(os.path.join(metadata_dir, f)) for f in files)
+                    print(
+                        f"  {Fore.GREEN}{'metadata':<15} {Fore.GREEN}{'Yes':<10} {Fore.YELLOW}{len(files):<10} {Fore.MAGENTA}{self._format_size(size):<10}{Style.RESET_ALL}"
+                    )
+                else:
+                    print(
+                        f"  {Fore.GREEN}{'metadata':<15} {Fore.RED}{'No':<10} {'-':<10} {'-':<10}{Style.RESET_ALL}"
+                    )
+
+                # Check embeddings directory
+                if os.path.exists(embeddings_dir):
+                    files = [f for f in os.listdir(embeddings_dir) if f.endswith(".json")]
+                    size = sum(os.path.getsize(os.path.join(embeddings_dir, f)) for f in files)
+                    print(
+                        f"  {Fore.GREEN}{'embeddings':<15} {Fore.GREEN}{'Yes':<10} {Fore.YELLOW}{len(files):<10} {Fore.MAGENTA}{self._format_size(size):<10}{Style.RESET_ALL}"
+                    )
+                else:
+                    print(
+                        f"  {Fore.GREEN}{'embeddings':<15} {Fore.RED}{'No':<10} {'-':<10} {'-':<10}{Style.RESET_ALL}"
+                    )
+
+                # Check descriptions directory
+                if os.path.exists(descriptions_dir):
+                    files = [f for f in os.listdir(descriptions_dir) if f.endswith(".txt")]
+                    size = sum(os.path.getsize(os.path.join(descriptions_dir, f)) for f in files)
+                    print(
+                        f"  {Fore.GREEN}{'descriptions':<15} {Fore.GREEN}{'Yes':<10} {Fore.YELLOW}{len(files):<10} {Fore.MAGENTA}{self._format_size(size):<10}{Style.RESET_ALL}"
+                    )
+                else:
+                    print(
+                        f"  {Fore.GREEN}{'descriptions':<15} {Fore.RED}{'No':<10} {'-':<10} {'-':<10}{Style.RESET_ALL}"
+                    )
+            else:
+                print(f"{Fore.RED}Index directory does not exist.{Style.RESET_ALL}")
+
+            # Show sample indexed files
+            print(f"\n{Fore.CYAN}{Style.BRIGHT}Sample Indexed Files:{Style.RESET_ALL}")
+            try:
+                sample_files = self.indexer.get_sample_files(10)
+                if sample_files:
+                    for i, file in enumerate(sample_files, 1):
+                        # Show relative path for cleaner display
+                        rel_path = os.path.relpath(file, self.indexer.root_path) if os.path.isabs(file) else file
+                        print(f"{Fore.GREEN}{i:2d}. {Fore.WHITE}{rel_path}{Style.RESET_ALL}")
+                else:
+                    print(f"{Fore.YELLOW}No files have been indexed yet.{Style.RESET_ALL}")
+            except Exception as e:
+                print(f"{Fore.RED}Error retrieving sample files: {e}{Style.RESET_ALL}")
+
+            # Show additional stats if available
+            try:
+                if hasattr(index_status, 'get') and 'missing_count' in index_status:
+                    print(f"\n{Fore.CYAN}{Style.BRIGHT}Index Statistics:{Style.RESET_ALL}")
+                    if index_status.get('missing_count', 0) > 0:
+                        print(f"  {Fore.YELLOW}Missing files: {index_status['missing_count']}{Style.RESET_ALL}")
+                    if index_status.get('outdated_count', 0) > 0:
+                        print(f"  {Fore.YELLOW}Outdated files: {index_status['outdated_count']}{Style.RESET_ALL}")
+                    if index_status.get('ignored_count', 0) > 0:
+                        print(f"  {Fore.CYAN}Ignored files: {index_status['ignored_count']}{Style.RESET_ALL}")
+            except Exception:
+                pass
+
+        except Exception as e:
+            self.logger.error(f"Error viewing indexed files: {e}", exc_info=True)
+            print(f"{Fore.RED}{Style.BRIGHT}Error viewing indexed files: {e}{Style.RESET_ALL}")
+        
         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
     
+    def _format_size(self, size_bytes: int) -> str:
+        """Format file size in human readable format."""
+        if size_bytes == 0:
+            return "0B"
+        size_names = ["B", "KB", "MB", "GB"]
+        i = 0
+        while size_bytes >= 1024 and i < len(size_names) - 1:
+            size_bytes /= 1024.0
+            i += 1
+        return f"{size_bytes:.1f}{size_names[i]}"
+    
     def _handle_view_project(self) -> None:
-        """Handle view project info option."""
+        """Handle view project info option with AI-powered analysis."""
         print(f"\n{Fore.CYAN}📊 View Project Info{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}This functionality will be implemented in the next phase.{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}Will display project structure, statistics, and analysis.{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+        
+        if not self.indexer:
+            print(f"{Fore.RED}Error: No code has been indexed yet. Please index a directory first.{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+            return
+
+        try:
+            print(f"{Fore.GREEN}🔍 Analyzing project structure and generating AI report...{Style.RESET_ALL}")
+            
+            # Get basic project info
+            project_path = self.indexer.root_path
+            project_name = os.path.basename(project_path)
+            
+            # Get index status
+            index_status = self.indexer.is_index_complete()
+            
+            # Collect project statistics
+            stats = self._collect_project_statistics()
+            
+            # Generate AI analysis
+            print(f"{Fore.YELLOW}🤖 Generating AI-powered project analysis...{Style.RESET_ALL}")
+            ai_analysis = asyncio.run(self._generate_ai_project_analysis(stats))
+            
+            # Display the report
+            self._display_project_report(project_name, project_path, stats, ai_analysis)
+            
+        except Exception as e:
+            self.logger.error(f"Error generating project info: {e}", exc_info=True)
+            print(f"{Fore.RED}Error generating project analysis: {e}{Style.RESET_ALL}")
+            
         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+    
+    def _collect_project_statistics(self) -> Dict[str, Any]:
+        """Collect comprehensive project statistics."""
+        stats = {
+            'total_files': 0,
+            'indexed_files': 0,
+            'file_types': {},
+            'size_info': {'total_size': 0, 'largest_files': []},
+            'directory_structure': {},
+            'language_breakdown': {},
+            'recent_changes': [],
+            'complexity_indicators': {}
+        }
+        
+        try:
+            # Get all indexed files
+            sample_files = self.indexer.get_sample_files(100)  # Get more files for analysis
+            indexed_files = self.indexer.get_indexed_files() if hasattr(self.indexer, 'get_indexed_files') else sample_files
+            
+            stats['indexed_files'] = len(indexed_files)
+            
+            # Analyze file types and sizes
+            for file_path in indexed_files[:50]:  # Analyze first 50 files
+                try:
+                    if os.path.exists(file_path):
+                        file_ext = os.path.splitext(file_path)[1].lower()
+                        file_size = os.path.getsize(file_path)
+                        
+                        # Count file types
+                        stats['file_types'][file_ext] = stats['file_types'].get(file_ext, 0) + 1
+                        
+                        # Track total size
+                        stats['size_info']['total_size'] += file_size
+                        
+                        # Track largest files
+                        if len(stats['size_info']['largest_files']) < 5:
+                            stats['size_info']['largest_files'].append((file_path, file_size))
+                        else:
+                            # Replace smallest if current is larger
+                            min_size_idx = min(range(len(stats['size_info']['largest_files'])), 
+                                             key=lambda i: stats['size_info']['largest_files'][i][1])
+                            if file_size > stats['size_info']['largest_files'][min_size_idx][1]:
+                                stats['size_info']['largest_files'][min_size_idx] = (file_path, file_size)
+                        
+                        # Language breakdown
+                        language = self._get_language_from_extension(file_ext)
+                        if language:
+                            stats['language_breakdown'][language] = stats['language_breakdown'].get(language, 0) + 1
+                            
+                except Exception as e:
+                    self.logger.debug(f"Error analyzing file {file_path}: {e}")
+                    continue
+            
+            # Sort largest files
+            stats['size_info']['largest_files'].sort(key=lambda x: x[1], reverse=True)
+            
+            # Get total files count from directory
+            if os.path.exists(self.indexer.root_path):
+                for root, dirs, files in os.walk(self.indexer.root_path):
+                    # Skip .index and hidden directories
+                    dirs[:] = [d for d in dirs if not d.startswith('.') and d != '__pycache__']
+                    stats['total_files'] += len(files)
+                    
+                    # Directory structure analysis
+                    rel_path = os.path.relpath(root, self.indexer.root_path)
+                    if rel_path != '.' and len(rel_path.split(os.sep)) <= 3:  # Only top 3 levels
+                        stats['directory_structure'][rel_path] = len(files)
+            
+        except Exception as e:
+            self.logger.error(f"Error collecting project statistics: {e}")
+            
+        return stats
+    
+    def _get_language_from_extension(self, ext: str) -> Optional[str]:
+        """Map file extension to programming language."""
+        language_map = {
+            '.py': 'Python',
+            '.js': 'JavaScript',
+            '.ts': 'TypeScript',
+            '.java': 'Java',
+            '.cpp': 'C++',
+            '.c': 'C',
+            '.cs': 'C#',
+            '.php': 'PHP',
+            '.rb': 'Ruby',
+            '.go': 'Go',
+            '.rs': 'Rust',
+            '.kt': 'Kotlin',
+            '.swift': 'Swift',
+            '.html': 'HTML',
+            '.css': 'CSS',
+            '.scss': 'SCSS',
+            '.less': 'LESS',
+            '.jsx': 'React JSX',
+            '.tsx': 'React TSX',
+            '.vue': 'Vue.js',
+            '.sql': 'SQL',
+            '.sh': 'Shell Script',
+            '.ps1': 'PowerShell',
+            '.bat': 'Batch Script',
+            '.yaml': 'YAML',
+            '.yml': 'YAML',
+            '.json': 'JSON',
+            '.xml': 'XML',
+            '.md': 'Markdown',
+            '.dockerfile': 'Docker',
+            '.tf': 'Terraform'
+        }
+        return language_map.get(ext)
+    
+    async def _generate_ai_project_analysis(self, stats: Dict[str, Any]) -> str:
+        """Generate AI-powered project analysis."""
+        if not self.ai_manager:
+            return "AI analysis not available - AI Manager not initialized."
+        
+        try:
+            # Create analysis prompt
+            prompt = f"""
+Analyze this software project based on the following statistics and provide a comprehensive report:
+
+PROJECT STATISTICS:
+- Total Files: {stats['total_files']}
+- Indexed Files: {stats['indexed_files']}
+- Total Size: {self._format_size(stats['size_info']['total_size'])}
+
+FILE TYPES:
+{self._format_dict_for_prompt(stats['file_types'])}
+
+PROGRAMMING LANGUAGES:
+{self._format_dict_for_prompt(stats['language_breakdown'])}
+
+DIRECTORY STRUCTURE:
+{self._format_dict_for_prompt(stats['directory_structure'])}
+
+LARGEST FILES:
+{self._format_largest_files_for_prompt(stats['size_info']['largest_files'])}
+
+Please provide a detailed analysis covering:
+1. **Project Type & Architecture**: What kind of project this appears to be
+2. **Technology Stack**: Primary languages and frameworks identified
+3. **Project Scale**: Size and complexity assessment
+4. **Code Organization**: How well the code appears to be structured
+5. **Key Insights**: Notable patterns, potential issues, or strengths
+6. **Recommendations**: Suggestions for development, maintenance, or AI agent tasks
+
+Format your response in clear sections with bullet points where appropriate.
+Keep the analysis concise but insightful, suitable for an AI agent to understand the project quickly.
+"""
+            
+            # Get AI analysis using the configured AI function assignment
+            from ..settings import AISettingsManager
+            ai_settings = AISettingsManager()
+            ai_settings.initialize()
+            
+            # Use the assigned AI provider for description generation
+            assignments = ai_settings.get_ai_function_assignments()
+            description_assignment = assignments.get('description', {})
+            provider = description_assignment.get('provider', 'ollama')
+            model = description_assignment.get('model', 'llama3.2:latest')
+            
+            print(f"  Using {provider.title()} ({model}) for analysis...")
+            
+            # Generate analysis
+            analysis = await self._get_ai_response(prompt, provider, model)
+            return analysis
+            
+        except Exception as e:
+            self.logger.error(f"Error generating AI analysis: {e}")
+            return f"Error generating AI analysis: {str(e)}"
+    
+    async def _get_ai_response(self, prompt: str, provider: str, model: str) -> str:
+        """Get AI response using specified provider and model."""
+        try:
+            from ..ai.providers import ProviderFactory
+            
+            # Create provider configuration
+            provider_config = {
+                'model': model,
+                'max_tokens': 2000,
+                'temperature': 0.3
+            }
+            
+            # Add provider-specific config
+            if provider == 'openai':
+                from ..settings import AISettingsManager
+                ai_settings = AISettingsManager()
+                ai_settings.initialize()
+                openai_settings = ai_settings.get_openai_settings()
+                provider_config['api_key'] = openai_settings.get('API_KEY')
+            elif provider == 'ollama':
+                from ..settings import AISettingsManager
+                ai_settings = AISettingsManager()
+                ai_settings.initialize()
+                ollama_settings = ai_settings.get_ollama_settings()
+                provider_config['host'] = ollama_settings.get('HOST', 'http://127.0.0.1:11434')
+            
+            # Create provider factory and get response
+            factory = ProviderFactory()
+            provider_instance = await factory.create_provider(provider, provider_config)
+            
+            response = await provider_instance.generate_response(prompt)
+            
+            if hasattr(provider_instance, 'close'):
+                await provider_instance.close()
+                
+            return response
+            
+        except Exception as e:
+            self.logger.error(f"Error getting AI response: {e}")
+            return f"Error generating analysis: {str(e)}"
+    
+    def _format_dict_for_prompt(self, data: Dict[str, Any]) -> str:
+        """Format dictionary data for AI prompt."""
+        if not data:
+            return "None"
+        
+        items = []
+        for key, value in sorted(data.items(), key=lambda x: x[1], reverse=True):
+            items.append(f"  {key}: {value}")
+        return "\n".join(items[:10])  # Limit to top 10
+    
+    def _format_largest_files_for_prompt(self, files: List[Tuple[str, int]]) -> str:
+        """Format largest files for AI prompt."""
+        if not files:
+            return "None"
+        
+        items = []
+        for file_path, size in files:
+            filename = os.path.basename(file_path)
+            items.append(f"  {filename}: {self._format_size(size)}")
+        return "\n".join(items)
+    
+    def _display_project_report(self, project_name: str, project_path: str, 
+                               stats: Dict[str, Any], ai_analysis: str) -> None:
+        """Display the complete project report."""
+        
+        print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{Style.BRIGHT}📊 PROJECT ANALYSIS REPORT{Style.RESET_ALL}".center(70))
+        print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+        
+        # Basic Info
+        print(f"\n{Fore.GREEN}{Style.BRIGHT}📁 Project Information:{Style.RESET_ALL}")
+        print(f"  Name: {Fore.WHITE}{project_name}{Style.RESET_ALL}")
+        print(f"  Path: {Fore.WHITE}{project_path}{Style.RESET_ALL}")
+        print(f"  Total Files: {Fore.YELLOW}{stats['total_files']}{Style.RESET_ALL}")
+        print(f"  Indexed Files: {Fore.YELLOW}{stats['indexed_files']}{Style.RESET_ALL}")
+        print(f"  Total Size: {Fore.YELLOW}{self._format_size(stats['size_info']['total_size'])}{Style.RESET_ALL}")
+        
+        # File Types
+        if stats['file_types']:
+            print(f"\n{Fore.GREEN}{Style.BRIGHT}📄 File Types:{Style.RESET_ALL}")
+            for ext, count in sorted(stats['file_types'].items(), key=lambda x: x[1], reverse=True)[:8]:
+                ext_display = ext if ext else "(no extension)"
+                print(f"  {Fore.CYAN}{ext_display:<12}{Style.RESET_ALL}: {Fore.YELLOW}{count}{Style.RESET_ALL}")
+        
+        # Languages
+        if stats['language_breakdown']:
+            print(f"\n{Fore.GREEN}{Style.BRIGHT}💻 Programming Languages:{Style.RESET_ALL}")
+            for lang, count in sorted(stats['language_breakdown'].items(), key=lambda x: x[1], reverse=True)[:6]:
+                print(f"  {Fore.CYAN}{lang:<15}{Style.RESET_ALL}: {Fore.YELLOW}{count} files{Style.RESET_ALL}")
+        
+        # AI Analysis
+        print(f"\n{Fore.GREEN}{Style.BRIGHT}🤖 AI-Powered Analysis:{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'-'*50}{Style.RESET_ALL}")
+        
+        # Format and display AI analysis
+        analysis_lines = ai_analysis.split('\n')
+        for line in analysis_lines:
+            if line.strip():
+                if line.startswith('#'):
+                    # Headers
+                    print(f"{Fore.YELLOW}{Style.BRIGHT}{line.strip()}{Style.RESET_ALL}")
+                elif line.startswith('**') and line.endswith('**'):
+                    # Bold text
+                    print(f"{Fore.GREEN}{Style.BRIGHT}{line.strip()}{Style.RESET_ALL}")
+                elif line.strip().startswith('-') or line.strip().startswith('•'):
+                    # Bullet points
+                    print(f"  {Fore.WHITE}{line.strip()}{Style.RESET_ALL}")
+                else:
+                    # Regular text
+                    print(f"{Fore.WHITE}{line.strip()}{Style.RESET_ALL}")
+            else:
+                print()
+        
+        print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}✅ Analysis Complete - Report ready for AI agents{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}💡 This report can help AI agents understand your project structure and make informed decisions{Style.RESET_ALL}")
     
     def _handle_recent_projects(self) -> None:
         """Handle recent projects option."""
