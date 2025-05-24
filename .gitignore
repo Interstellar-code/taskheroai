@@ -55,6 +55,13 @@ logs/
 .env.test.local
 .env.production.local
 
+# Environment backups and sensitive files
+.env.backup*
+.env_backups/
+*.env.backup*
+.env.*.backup
+env.backup*
+
 # VerbalCodeAI specific
 .index/
 .app_settings.json
