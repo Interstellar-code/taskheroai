@@ -105,8 +105,22 @@ class KanbanBoard:
             return 120, 30
             
     def clear_screen(self):
-        """Clear the terminal screen."""
-        os.system('cls' if os.name == 'nt' else 'clear')
+        """Clear the terminal screen - IDE terminal friendly."""
+        # Detect if running in IDE terminal (VSCode, Cursor, etc.)
+        ide_indicators = ['VSCODE_INJECTION', 'CURSOR_INJECTION', 'code', 'cursor']
+        is_ide_terminal = any(indicator in os.environ.get('TERM_PROGRAM', '').lower() or 
+                             indicator in os.environ.get('TERM', '').lower() for indicator in ide_indicators)
+        
+        if is_ide_terminal:
+            # For IDE terminals, use gentle clearing to prevent jumping
+            try:
+                self.console.clear()
+            except:
+                # Fallback: minimal clearing
+                print("\n" * 2)
+        else:
+            # For regular terminals, use system clear
+            os.system('cls' if os.name == 'nt' else 'clear')
         
     def create_task_card(self, task: Task, is_selected: bool = False) -> Panel:
         """Create a task card panel.
@@ -564,42 +578,54 @@ class KanbanBoard:
         input()
     
     def run(self):
-        """Run the interactive Kanban board."""
+        """Run the interactive Kanban board - Event-driven refresh only."""
         self.console.print("[bold bright_cyan]Loading Kanban Board...[/bold bright_cyan]")
+        
+        import time
+        all_tasks = {}  # Initialize tasks data
+        need_refresh = True  # Force initial refresh
         
         try:
             while True:
-                # Get current tasks
-                all_tasks = self.task_manager.get_all_tasks()
+                # Only refresh display when needed (user events or initial load)
+                if need_refresh:
+                    # Get current tasks
+                    all_tasks = self.task_manager.get_all_tasks()
+                    
+                    # Clear screen and create layout
+                    self.clear_screen()
+                    layout = self.create_kanban_layout(all_tasks)
+                    
+                    # Display the board
+                    self.console.print(layout)
+                    
+                    need_refresh = False
                 
-                # Clear screen and create layout
-                self.clear_screen()
-                layout = self.create_kanban_layout(all_tasks)
-                
-                # Display the board
-                self.console.print(layout)
-                
-                # Handle user input
+                # Handle user input (non-blocking)
                 key = self.get_user_input()
                 
                 if key == 'quit':
                     break
                 elif key == 'left':
                     self.selected_column = max(0, self.selected_column - 1)
-                    self.selected_task = 0  # Reset task selection
+                    self.selected_task = 0  # Reset task selection when changing columns
+                    need_refresh = True  # Refresh to show new selection
                 elif key == 'right':
                     self.selected_column = min(len(self.columns) - 1, self.selected_column + 1)
-                    self.selected_task = 0  # Reset task selection
+                    self.selected_task = 0  # Reset task selection when changing columns
+                    need_refresh = True  # Refresh to show new selection
                 elif key == 'up':
                     current_column_status = self.columns[self.selected_column]['status']
                     current_tasks = all_tasks.get(current_column_status, [])
                     if current_tasks:
                         self.selected_task = max(0, self.selected_task - 1)
+                        need_refresh = True  # Refresh to show new selection
                 elif key == 'down':
                     current_column_status = self.columns[self.selected_column]['status']
                     current_tasks = all_tasks.get(current_column_status, [])
                     if current_tasks:
                         self.selected_task = min(len(current_tasks) - 1, self.selected_task + 1)
+                        need_refresh = True  # Refresh to show new selection
                 elif key == 'enter':
                     # Show task details
                     current_column_status = self.columns[self.selected_column]['status']
@@ -607,6 +633,7 @@ class KanbanBoard:
                     if current_tasks and self.selected_task < len(current_tasks):
                         task = current_tasks[self.selected_task]
                         self.show_task_details(task)
+                        need_refresh = True  # Refresh after viewing details
                 elif key == 'move':
                     # Move task
                     current_column_status = self.columns[self.selected_column]['status']
@@ -616,6 +643,7 @@ class KanbanBoard:
                         if self.move_task_dialog(task):
                             # Reset selection to avoid out-of-bounds
                             self.selected_task = 0
+                            need_refresh = True  # Refresh after task move (data changed)
                 elif key == 'delete':
                     # Delete task
                     current_column_status = self.columns[self.selected_column]['status']
@@ -625,12 +653,14 @@ class KanbanBoard:
                         if self.delete_task_dialog(task):
                             # Reset selection to avoid out-of-bounds
                             self.selected_task = 0
+                            need_refresh = True  # Refresh after task deletion (data changed)
                 elif key == 'help':
                     self.show_help()
+                    need_refresh = True  # Refresh after help
                 
-                # Small delay to prevent excessive CPU usage
-                import time
-                time.sleep(0.1)
+                # Only sleep when no input detected to avoid lag
+                if key is None:
+                    time.sleep(0.1)  # Short 100ms sleep when no input
         
         except KeyboardInterrupt:
             pass
