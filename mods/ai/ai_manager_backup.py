@@ -116,22 +116,7 @@ class AIManager(BaseManager):
                 elif user_input.lower() == 'help':
                     self._show_chat_help()
                     continue
-                elif user_input.lower() == 'clear':
-                    if self.chat_handler:
-                        self.chat_handler.clear_history()
-                    print(f"{Fore.YELLOW}Chat history cleared.{Style.RESET_ALL}")
-                    continue
-                
-                # Process the query
-                print(f"{Fore.CYAN}AI: {Style.RESET_ALL}Processing your question...")
-                
-                try:
-                    response, relevant_files = asyncio.run(self.chat_handler.process_query(
-                        user_input, 
-                        max_chat_mode=max_chat_mode
-                    ))
-                    
-                    # Display response
+                                elif user_input.lower() == 'clear':                    if self.chat_handler:                        self.chat_handler.clear_history()                    print(f"{Fore.YELLOW}Chat history cleared.{Style.RESET_ALL}")                    continue                                # Process the query                print(f"{Fore.CYAN}AI: {Style.RESET_ALL}Processing your question...")                                try:                    response, relevant_files = self.chat_handler.process_query(                        user_input,                         max_chat_mode=max_chat_mode                    )                                        # Display response
                     print(f"{Fore.CYAN}AI: {Style.RESET_ALL}{response}")
                     
                     # Show relevant files if any
