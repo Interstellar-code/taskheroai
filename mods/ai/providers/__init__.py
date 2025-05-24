@@ -8,6 +8,7 @@ from .base_provider import AIProvider
 from .openai_provider import OpenAIProvider
 from .anthropic_provider import AnthropicProvider
 from .ollama_provider import OllamaProvider
+from .openrouter_provider import OpenRouterProvider
 from .provider_factory import ProviderFactory
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     'OpenAIProvider', 
     'AnthropicProvider',
     'OllamaProvider',
+    'OpenRouterProvider',
     'ProviderFactory'
 ] 

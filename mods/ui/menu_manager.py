@@ -77,6 +77,7 @@ class MenuManager(BaseManager):
         print(Fore.CYAN + "-" * 70 + Style.RESET_ALL)
         print(Fore.CYAN + Style.BRIGHT + "⚙️ Settings & Tools" + Style.RESET_ALL)
         print(Fore.RED + "13. " + Style.BRIGHT + "🗑️ Project Cleanup Manager" + Style.RESET_ALL + f" {Fore.YELLOW}(Delete indices){Style.RESET_ALL}")
+        print(Fore.GREEN + "14. " + Style.BRIGHT + "🤖 AI Settings" + Style.RESET_ALL + f" {Fore.CYAN}(Configure providers){Style.RESET_ALL}")
         print(Fore.BLUE + "0. " + Style.BRIGHT + "🚪 Exit" + Style.RESET_ALL)
 
         print(Fore.CYAN + "=" * 70 + Style.RESET_ALL)

@@ -13,6 +13,7 @@ from .base_provider import AIProvider, ProviderConfigError
 from .openai_provider import OpenAIProvider
 from .anthropic_provider import AnthropicProvider
 from .ollama_provider import OllamaProvider
+from .openrouter_provider import OpenRouterProvider
 
 
 class ProviderType(Enum):
@@ -20,6 +21,7 @@ class ProviderType(Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     OLLAMA = "ollama"
+    OPENROUTER = "openrouter"
 
 
 class ProviderFactory:
@@ -38,19 +40,35 @@ class ProviderFactory:
                 'api_key': os.getenv('OPENAI_API_KEY'),
                 'model': os.getenv('OPENAI_MODEL', 'gpt-4'),
                 'max_tokens': int(os.getenv('OPENAI_MAX_TOKENS', '4000')),
-                'temperature': float(os.getenv('OPENAI_TEMPERATURE', '0.7'))
+                'temperature': float(os.getenv('OPENAI_TEMPERATURE', '0.7')),
+                'top_p': float(os.getenv('OPENAI_TOP_P', '1.0')),
+                'frequency_penalty': float(os.getenv('OPENAI_FREQUENCY_PENALTY', '0.0')),
+                'presence_penalty': float(os.getenv('OPENAI_PRESENCE_PENALTY', '0.0'))
             },
             ProviderType.ANTHROPIC.value: {
                 'api_key': os.getenv('ANTHROPIC_API_KEY'),
                 'model': os.getenv('ANTHROPIC_MODEL', 'claude-3-sonnet-20240229'),
                 'max_tokens': int(os.getenv('ANTHROPIC_MAX_TOKENS', '4000')),
-                'temperature': float(os.getenv('ANTHROPIC_TEMPERATURE', '0.7'))
+                'temperature': float(os.getenv('ANTHROPIC_TEMPERATURE', '0.7')),
+                'top_p': float(os.getenv('ANTHROPIC_TOP_P', '1.0')),
+                'top_k': int(os.getenv('ANTHROPIC_TOP_K', '40'))
             },
             ProviderType.OLLAMA.value: {
                 'host': os.getenv('OLLAMA_HOST', 'http://localhost:11434'),
                 'model': os.getenv('OLLAMA_MODEL', 'llama2'),
                 'max_tokens': int(os.getenv('OLLAMA_MAX_TOKENS', '4000')),
-                'temperature': float(os.getenv('OLLAMA_TEMPERATURE', '0.7'))
+                'temperature': float(os.getenv('OLLAMA_TEMPERATURE', '0.7')),
+                'top_p': float(os.getenv('OLLAMA_TOP_P', '0.95')),
+                'top_k': int(os.getenv('OLLAMA_TOP_K', '40'))
+            },
+            ProviderType.OPENROUTER.value: {
+                'api_key': os.getenv('OPENROUTER_API_KEY'),
+                'model': os.getenv('OPENROUTER_MODEL', 'openai/gpt-4'),
+                'max_tokens': int(os.getenv('OPENROUTER_MAX_TOKENS', '4000')),
+                'temperature': float(os.getenv('OPENROUTER_TEMPERATURE', '0.7')),
+                'top_p': float(os.getenv('OPENROUTER_TOP_P', '1.0')),
+                'http_referer': os.getenv('OPENROUTER_HTTP_REFERER', 'https://taskhero-ai.com'),
+                'x_title': os.getenv('OPENROUTER_X_TITLE', 'TaskHeroAI')
             }
         }
     
@@ -90,6 +108,8 @@ class ProviderFactory:
                 provider = AnthropicProvider(provider_config)
             elif provider_type == ProviderType.OLLAMA.value:
                 provider = OllamaProvider(provider_config)
+            elif provider_type == ProviderType.OPENROUTER.value:
+                provider = OpenRouterProvider(provider_config)
             else:
                 raise ProviderConfigError(f"Provider creation not implemented: {provider_type}")
             
@@ -161,6 +181,10 @@ class ProviderFactory:
         if self._default_configs[ProviderType.ANTHROPIC.value]['api_key']:
             available.append(ProviderType.ANTHROPIC.value)
         
+        # Check OpenRouter
+        if self._default_configs[ProviderType.OPENROUTER.value]['api_key']:
+            available.append(ProviderType.OPENROUTER.value)
+        
         # Check Ollama (always available if server is running)
         available.append(ProviderType.OLLAMA.value)
         
@@ -170,7 +194,7 @@ class ProviderFactory:
         """
         Get the best available provider based on priority and availability.
         
-        Priority: OpenAI > Anthropic > Ollama
+        Priority: OpenAI > Anthropic > OpenRouter > Ollama
         
         Returns:
             Best available provider name or None
@@ -179,6 +203,7 @@ class ProviderFactory:
         priority_order = [
             ProviderType.OPENAI.value,
             ProviderType.ANTHROPIC.value,
+            ProviderType.OPENROUTER.value,
             ProviderType.OLLAMA.value
         ]
         
@@ -282,6 +307,14 @@ class ProviderFactory:
                 'supports_streaming': True,
                 'cost': 'Free (local)',
                 'models': ['llama2', 'codellama', 'mistral', 'neural-chat']
+            },
+            ProviderType.OPENROUTER.value: {
+                'name': 'OpenRouter',
+                'description': 'OpenRouter provider',
+                'requires_api_key': True,
+                'supports_streaming': True,
+                'cost': 'Pay per token',
+                'models': ['openai/gpt-4']
             }
         }
         

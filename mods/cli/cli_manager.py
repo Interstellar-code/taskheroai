@@ -167,10 +167,12 @@ class CLIManager(BaseManager):
             # Settings & Tools Section
             elif choice == "13":
                 self._handle_project_cleanup()
+            elif choice == "14":
+                self._handle_ai_settings()
             elif choice == "0":
                 self._handle_exit()
             else:
-                print(f"{Fore.RED}Invalid choice. Please enter 1-13 or 0 to exit.{Style.RESET_ALL}")
+                print(f"{Fore.RED}Invalid choice. Please enter 1-14 or 0 to exit.{Style.RESET_ALL}")
                 
         except Exception as e:
             self.logger.error(f"Error handling choice {choice}: {e}")
@@ -689,3 +691,27 @@ class CLIManager(BaseManager):
         print(f"{Fore.YELLOW}Project cleanup functionality available.{Style.RESET_ALL}")
         print(f"{Fore.CYAN}Will include options to clean index data and reset projects.{Style.RESET_ALL}")
         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _handle_ai_settings(self) -> None:
+        """Handle AI settings option."""
+        try:
+            from ..ui import AISettingsUI
+            from ..settings import AISettingsManager
+            
+            print(f"\n{Fore.CYAN}🤖 AI Settings Configuration{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+            
+            # Create AI settings manager and UI
+            ai_settings_manager = AISettingsManager()
+            ai_settings_ui = AISettingsUI(ai_settings_manager)
+            
+            # Initialize
+            ai_settings_ui.initialize()
+            
+            # Run the AI settings menu in async context
+            asyncio.run(ai_settings_ui.handle_ai_settings_menu())
+            
+        except Exception as e:
+            self.logger.error(f"Error in AI settings: {e}")
+            print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
