@@ -106,6 +106,12 @@ Success criteria will be defined based on functional requirements.
 ## 2. Flow Diagram
 {% if flow_description and 'N/A' in flow_description -%}
 {{ flow_description }}
+{% elif flow_diagram -%}
+**Task flow diagram:**
+
+{{ flow_diagram }}
+
+{{ flow_description or '[AI-generated flow diagram showing the task process and decision points]' }}
 {% else -%}
 **User's perspective of the task flow using Mermaid flowchart:**
 
@@ -222,7 +228,11 @@ Implementation steps will be defined during planning phase.
 ### 5.2. Wireframes & Layout
 **Use ASCII art for layouts, wireframes, and component positioning:**
 
-{% if ui_layout is defined and ui_layout -%}
+{% if ascii_layout -%}
+```
+{{ ascii_layout }}
+```
+{% elif ui_layout is defined and ui_layout -%}
 ```
 {{ ui_layout }}
 ```

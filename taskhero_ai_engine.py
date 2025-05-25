@@ -48,6 +48,16 @@ except ImportError as e:
     def generate_description(*args, **kwargs):
         return "AI description generation not available - LLM module not found"
 
+# TASK-058: Import quality scorer and Mermaid generator for enhanced task generation
+try:
+    from mods.project_management.quality_scorer import QualityScorer, OverallQualityResult
+    from mods.project_management.mermaid_generator import MermaidDiagramGenerator
+    QUALITY_ENHANCEMENT_AVAILABLE = True
+    logger.info("Quality enhancement modules available")
+except ImportError as e:
+    logger.warning(f"Quality enhancement modules not available: {e}")
+    QUALITY_ENHANCEMENT_AVAILABLE = False
+
 
 class TaskHeroAIEngine:
     """
