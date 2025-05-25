@@ -15,6 +15,7 @@ import asyncio
 
 from .template_engine import TemplateEngine
 from .task_manager import TaskManager, TaskPriority, TaskStatus
+from .semantic_search import SemanticSearchEngine, ContextChunk, SearchResult
 from ..ai.ai_manager import AIManager
 
 logger = logging.getLogger("TaskHeroAI.ProjectManagement.AITaskCreator")
@@ -33,6 +34,7 @@ class AITaskCreator:
         self.template_engine = TemplateEngine(project_root)
         self.task_manager = TaskManager(project_root)
         self.ai_manager = None  # Will be initialized when needed
+        self.semantic_search = SemanticSearchEngine(str(self.project_root))
         
         # Enhanced task template path
         self.enhanced_template = "tasks/enhanced_task.j2"
@@ -363,57 +365,35 @@ class AITaskCreator:
             logger.warning(f"AI enhancement failed, using default context: {e}")
             return context
     
-    def _collect_embeddings_context(self, description: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Collect relevant context from existing embeddings."""
+    def _collect_embeddings_context(self, description: str, context: Dict[str, Any]) -> List[ContextChunk]:
+        """
+        Collect relevant context using semantic search.
+        
+        Args:
+            description: Task description to search for
+            context: Current task context
+            
+        Returns:
+            List of relevant context chunks
+        """
         try:
-            embeddings_dir = self.project_root / ".index" / "embeddings"
-            if not embeddings_dir.exists():
-                logger.info("No embeddings directory found")
-                return []
+            # Create search query from description and task type
+            task_type = context.get('task_type', 'Development')
+            search_query = f"{description} {task_type}"
             
-            # Get task type for targeted search
-            task_type = context.get('task_type', 'Development').lower()
+            # Perform semantic search
+            search_result = self.semantic_search.search(
+                query=search_query,
+                max_results=10,
+                file_types=None  # Search all file types
+            )
             
-            # Search terms based on description and task type
-            search_terms = self._extract_search_terms(description, task_type)
+            logger.info(f"Semantic search found {len(search_result.chunks)} relevant chunks in {search_result.search_time:.3f}s")
             
-            relevant_files = []
-            embedding_files = list(embeddings_dir.glob("*.json"))
-            
-            logger.info(f"Searching {len(embedding_files)} embedding files for context")
-            
-            for embedding_file in embedding_files:
-                try:
-                    with open(embedding_file, 'r', encoding='utf-8') as f:
-                        embedding_data = json.load(f)
-                    
-                    # Calculate relevance score
-                    relevance_score = self._calculate_relevance(embedding_data, search_terms, task_type)
-                    
-                    if relevance_score > 0.3:  # Threshold for relevance
-                        file_context = {
-                            'file_path': embedding_data.get('path', str(embedding_file)),
-                            'file_name': embedding_file.stem,
-                            'relevance_score': relevance_score,
-                            'content_preview': self._extract_content_preview(embedding_data),
-                            'file_type': self._determine_file_type(embedding_file.stem),
-                            'chunks_count': len(embedding_data.get('chunks', []))
-                        }
-                        relevant_files.append(file_context)
-                        
-                except Exception as e:
-                    logger.warning(f"Error processing embedding file {embedding_file}: {e}")
-                    continue
-            
-            # Sort by relevance and return top results
-            relevant_files.sort(key=lambda x: x['relevance_score'], reverse=True)
-            top_results = relevant_files[:5]  # Top 5 most relevant
-            
-            logger.info(f"Found {len(top_results)} relevant context files")
-            return top_results
+            return search_result.chunks
             
         except Exception as e:
-            logger.error(f"Error collecting embeddings context: {e}")
+            logger.error(f"Error collecting semantic context: {e}")
             return []
     
     def _extract_search_terms(self, description: str, task_type: str) -> List[str]:
@@ -542,7 +522,7 @@ class AITaskCreator:
         else:
             return 'other'
     
-    def _ai_enhance_description(self, description: str, context: Dict[str, Any], relevant_context: List[Dict[str, Any]] = None) -> str:
+    def _ai_enhance_description(self, description: str, context: Dict[str, Any], relevant_context: List[ContextChunk] = None) -> str:
         """Use AI to enhance the task description."""
         # This would integrate with the actual AI system
         # For now, provide a structured enhancement
@@ -570,8 +550,10 @@ This {task_type.lower()} task is part of the TaskHero AI project management syst
 
 ## Context from Embeddings
 """
-        for file_context in relevant_context:
-            enhanced += f"- {file_context['file_name']} ({file_context['file_type']}): {file_context['content_preview']}\n"
+        if relevant_context:
+            for chunk in relevant_context[:5]:  # Use top 5 chunks
+                preview = chunk.text[:100] + "..." if len(chunk.text) > 100 else chunk.text
+                enhanced += f"- {chunk.file_name} ({chunk.file_type}): {preview}\n"
         
         enhanced += """
 ## Additional Considerations
@@ -581,7 +563,7 @@ This {task_type.lower()} task is part of the TaskHero AI project management syst
 """
         return enhanced.strip()
     
-    def _ai_generate_requirements(self, description: str, context: Dict[str, Any], relevant_context: List[Dict[str, Any]] = None) -> List[str]:
+    def _ai_generate_requirements(self, description: str, context: Dict[str, Any], relevant_context: List[ContextChunk] = None) -> List[str]:
         """Generate functional requirements based on description."""
         # This would use AI to analyze the description and generate requirements
         base_requirements = [
@@ -611,12 +593,13 @@ This {task_type.lower()} task is part of the TaskHero AI project management syst
             ])
         
         # Add context-based requirements
-        for file_context in relevant_context:
-            base_requirements.append(f"Use {file_context['file_name']} for {file_context['file_type']} implementation")
+        if relevant_context:
+            for chunk in relevant_context[:3]:  # Use top 3 chunks
+                base_requirements.append(f"Consider patterns from {chunk.file_name} ({chunk.file_type})")
         
         return base_requirements
     
-    def _ai_generate_benefits(self, description: str, context: Dict[str, Any], relevant_context: List[Dict[str, Any]] = None) -> List[str]:
+    def _ai_generate_benefits(self, description: str, context: Dict[str, Any], relevant_context: List[ContextChunk] = None) -> List[str]:
         """Generate benefits and value proposition."""
         benefits = [
             "Improves overall system functionality and user experience",
@@ -632,7 +615,7 @@ This {task_type.lower()} task is part of the TaskHero AI project management syst
         
         return benefits
     
-    def _ai_generate_implementation_analysis(self, description: str, context: Dict[str, Any], relevant_context: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _ai_generate_implementation_analysis(self, description: str, context: Dict[str, Any], relevant_context: List[ContextChunk] = None) -> Dict[str, Any]:
         """Generate implementation analysis using AI insights."""
         return {
             'current_implementation': 'Analyze existing codebase and identify current state of related functionality.',
@@ -644,7 +627,7 @@ This {task_type.lower()} task is part of the TaskHero AI project management syst
             'migration_approach': 'Plan migration strategy from current to new implementation.',
             'backward_compatibility': 'Ensure backward compatibility where required.',
             'risk_mitigation': 'Implement strategies to mitigate identified risks.',
-            'context_based_analysis': f'Use context from {", ".join(file_context["file_name"] for file_context in relevant_context)}'
+            'context_based_analysis': f'Use context from {", ".join(chunk.file_name for chunk in relevant_context[:5])}' if relevant_context else 'No specific context available'
         }
     
     def _generate_filename(self, task_id: str, task_type: str, title: str) -> str:

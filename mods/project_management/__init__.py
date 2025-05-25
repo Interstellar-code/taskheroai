@@ -18,11 +18,15 @@ from .project_templates import ProjectTemplates
 from .project_planner import ProjectPlanner
 from .template_engine import TemplateEngine
 from .ai_task_creator import AITaskCreator
+from .semantic_search import SemanticSearchEngine, ContextChunk, SearchResult
 
 __all__ = [
     'TaskManager', 
     'ProjectTemplates', 
     'ProjectPlanner',
     'TemplateEngine',
-    'AITaskCreator'
+    'AITaskCreator',
+    'SemanticSearchEngine',
+    'ContextChunk',
+    'SearchResult'
 ] 

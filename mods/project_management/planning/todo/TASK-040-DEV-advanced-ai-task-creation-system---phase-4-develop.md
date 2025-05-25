@@ -241,47 +241,91 @@ This task builds upon the successful Phase 3 implementation (15/15 tests passing
 | [Current 1] | [New 1] | [Migration notes] |
 | [Current 2] | [New 2] | [Migration notes] |
 ## 5. UI Design & Specifications
-### 5.1. Design Overview
-UI design considerations will be defined during implementation phase.
+### 5.1. Current UI Implementation
+**CLI Integration Already Complete** - Task creation is accessible through the main CLI menu option 10.
 
-### 5.2. Wireframes & Layout
-**Use ASCII art for layouts, wireframes, and component positioning:**
+### 5.2. Existing CLI Interface Layout
+**Current Implementation (Phase 3 Complete):**
 
 ```
+TaskHero AI Main Menu
+═══════════════════════════════════════════════════════════════
+TaskHero Management Section (8-12)
+8.  📋 Task Dashboard
+9.  📌 Kanban Board
+10. ➕ Enhanced Task Creation  ← CURRENT IMPLEMENTATION
+11. 👀 Quick View Tasks
+12. 🔍 Search Tasks
+
+Enhanced Task Creation (Option 10):
 ┌─────────────────────────────────────────────────────────────┐
-│ [Page/Component Layout - Use ASCII art for visual layouts]   │
-│ ┌─────────────┐ ┌─────────────────────────────────────────┐ │
-│ │ Sidebar     │ │ Main Content Area                       │ │
-│ │ - Item 1    │ │ ┌─────────────────────────────────────┐ │ │
-│ │ - Item 2    │ │ │ Header/Title Section                │ │ │
-│ │ - Item 3    │ │ ├─────────────────────────────────────┤ │ │
-│ │             │ │ │ Content Block 1                     │ │ │
-│ │             │ │ │ Content Block 2                     │ │ │
-│ │             │ │ └─────────────────────────────────────┘ │ │
-│ └─────────────┘ └─────────────────────────────────────────┘ │
+│ ➕ Enhanced Task Creation                                    │
+│ ══════════════════════════════════════════════════════════  │
+│ Choose creation method:                                     │
+│   1. 🚀 AI-Enhanced Task Creation (Comprehensive)          │
+│   2. ⚡ Quick Task Creation (Basic)                         │
+│   0. ← Back to main menu                                   │
+│                                                             │
+│ Interactive Wizard Flow:                                    │
+│ 📝 Task Title → 📋 Task Type → ⚡ Priority → 👤 Assignee   │
+│ 📅 Due Date → 🏷️ Tags → 🔗 Dependencies → 💪 Effort      │
+│ 📝 Description → 🤖 AI Enhancement → ✅ Confirmation       │
 └─────────────────────────────────────────────────────────────┘
 ```
-**ASCII Art Tips:**
-- Use `┌─┐└─┘│├─┤` for clean borders and boxes
-- Use `═══` for emphasis/headers
-- Use `...` for content areas
-- Use `[Button]` for interactive elements
-- Use `📊📅💳⚙️` emojis for icons and visual elements
-- Use `↕↗▼` arrows for sorting and navigation indicators
-- Use `🔴🟢` colored circles for status indicators
-- Use `^annotations` below diagrams for explanations
 
-### 5.3. Design System References
-- **Colors:** Follow TaskHero AI design system color palette
-- **Typography:** Use system default typography standards
-- **Spacing:** Follow 8px grid system for consistent spacing
-- **Components:** Utilize existing component library where applicable
-- **Icons:** Use consistent icon set from design system
+### 5.3. Phase 4 UI Enhancements
+**Phase 4C will enhance the existing CLI interface with:**
 
-### 5.4. Visual Design References
-- [Link to Figma/Design file]
-- [Link to existing similar components]
-- [Screenshots or mockups if available]
+#### Interactive Context Selection Interface
+```
+🔍 Context Discovery Results:
+┌─────────────────────────────────────────────────────────────┐
+│ Found 5 relevant files for your task:                      │
+│                                                             │
+│ ☑️ 1. ai_task_creator.py (0.85 relevance)                  │
+│    📄 "AI-enhanced task creation with intelligent..."      │
+│    🔧 Python | 📊 786 lines | 🕒 Modified 2 days ago      │
+│                                                             │
+│ ☐ 2. template_engine.py (0.72 relevance)                   │
+│    📄 "Template rendering engine with Jinja2..."           │
+│    🔧 Python | 📊 324 lines | 🕒 Modified 1 week ago      │
+│                                                             │
+│ ☐ 3. enhanced_task.j2 (0.68 relevance)                     │
+│    📄 "Comprehensive task template with 200+..."           │
+│    📝 Template | 📊 156 lines | 🕒 Modified 3 days ago     │
+│                                                             │
+│ Select files to include (1,2,3 or 'all' or 'none'): ___   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Progressive Task Creation Wizard
+```
+🚀 AI-Enhanced Task Creation - Step 2 of 4
+┌─────────────────────────────────────────────────────────────┐
+│ Context Enhancement                                         │
+│ ═══════════════════════════════════════════════════════════ │
+│                                                             │
+│ 🤖 AI is analyzing your task with selected context...      │
+│ ████████████████████████████████████████████████ 85%      │
+│                                                             │
+│ ✅ Generated implementation steps (3 phases)               │
+│ ✅ Identified 2 dependencies                               │
+│ ✅ Estimated effort: Large (2-3 weeks)                     │
+│ ⏳ Generating risk assessment...                           │
+│                                                             │
+│ [Preview] [Refine] [Continue] [Back]                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 5.4. Design Principles for Phase 4
+- **Maintain CLI Consistency**: Keep existing colorama styling and menu structure
+- **Progressive Enhancement**: Add features without breaking current workflow
+- **Real-time Feedback**: Show AI processing status and progress indicators
+- **User Control**: Allow preview, refinement, and cancellation at each step
+- **Accessibility**: Maintain keyboard navigation and screen reader compatibility
+
+### 5.5. No Web UI Required
+This task focuses on enhancing the existing CLI interface. No web-based UI development is needed as the CLI provides sufficient functionality for task creation workflows.
 ## 6. Risk Assessment
 ### 6.1. Potential Risks
 | Risk | Impact | Probability | Mitigation Strategy |
