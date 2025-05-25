@@ -28,11 +28,11 @@ class DiagramType(Enum):
 class MermaidDiagramGenerator:
     """
     Generate task-specific Mermaid diagrams for TaskHero AI tasks.
-    
+
     Creates appropriate diagrams based on task type, description, and context
     to enhance visual representation and user understanding.
     """
-    
+
     def __init__(self):
         """Initialize the Mermaid diagram generator."""
         self.task_type_mappings = {
@@ -44,27 +44,27 @@ class MermaidDiagramGenerator:
             'research': DiagramType.FLOWCHART,
             'planning': DiagramType.GANTT
         }
-        
+
         logger.info("MermaidDiagramGenerator initialized")
-    
-    def generate_task_diagram(self, task_type: str, title: str, description: str, 
+
+    def generate_task_diagram(self, task_type: str, title: str, description: str,
                             context: Dict[str, Any] = None) -> str:
         """
         Generate appropriate Mermaid diagram for a task.
-        
+
         Args:
             task_type: Type of task (Development, Bug Fix, etc.)
             title: Task title
             description: Task description
             context: Additional context for diagram generation
-            
+
         Returns:
             Mermaid diagram as string
         """
         try:
             # Determine diagram type based on task type and content
             diagram_type = self._determine_diagram_type(task_type, description)
-            
+
             # Generate diagram based on type
             if diagram_type == DiagramType.FLOWCHART:
                 return self._generate_flowchart(task_type, title, description, context)
@@ -76,21 +76,25 @@ class MermaidDiagramGenerator:
                 return self._generate_gantt_chart(task_type, title, description, context)
             else:
                 return self._generate_flowchart(task_type, title, description, context)
-                
+
         except Exception as e:
             logger.error(f"Error generating Mermaid diagram: {e}")
             return self._generate_fallback_diagram(task_type, title)
-    
+
     def _determine_diagram_type(self, task_type: str, description: str) -> DiagramType:
         """Determine the most appropriate diagram type for the task."""
         task_type_lower = task_type.lower()
         description_lower = description.lower()
-        
-        # Check for specific keywords that suggest diagram types
-        if any(keyword in description_lower for keyword in ['user', 'journey', 'experience', 'workflow', 'ui', 'interface']):
-            return DiagramType.USER_JOURNEY
+
+        # Priority keywords for specific diagram types - installation/setup should use FLOWCHART
+        if any(keyword in description_lower for keyword in ['install', 'setup', 'configure', 'deploy']):
+            return DiagramType.FLOWCHART
+        elif any(keyword in description_lower for keyword in ['enhance', 'improve', 'modify', 'update']):
+            return DiagramType.FLOWCHART
         elif any(keyword in description_lower for keyword in ['api', 'service', 'request', 'response', 'communication']):
             return DiagramType.SEQUENCE
+        elif any(keyword in description_lower for keyword in ['user', 'journey', 'experience']) and not any(keyword in description_lower for keyword in ['install', 'setup', 'configure']):
+            return DiagramType.USER_JOURNEY
         elif any(keyword in description_lower for keyword in ['timeline', 'schedule', 'phases', 'milestones']):
             return DiagramType.GANTT
         elif any(keyword in description_lower for keyword in ['state', 'status', 'transition', 'lifecycle']):
@@ -98,13 +102,13 @@ class MermaidDiagramGenerator:
         else:
             # Default to flowchart for most task types
             return self.task_type_mappings.get(task_type_lower, DiagramType.FLOWCHART)
-    
-    def _generate_flowchart(self, task_type: str, title: str, description: str, 
+
+    def _generate_flowchart(self, task_type: str, title: str, description: str,
                           context: Dict[str, Any] = None) -> str:
         """Generate a flowchart diagram for the task."""
         # Extract key steps from description and context
         steps = self._extract_process_steps(description, context)
-        
+
         # Generate flowchart based on task type
         if task_type.lower() == 'bug fix':
             return self._generate_bug_fix_flowchart(title, steps)
@@ -116,7 +120,7 @@ class MermaidDiagramGenerator:
             return self._generate_enhancement_flowchart(title, steps)
         else:
             return self._generate_development_flowchart(title, steps)
-    
+
     def _generate_development_flowchart(self, title: str, steps: List[str]) -> str:
         """Generate a development-focused flowchart."""
         diagram = [
@@ -144,9 +148,9 @@ class MermaidDiagramGenerator:
             "    style O fill:#fff3e0",
             "```"
         ]
-        
+
         return "\n".join(diagram)
-    
+
     def _generate_bug_fix_flowchart(self, title: str, steps: List[str]) -> str:
         """Generate a bug fix-focused flowchart."""
         diagram = [
@@ -176,9 +180,9 @@ class MermaidDiagramGenerator:
             "    style P fill:#e8f5e8",
             "```"
         ]
-        
+
         return "\n".join(diagram)
-    
+
     def _generate_test_flowchart(self, title: str, steps: List[str]) -> str:
         """Generate a testing-focused flowchart."""
         diagram = [
@@ -203,9 +207,9 @@ class MermaidDiagramGenerator:
             "    style M fill:#fff3e0",
             "```"
         ]
-        
+
         return "\n".join(diagram)
-    
+
     def _generate_installation_flowchart(self, title: str, steps: List[str]) -> str:
         """Generate an installation/setup-focused flowchart."""
         diagram = [
@@ -232,9 +236,9 @@ class MermaidDiagramGenerator:
             "    style L fill:#ffebee",
             "```"
         ]
-        
+
         return "\n".join(diagram)
-    
+
     def _generate_enhancement_flowchart(self, title: str, steps: List[str]) -> str:
         """Generate an enhancement/improvement-focused flowchart."""
         diagram = [
@@ -263,27 +267,27 @@ class MermaidDiagramGenerator:
             "    style P fill:#e8f5e8",
             "```"
         ]
-        
+
         return "\n".join(diagram)
-    
-    def _generate_user_journey(self, task_type: str, title: str, description: str, 
+
+    def _generate_user_journey(self, task_type: str, title: str, description: str,
                              context: Dict[str, Any] = None) -> str:
         """Generate a user journey diagram."""
         # Extract user actions from description
         user_actions = self._extract_user_actions(description)
-        
+
         diagram = [
             "```mermaid",
             "journey",
             f"    title {title} - User Journey",
             "    section User Interaction",
         ]
-        
+
         # Add user actions to journey
         for i, action in enumerate(user_actions[:6], 1):  # Limit to 6 actions
             satisfaction = 5 if i <= 3 else 4  # Higher satisfaction for early steps
             diagram.append(f"      {action}: {satisfaction}: User")
-        
+
         # Add default actions if none extracted
         if not user_actions:
             diagram.extend([
@@ -293,11 +297,11 @@ class MermaidDiagramGenerator:
                 "      Review Results: 4: User",
                 "      Complete Task: 5: User"
             ])
-        
+
         diagram.append("```")
         return "\n".join(diagram)
-    
-    def _generate_sequence_diagram(self, task_type: str, title: str, description: str, 
+
+    def _generate_sequence_diagram(self, task_type: str, title: str, description: str,
                                  context: Dict[str, Any] = None) -> str:
         """Generate a sequence diagram for API/service interactions."""
         diagram = [
@@ -320,10 +324,10 @@ class MermaidDiagramGenerator:
             "    Note over U,D: " + title[:40] + ("..." if len(title) > 40 else ""),
             "```"
         ]
-        
+
         return "\n".join(diagram)
-    
-    def _generate_gantt_chart(self, task_type: str, title: str, description: str, 
+
+    def _generate_gantt_chart(self, task_type: str, title: str, description: str,
                             context: Dict[str, Any] = None) -> str:
         """Generate a Gantt chart for project timeline."""
         diagram = [
@@ -342,24 +346,24 @@ class MermaidDiagramGenerator:
             "    Production Deployment   :prod, after staging, 1d",
             "```"
         ]
-        
+
         return "\n".join(diagram)
-    
+
     def _extract_process_steps(self, description: str, context: Dict[str, Any] = None) -> List[str]:
         """Extract process steps from description and context."""
         steps = []
-        
+
         # Look for numbered steps or bullet points
         step_patterns = [
             r'\d+\.\s+([^.]+)',  # Numbered steps
             r'[-*]\s+([^.]+)',   # Bullet points
             r'Step \d+:\s*([^.]+)',  # Step format
         ]
-        
+
         for pattern in step_patterns:
             matches = re.findall(pattern, description, re.IGNORECASE)
             steps.extend([match.strip() for match in matches])
-        
+
         # If no steps found, extract from implementation steps in context
         if not steps and context and 'implementation_steps' in context:
             impl_steps = context['implementation_steps']
@@ -369,33 +373,41 @@ class MermaidDiagramGenerator:
                         steps.append(step['title'])
                     elif isinstance(step, str):
                         steps.append(step)
-        
+
         return steps[:8]  # Limit to 8 steps for diagram clarity
-    
+
     def _extract_user_actions(self, description: str) -> List[str]:
         """Extract user actions from description for user journey."""
         actions = []
-        
-        # Look for action verbs and user-related activities
-        action_patterns = [
-            r'user\s+(\w+s?)',  # "user clicks", "user enters"
-            r'(\w+)\s+the\s+(\w+)',  # "click the button"
-            r'(\w+ing)\s+',  # "clicking", "entering"
-        ]
-        
-        for pattern in action_patterns:
-            matches = re.findall(pattern, description, re.IGNORECASE)
-            for match in matches:
-                if isinstance(match, tuple):
-                    action = ' '.join(match).strip()
-                else:
-                    action = match.strip()
-                
-                if len(action) > 3 and action not in actions:
-                    actions.append(action.title())
-        
+        sentences = description.split('.')
+
+        # Better parsing logic for meaningful user actions
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if any(verb in sentence.lower() for verb in ['run', 'execute', 'configure', 'install', 'setup', 'create', 'modify', 'update', 'test', 'deploy']):
+                # Extract meaningful action from sentence
+                action = self._clean_action_text(sentence.strip())
+                if action and len(action) > 5:
+                    actions.append(action)
+
+        # Fallback to generic actions if none found
+        if not actions:
+            actions = ["Start Process", "Configure Settings", "Complete Setup", "Verify Results"]
+
         return actions[:6]  # Limit to 6 actions
-    
+
+    def _clean_action_text(self, text: str) -> str:
+        """Clean and format action text for user journey."""
+        # Remove common prefixes and clean up text
+        text = re.sub(r'^(the\s+|a\s+|an\s+)', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\s+', ' ', text)  # Normalize whitespace
+
+        # Capitalize first letter and ensure reasonable length
+        if len(text) > 50:
+            text = text[:47] + "..."
+
+        return text.strip().capitalize() if text.strip() else ""
+
     def _generate_fallback_diagram(self, task_type: str, title: str) -> str:
         """Generate a simple fallback diagram when generation fails."""
         diagram = [
@@ -411,9 +423,9 @@ class MermaidDiagramGenerator:
             "    style F fill:#c8e6c9",
             "```"
         ]
-        
+
         return "\n".join(diagram)
-    
+
     def generate_ascii_layout(self, task_type: str, description: str) -> str:
         """Generate ASCII art layout for UI-related tasks."""
         if 'ui' in description.lower() or 'interface' in description.lower() or 'layout' in description.lower():
@@ -424,7 +436,7 @@ class MermaidDiagramGenerator:
             return self._generate_form_layout()
         else:
             return self._generate_generic_layout()
-    
+
     def _generate_ui_layout(self) -> str:
         """Generate ASCII art for UI layout."""
         layout = [
@@ -445,9 +457,9 @@ class MermaidDiagramGenerator:
             "└─────────────────────────────────────────────────────────────┘",
             "```"
         ]
-        
+
         return "\n".join(layout)
-    
+
     def _generate_dashboard_layout(self) -> str:
         """Generate ASCII art for dashboard layout."""
         layout = [
@@ -469,9 +481,9 @@ class MermaidDiagramGenerator:
             "└─────────────────────────────────────────────────────────────┘",
             "```"
         ]
-        
+
         return "\n".join(layout)
-    
+
     def _generate_form_layout(self) -> str:
         """Generate ASCII art for form layout."""
         layout = [
@@ -495,9 +507,9 @@ class MermaidDiagramGenerator:
             "└─────────────────────────────────────────────────────────────┘",
             "```"
         ]
-        
+
         return "\n".join(layout)
-    
+
     def _generate_generic_layout(self) -> str:
         """Generate generic ASCII art layout."""
         layout = [
@@ -514,5 +526,5 @@ class MermaidDiagramGenerator:
             "└─────────────────────────────────────────────────────────────┘",
             "```"
         ]
-        
-        return "\n".join(layout) 
+
+        return "\n".join(layout)

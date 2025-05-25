@@ -76,16 +76,16 @@ extends: base/document_base.j2
 {{ brief_description or '[Concise summary of what this task accomplishes and why it is needed]' }}
 
 ### 1.2. Functional Requirements
-{{ functional_requirements or '[Specific functionality that must be implemented or changed]' }}
-{% if functional_requirements_list and functional_requirements_list|length > 0 -%}
+{{ functional_requirements | default('[Specific functionality that must be implemented or changed]') }}
+{% if functional_requirements_list is defined and functional_requirements_list and functional_requirements_list|length > 0 -%}
 {% for req in functional_requirements_list -%}
 - {{ req }}
 {% endfor %}
 {%- endif %}
 
 ### 1.3. Purpose & Benefits
-{{ purpose_benefits or '[Why this task is important and what value it provides]' }}
-{% if benefits_list and benefits_list|length > 0 -%}
+{{ purpose_benefits | default('[Why this task is important and what value it provides]') }}
+{% if benefits_list is defined and benefits_list and benefits_list|length > 0 -%}
 {% for benefit in benefits_list -%}
 - {{ benefit }}
 {% endfor %}
@@ -158,10 +158,10 @@ flowchart TD
 ### 3.1. Implementation Steps
 {% if implementation_steps and implementation_steps|length > 0 -%}
 {% for step in implementation_steps -%}
-- {% if step.completed|default(false) %}[x]{% else %}[ ]{% endif %} **Step {{ loop.index }}: {{ step.title }}** - Status: {% if step.completed|default(false) %}✅ Complete{% elif step.in_progress|default(false) %}🔄 In Progress{% else %}⏳ Pending{% endif %} - Target: {{ step.target_date or 'YYYY-MM-DD' }}
-  {% if step.substeps -%}
-  {% for substep in step.substeps -%}
-  - {% if substep.completed|default(false) %}[x]{% else %}[ ]{% endif %} Sub-step {{ loop.index }}: {{ substep.description }}
+- {% if step['completed']|default(false) %}[x]{% else %}[ ]{% endif %} **Step {{ loop.index }}: {{ step['title'] | default('Step ' + loop.index|string) }}** - Status: {% if step['completed']|default(false) %}✅ Complete{% elif step['in_progress']|default(false) %}🔄 In Progress{% else %}⏳ Pending{% endif %} - Target: {{ step['target_date'] | default('YYYY-MM-DD') }}
+  {% if step['substeps'] -%}
+  {% for substep in step['substeps'] -%}
+  - {% if substep['completed']|default(false) %}[x]{% else %}[ ]{% endif %} Sub-step {{ loop.index }}: {{ substep['description'] | default('Substep description') }}
   {% endfor %}
   {%- endif %}
 {% endfor %}
@@ -215,7 +215,7 @@ Implementation steps will be defined during planning phase.
 | Current Component | New Component | Notes |
 |------------------|---------------|-------|
 {% for mapping in component_mapping -%}
-| {{ mapping.current }} | {{ mapping.new }} | {{ mapping.notes }} |
+| {{ mapping['current'] | default('Current component') }} | {{ mapping['new'] | default('New component') }} | {{ mapping['notes'] | default('Migration notes') }} |
 {% endfor %}
 {%- endif %}
 {%- endif %}
@@ -253,16 +253,6 @@ Implementation steps will be defined during planning phase.
 ```
 {%- endif %}
 
-**ASCII Art Tips:**
-- Use `┌─┐└─┘│├─┤` for clean borders and boxes
-- Use `═══` for emphasis/headers
-- Use `...` for content areas
-- Use `[Button]` for interactive elements
-- Use `📊📅💳⚙️` emojis for icons and visual elements
-- Use `↕↗▼` arrows for sorting and navigation indicators
-- Use `🔴🟢` colored circles for status indicators
-- Use `^annotations` below diagrams for explanations
-
 ### 5.3. Design System References
 - **Colors:** {{ ui_colors|default('[Primary: #color, Secondary: #color, etc.]') }}
 - **Typography:** {{ ui_typography|default('[Font family, sizes, weights]') }}
@@ -288,7 +278,7 @@ Implementation steps will be defined during planning phase.
 |------|--------|-------------|-------------------|
 {% if risks is defined and risks -%}
 {% for risk in risks -%}
-| {{ risk.description }} | {{ risk.impact }} | {{ risk.probability }} | {{ risk.mitigation }} |
+| {{ risk['description'] | default('[Risk description]') }} | {{ risk['impact'] | default('Medium') }} | {{ risk['probability'] | default('Low') }} | {{ risk['mitigation'] | default('[Mitigation strategy]') }} |
 {% endfor %}
 {% else -%}
 | [Risk 1] | [High/Medium/Low] | [High/Medium/Low] | [Mitigation approach] |
@@ -350,7 +340,7 @@ erDiagram
 {% if technical_dependencies and technical_dependencies|length > 0 -%}
 ### Technical Dependencies
 {% for dep in technical_dependencies -%}
-- {{ dep.name }} - {{ dep.version or dep.requirement }}
+- {{ dep['name'] | default('Dependency') }} - {{ dep['version'] | default(dep['requirement']) | default('Version/requirement') }}
 {% endfor %}
 {%- endif %}
 
@@ -372,9 +362,9 @@ erDiagram
 {% if test_cases is defined and test_cases -%}
 **Test Cases:**
 {% for test_case in test_cases -%}
-- **{{ test_case.name }}**: {{ test_case.description }}
-  - Expected: {{ test_case.expected }}
-  - Status: {{ test_case.status or 'Pending' }}
+- **{{ test_case['name'] | default('Test Case ' + loop.index|string) }}**: {{ test_case['description'] | default('Test case description') }}
+  - Expected: {{ test_case['expected'] | default('Expected result') }}
+  - Status: {{ test_case['status'] | default('Pending') }}
 {% endfor %}
 {%- endif %}
 {%- endblock testing %}
@@ -497,4 +487,3 @@ erDiagram
 {%- endif %}
 {%- endblock updates %}
 
-   

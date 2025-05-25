@@ -165,16 +165,6 @@ Testing will be handled in a separate task based on this task summary and requir
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**ASCII Art Tips:**
-- Use `┌─┐└─┘│├─┤` for clean borders and boxes
-- Use `═══` for emphasis/headers
-- Use `...` for content areas
-- Use `[Button]` for interactive elements
-- Use `📊📅💳⚙️` emojis for icons and visual elements
-- Use `↕↗▼` arrows for sorting and navigation indicators
-- Use `🔴🟢` colored circles for status indicators
-- Use `^annotations` below diagrams for explanations
-
 ### 7.3. Design System References
 - **Colors:** [Primary: #color, Secondary: #color, etc.]
 - **Typography:** [Font family, sizes, weights]

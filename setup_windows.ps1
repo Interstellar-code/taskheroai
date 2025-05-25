@@ -146,9 +146,9 @@ function Get-UserInput {
         }
         Write-ColoredLine "👉 Enter value: " $Colors.Text -NoNewline
 
-        $input = Read-Host
+        $userInput = Read-Host
 
-        if ([string]::IsNullOrWhiteSpace($input)) {
+        if ([string]::IsNullOrWhiteSpace($userInput)) {
             if ($DefaultValue) {
                 return $DefaultValue
             } elseif ($Required) {
@@ -159,7 +159,7 @@ function Get-UserInput {
             }
         }
 
-        return $input
+        return $userInput
     } while ($true)
 }
 

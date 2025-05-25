@@ -40,5 +40,17 @@
     "quality_score": 0.8999999999999999,
     "user_satisfaction": 4,
     "timestamp": "2025-05-25T20:16:26.728034"
+  },
+  {
+    "task_id": "TASK-067",
+    "quality_score": 0.8999999999999999,
+    "user_satisfaction": 4,
+    "timestamp": "2025-05-25T22:28:27.118494"
+  },
+  {
+    "task_id": "TASK-069",
+    "quality_score": 0.7999999999999999,
+    "user_satisfaction": 4,
+    "timestamp": "2025-05-25T22:52:55.629527"
   }
 ]

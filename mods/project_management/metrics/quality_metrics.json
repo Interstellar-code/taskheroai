@@ -1,0 +1,37 @@
+[
+  {
+    "task_id": "TASK-068",
+    "timestamp": "2025-05-25T22:33:35.174609",
+    "overall_score": 0.855,
+    "quality_level": "excellent",
+    "metric_scores": {
+      "metadata_completeness": 0.7,
+      "requirements_specificity": 0.6,
+      "implementation_detail": 1.0,
+      "technical_depth": 1.0,
+      "flow_diagram_validity": 1.0,
+      "content_structure": 1.0
+    },
+    "recommendations": [
+      "Make requirements more specific and measurable"
+    ]
+  },
+  {
+    "task_id": "TASK-069",
+    "timestamp": "2025-05-25T22:52:55.630844",
+    "overall_score": 0.7937500000000001,
+    "quality_level": "good",
+    "metric_scores": {
+      "metadata_completeness": 0.575,
+      "requirements_specificity": 0.6,
+      "implementation_detail": 0.9000000000000001,
+      "technical_depth": 0.8999999999999999,
+      "flow_diagram_validity": 1.0,
+      "content_structure": 0.9500000000000001
+    },
+    "recommendations": [
+      "Add missing metadata fields (tags, dependencies, effort estimates)",
+      "Make requirements more specific and measurable"
+    ]
+  }
+]
