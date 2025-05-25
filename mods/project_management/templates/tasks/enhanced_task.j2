@@ -106,7 +106,7 @@ Success criteria will be defined based on functional requirements.
 ## 2. Flow Diagram
 {% if flow_description and 'N/A' in flow_description -%}
 {{ flow_description }}
-{% elif flow_diagram -%}
+{% elif flow_diagram is defined and flow_diagram -%}
 **Task flow diagram:**
 
 {{ flow_diagram }}

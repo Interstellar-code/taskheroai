@@ -214,15 +214,25 @@ class AITaskCreator:
                 context = await self._enhance_with_ai(context, description)
             
             # TASK-044: Always apply template optimization to filter out placeholders and irrelevant sections
+            # But preserve AI-generated flow diagrams if they exist
+            ai_flow_diagram = context.get('flow_diagram')
+            ai_flow_description = context.get('flow_description')
+            
             context = self.template_optimizer.optimize_template_context(
                 context, task_type, description
             )
             
-            # TASK-044: Generate task-specific flow diagram
-            flow_diagram_context = self.template_optimizer.generate_task_specific_flow_diagram(
-                task_type, description, context
-            )
-            context.update(flow_diagram_context)
+            # TASK-044: Generate task-specific flow diagram only if AI didn't generate one
+            if not ai_flow_diagram:
+                flow_diagram_context = self.template_optimizer.generate_task_specific_flow_diagram(
+                    task_type, description, context
+                )
+                context.update(flow_diagram_context)
+            else:
+                # Preserve AI-generated flow diagram and ensure it's shown
+                context['flow_diagram'] = ai_flow_diagram
+                context['flow_description'] = ai_flow_description
+                context['show_flow_diagram'] = True
             
             # Generate task content using enhanced template
             task_content = self.template_engine.render_template(

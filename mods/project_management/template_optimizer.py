@@ -835,17 +835,23 @@ class TemplateOptimizer:
         description_lower = description.lower()
         has_workflow_keywords = any(keyword in description_lower for keyword in workflow_keywords)
         
-        # Installation scripts, configuration tasks, etc. typically don't need flow diagrams
-        non_workflow_keywords = [
-            'install', 'setup', 'configuration', 'config', 'environment', 'dependency',
-            'package', 'library', 'import', 'export', 'migration', 'database schema',
+        # Special case: Installation and setup scripts DO have user workflows
+        installation_keywords = ['install', 'setup', 'script', 'enhance']
+        has_installation_keywords = any(keyword in description_lower for keyword in installation_keywords)
+        
+        # If it's an installation/setup task, it should have a flow diagram
+        if has_installation_keywords:
+            return True
+        
+        # Documentation-only tasks typically don't need flow diagrams
+        documentation_only_keywords = [
             'documentation', 'readme', 'comment', 'logging', 'monitoring'
         ]
         
-        has_non_workflow_keywords = any(keyword in description_lower for keyword in non_workflow_keywords)
+        has_documentation_only_keywords = any(keyword in description_lower for keyword in documentation_only_keywords)
         
-        # Return True if has workflow keywords and doesn't have non-workflow keywords
-        return has_workflow_keywords and not has_non_workflow_keywords
+        # Return True if has workflow keywords and isn't documentation-only
+        return has_workflow_keywords and not has_documentation_only_keywords
     
     def _is_ui_design_relevant(self, task_type: str, description: str) -> bool:
         """Determine if UI design sections are relevant for this task."""
