@@ -5,8 +5,8 @@ version: 2.0.0
 category: tasks
 tags: task, comprehensive, implementation, ui, risk, naming, development
 author: TaskHero AI
-created: {{ current_date }}
-modified: {{ current_date }}
+created: {{ current_date|default('2025-01-XX') }}
+modified: {{ current_date|default('2025-01-XX') }}
 requires: base/document_base.j2
 variables: task_id, title, description, priority, status, task_type, implementation_steps, ui_design, risk_assessment, naming_convention
 is_base: false
@@ -17,7 +17,7 @@ extends: base/document_base.j2
 
 {% block metadata -%}
 - **Task ID:** {{ task_id or 'TASK-XXX' }}
-- **Created:** {{ created or current_date }}
+- **Created:** {{ created or current_date|default('2025-01-XX') }}
 - **Due:** {{ due_date or 'DUE-DATE' }}
 - **Priority:** {{ priority or 'PRIORITY' }}
 - **Status:** {{ status or 'STATUS' }}
@@ -217,12 +217,12 @@ Implementation steps will be defined during planning phase.
 {% if show_ui_design|default(false) -%}
 ## 5. UI Design & Specifications
 ### 5.1. Design Overview
-{{ ui_design_overview or '[Brief description of the UI changes and design goals]' }}
+{{ ui_design_overview|default('[Brief description of the UI changes and design goals]') }}
 
 ### 5.2. Wireframes & Layout
 **Use ASCII art for layouts, wireframes, and component positioning:**
 
-{% if ui_layout|default(false) -%}
+{% if ui_layout is defined and ui_layout -%}
 ```
 {{ ui_layout }}
 ```
@@ -254,14 +254,14 @@ Implementation steps will be defined during planning phase.
 - Use `^annotations` below diagrams for explanations
 
 ### 5.3. Design System References
-- **Colors:** {{ ui_colors or '[Primary: #color, Secondary: #color, etc.]' }}
-- **Typography:** {{ ui_typography or '[Font family, sizes, weights]' }}
-- **Spacing:** {{ ui_spacing or '[Padding/margin standards]' }}
-- **Components:** {{ ui_components or '[shadcn/ui components used]' }}
-- **Icons:** {{ ui_icons or '[Icon library and specific icons]' }}
+- **Colors:** {{ ui_colors|default('[Primary: #color, Secondary: #color, etc.]') }}
+- **Typography:** {{ ui_typography|default('[Font family, sizes, weights]') }}
+- **Spacing:** {{ ui_spacing|default('[Padding/margin standards]') }}
+- **Components:** {{ ui_components|default('[shadcn/ui components used]') }}
+- **Icons:** {{ ui_icons|default('[Icon library and specific icons]') }}
 
 ### 5.4. Visual Design References
-{% if design_references|default(false) -%}
+{% if design_references is defined and design_references -%}
 {% for ref in design_references -%}
 - {{ ref }}
 {% endfor %}
@@ -276,7 +276,7 @@ Implementation steps will be defined during planning phase.
 ### 6.1. Potential Risks
 | Risk | Impact | Probability | Mitigation Strategy |
 |------|--------|-------------|-------------------|
-{% if risks|default(false) -%}
+{% if risks is defined and risks -%}
 {% for risk in risks -%}
 | {{ risk.description }} | {{ risk.impact }} | {{ risk.probability }} | {{ risk.mitigation }} |
 {% endfor %}
@@ -355,11 +355,11 @@ erDiagram
 ## Testing
 {{ testing_overview or 'Testing will be handled in a separate task based on this task summary and requirements.' }}
 
-{% if testing_strategy|default(false) -%}
+{% if testing_strategy is defined and testing_strategy -%}
 **Testing Strategy:** {{ testing_strategy }}
 {%- endif %}
 
-{% if test_cases|default(false) -%}
+{% if test_cases is defined and test_cases -%}
 **Test Cases:**
 {% for test_case in test_cases -%}
 - **{{ test_case.name }}**: {{ test_case.description }}
@@ -483,7 +483,7 @@ erDiagram
 - **{{ update.date }}** - {{ update.description }}
 {% endfor %}
 {% else -%}
-- **{{ current_date }}** - Task created
+- **{{ current_date|default('2025-01-XX') }}** - Task created
 {%- endif %}
 {%- endblock updates %}
 

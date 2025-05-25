@@ -14,6 +14,7 @@ from .openai_provider import OpenAIProvider
 from .anthropic_provider import AnthropicProvider
 from .ollama_provider import OllamaProvider
 from .openrouter_provider import OpenRouterProvider
+from .deepseek_provider import DeepSeekProvider
 
 
 class ProviderType(Enum):
@@ -22,6 +23,7 @@ class ProviderType(Enum):
     ANTHROPIC = "anthropic"
     OLLAMA = "ollama"
     OPENROUTER = "openrouter"
+    DEEPSEEK = "deepseek"
 
 
 class ProviderFactory:
@@ -69,6 +71,13 @@ class ProviderFactory:
                 'top_p': float(os.getenv('OPENROUTER_TOP_P', '1.0')),
                 'http_referer': os.getenv('OPENROUTER_HTTP_REFERER', 'https://taskhero-ai.com'),
                 'x_title': os.getenv('OPENROUTER_X_TITLE', 'TaskHeroAI')
+            },
+            ProviderType.DEEPSEEK.value: {
+                'api_key': os.getenv('DEEPSEEK_API_KEY'),
+                'model': os.getenv('DEEPSEEK_MODEL', 'deepseek-chat'),
+                'max_tokens': int(os.getenv('DEEPSEEK_MAX_TOKENS', '4000')),
+                'temperature': float(os.getenv('DEEPSEEK_TEMPERATURE', '0.7')),
+                'top_p': float(os.getenv('DEEPSEEK_TOP_P', '1.0'))
             }
         }
     
@@ -110,6 +119,8 @@ class ProviderFactory:
                 provider = OllamaProvider(provider_config)
             elif provider_type == ProviderType.OPENROUTER.value:
                 provider = OpenRouterProvider(provider_config)
+            elif provider_type == ProviderType.DEEPSEEK.value:
+                provider = DeepSeekProvider(provider_config)
             else:
                 raise ProviderConfigError(f"Provider creation not implemented: {provider_type}")
             
@@ -185,6 +196,10 @@ class ProviderFactory:
         if self._default_configs[ProviderType.OPENROUTER.value]['api_key']:
             available.append(ProviderType.OPENROUTER.value)
         
+        # Check DeepSeek
+        if self._default_configs[ProviderType.DEEPSEEK.value]['api_key']:
+            available.append(ProviderType.DEEPSEEK.value)
+        
         # Check Ollama (always available if server is running)
         available.append(ProviderType.OLLAMA.value)
         
@@ -194,7 +209,7 @@ class ProviderFactory:
         """
         Get the best available provider based on priority and availability.
         
-        Priority: OpenAI > Anthropic > OpenRouter > Ollama
+        Priority: OpenAI > Anthropic > DeepSeek > OpenRouter > Ollama
         
         Returns:
             Best available provider name or None
@@ -203,6 +218,7 @@ class ProviderFactory:
         priority_order = [
             ProviderType.OPENAI.value,
             ProviderType.ANTHROPIC.value,
+            ProviderType.DEEPSEEK.value,
             ProviderType.OPENROUTER.value,
             ProviderType.OLLAMA.value
         ]
@@ -315,6 +331,14 @@ class ProviderFactory:
                 'supports_streaming': True,
                 'cost': 'Pay per token',
                 'models': ['openai/gpt-4']
+            },
+            ProviderType.DEEPSEEK.value: {
+                'name': 'DeepSeek',
+                'description': 'DeepSeek AI models (DeepSeek-V3, DeepSeek-R1)',
+                'requires_api_key': True,
+                'supports_streaming': True,
+                'cost': 'Pay per token',
+                'models': ['deepseek-chat', 'deepseek-reasoner']
             }
         }
         

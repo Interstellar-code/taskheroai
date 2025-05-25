@@ -42,6 +42,7 @@ class AISettingsUI(BaseManager):
         anthropic_status = self.ai_settings_manager.get_provider_status('anthropic')
         ollama_status = self.ai_settings_manager.get_provider_status('ollama')
         openrouter_status = self.ai_settings_manager.get_provider_status('openrouter')
+        deepseek_status = self.ai_settings_manager.get_provider_status('deepseek')
         
         # Provider Configuration Section
         print(Fore.CYAN + "-" * 70 + Style.RESET_ALL)
@@ -63,18 +64,22 @@ class AISettingsUI(BaseManager):
         openrouter_indicator = f"{Fore.GREEN}✓{Style.RESET_ALL}" if openrouter_status['configured'] else f"{Fore.RED}✗{Style.RESET_ALL}"
         print(f"4. {Style.BRIGHT}🔶 OpenRouter Configuration{Style.RESET_ALL} [{openrouter_indicator}] {Fore.CYAN}(Multi-model){Style.RESET_ALL}")
         
+        # DeepSeek
+        deepseek_indicator = f"{Fore.GREEN}✓{Style.RESET_ALL}" if deepseek_status['configured'] else f"{Fore.RED}✗{Style.RESET_ALL}"
+        print(f"5. {Style.BRIGHT}🤖 DeepSeek Configuration{Style.RESET_ALL} [{deepseek_indicator}] {Fore.CYAN}(DeepSeek-V3, R1){Style.RESET_ALL}")
+        
         # Testing & Management Section
         print(Fore.CYAN + "-" * 70 + Style.RESET_ALL)
         print(Fore.CYAN + Style.BRIGHT + "⚙️ Function Assignment" + Style.RESET_ALL)
-        print(f"5. {Style.BRIGHT}🎯 Configure AI Functions{Style.RESET_ALL} {Fore.CYAN}(Assign providers to tasks){Style.RESET_ALL}")
+        print(f"6. {Style.BRIGHT}🎯 Configure AI Functions{Style.RESET_ALL} {Fore.CYAN}(Assign providers to tasks){Style.RESET_ALL}")
         
         # Testing & Management Section
         print(Fore.CYAN + "-" * 70 + Style.RESET_ALL)
         print(Fore.CYAN + Style.BRIGHT + "🧪 Testing & Management" + Style.RESET_ALL)
-        print(f"6. {Style.BRIGHT}🔍 Test AI Connections{Style.RESET_ALL}")
-        print(f"7. {Style.BRIGHT}📊 Provider Status Overview{Style.RESET_ALL}")
-        print(f"8. {Style.BRIGHT}🔄 Reset to Defaults{Style.RESET_ALL}")
-        print(f"9. {Style.BRIGHT}💾 Export/Import Settings{Style.RESET_ALL}")
+        print(f"7. {Style.BRIGHT}🔍 Test AI Connections{Style.RESET_ALL}")
+        print(f"8. {Style.BRIGHT}📊 Provider Status Overview{Style.RESET_ALL}")
+        print(f"9. {Style.BRIGHT}🔄 Reset to Defaults{Style.RESET_ALL}")
+        print(f"10. {Style.BRIGHT}💾 Export/Import Settings{Style.RESET_ALL}")
         
         print(Fore.CYAN + "-" * 70 + Style.RESET_ALL)
         print(f"0. {Style.BRIGHT}🔙 Back to Main Menu{Style.RESET_ALL}")
@@ -104,19 +109,21 @@ class AISettingsUI(BaseManager):
                 elif choice == "4":
                     await self.configure_openrouter()
                 elif choice == "5":
-                    await self.configure_ai_functions()
+                    await self.configure_deepseek()
                 elif choice == "6":
-                    await self.test_all_connections()
+                    await self.configure_ai_functions()
                 elif choice == "7":
-                    await self.show_provider_status()
+                    await self.test_all_connections()
                 elif choice == "8":
-                    await self.reset_provider_defaults()
+                    await self.show_provider_status()
                 elif choice == "9":
+                    await self.reset_provider_defaults()
+                elif choice == "10":
                     await self.handle_export_import()
                 elif choice == "0":
                     break
                 else:
-                    print(f"{Fore.RED}Invalid choice. Please enter 1-9 or 0 to go back.{Style.RESET_ALL}")
+                    print(f"{Fore.RED}Invalid choice. Please enter 1-10 or 0 to go back.{Style.RESET_ALL}")
                     input(f"{Fore.YELLOW}Press Enter to continue...{Style.RESET_ALL}")
                     
             except KeyboardInterrupt:
@@ -383,6 +390,66 @@ class AISettingsUI(BaseManager):
         
         input(f"\n{Fore.YELLOW}Press Enter to continue...{Style.RESET_ALL}")
     
+    async def configure_deepseek(self) -> None:
+        """Configure DeepSeek provider settings."""
+        print(f"\n{Fore.CYAN}🤖 DeepSeek Configuration{Style.RESET_ALL}")
+        print(Fore.CYAN + "-" * 50 + Style.RESET_ALL)
+        
+        current_settings = self.ai_settings_manager.get_deepseek_settings()
+        
+        # Display current settings
+        print(f"\n{Fore.YELLOW}Current DeepSeek Settings:{Style.RESET_ALL}")
+        api_key_display = current_settings.get('API_KEY', '')
+        if api_key_display and api_key_display != 'your_deepseek_api_key_here':
+            api_key_display = api_key_display[:8] + "..." + api_key_display[-4:] if len(api_key_display) > 12 else api_key_display
+        print(f"API Key: {api_key_display}")
+        print(f"Model: {current_settings.get('MODEL', 'deepseek-chat')}")
+        print(f"Max Tokens: {current_settings.get('MAX_TOKENS', '4000')}")
+        print(f"Temperature: {current_settings.get('TEMPERATURE', '0.7')}")
+        print(f"Top P: {current_settings.get('TOP_P', '1.0')}")
+        
+        # Configuration options
+        new_settings = current_settings.copy()
+        
+        if input(f"\n{Fore.GREEN}Update API Key? (y/n): {Style.RESET_ALL}").lower() == 'y':
+            print(f"{Fore.CYAN}Get your API key from: https://platform.deepseek.com/api_keys{Style.RESET_ALL}")
+            api_key = input(f"{Fore.CYAN}Enter DeepSeek API Key: {Style.RESET_ALL}").strip()
+            if api_key:
+                new_settings['API_KEY'] = api_key
+        
+        if input(f"{Fore.GREEN}Update Model? (y/n): {Style.RESET_ALL}").lower() == 'y':
+            print(f"{Fore.CYAN}Available models:{Style.RESET_ALL}")
+            print(f"  - deepseek-chat (DeepSeek-V3): General purpose, excellent for code")
+            print(f"  - deepseek-reasoner (DeepSeek-R1): Advanced reasoning, step-by-step analysis")
+            model = input(f"{Fore.CYAN}Enter model [{current_settings.get('MODEL', 'deepseek-chat')}]: {Style.RESET_ALL}").strip()
+            if model:
+                new_settings['MODEL'] = model
+        
+        if input(f"{Fore.GREEN}Update advanced settings? (y/n): {Style.RESET_ALL}").lower() == 'y':
+            max_tokens = input(f"{Fore.CYAN}Max Tokens [{current_settings.get('MAX_TOKENS', '4000')}]: {Style.RESET_ALL}").strip()
+            if max_tokens:
+                new_settings['MAX_TOKENS'] = max_tokens
+                
+            temperature = input(f"{Fore.CYAN}Temperature (0.0-1.0) [{current_settings.get('TEMPERATURE', '0.7')}]: {Style.RESET_ALL}").strip()
+            if temperature:
+                new_settings['TEMPERATURE'] = temperature
+                
+            top_p = input(f"{Fore.CYAN}Top P (0.0-1.0) [{current_settings.get('TOP_P', '1.0')}]: {Style.RESET_ALL}").strip()
+            if top_p:
+                new_settings['TOP_P'] = top_p
+        
+        # Save settings
+        if self.ai_settings_manager.set_deepseek_settings(new_settings):
+            print(f"{Fore.GREEN}✅ DeepSeek settings saved successfully!{Style.RESET_ALL}")
+            
+            # Test connection
+            if input(f"{Fore.CYAN}Test connection now? (y/n): {Style.RESET_ALL}").lower() == 'y':
+                await self.test_provider_connection('deepseek')
+        else:
+            print(f"{Fore.RED}❌ Failed to save DeepSeek settings.{Style.RESET_ALL}")
+        
+        input(f"\n{Fore.YELLOW}Press Enter to continue...{Style.RESET_ALL}")
+    
     async def test_provider_connection(self, provider: str) -> None:
         """Test connection to a specific provider."""
         print(f"\n{Fore.CYAN}🔍 Testing {provider.title()} connection...{Style.RESET_ALL}")
@@ -420,7 +487,7 @@ class AISettingsUI(BaseManager):
         print(f"\n{Fore.CYAN}📊 Provider Status Overview{Style.RESET_ALL}")
         print(Fore.CYAN + "=" * 70 + Style.RESET_ALL)
         
-        providers = ['openai', 'anthropic', 'ollama', 'openrouter']
+        providers = ['openai', 'anthropic', 'ollama', 'openrouter', 'deepseek']
         
         for provider in providers:
             status = self.ai_settings_manager.get_provider_status(provider)
@@ -453,7 +520,8 @@ class AISettingsUI(BaseManager):
         print("2. Anthropic")
         print("3. Ollama")
         print("4. OpenRouter")
-        print("5. All Providers")
+        print("5. DeepSeek")
+        print("6. All Providers")
         
         choice = self.get_user_choice("Select provider to reset")
         
@@ -461,7 +529,8 @@ class AISettingsUI(BaseManager):
             '1': 'openai',
             '2': 'anthropic',
             '3': 'ollama',
-            '4': 'openrouter'
+            '4': 'openrouter',
+            '5': 'deepseek'
         }
         
         if choice in provider_map:
@@ -471,9 +540,9 @@ class AISettingsUI(BaseManager):
                     print(f"{Fore.GREEN}✅ {provider.title()} settings reset to defaults.{Style.RESET_ALL}")
                 else:
                     print(f"{Fore.RED}❌ Failed to reset {provider.title()} settings.{Style.RESET_ALL}")
-        elif choice == '5':
+        elif choice == '6':
             if input(f"{Fore.RED}Are you sure you want to reset ALL providers to defaults? (y/n): {Style.RESET_ALL}").lower() == 'y':
-                for provider in ['openai', 'anthropic', 'ollama', 'openrouter']:
+                for provider in ['openai', 'anthropic', 'ollama', 'openrouter', 'deepseek']:
                     if self.ai_settings_manager.reset_to_defaults(provider):
                         print(f"{Fore.GREEN}✅ {provider.title()} reset to defaults.{Style.RESET_ALL}")
                     else:
@@ -592,13 +661,13 @@ class AISettingsUI(BaseManager):
         
         # Provider selection
         print(f"\n{Fore.GREEN}Select AI Provider:{Style.RESET_ALL}")
-        providers = ['openai', 'anthropic', 'ollama', 'openrouter']
+        providers = ['openai', 'anthropic', 'ollama', 'openrouter', 'deepseek']
         for i, provider in enumerate(providers, 1):
             provider_status = self.ai_settings_manager.get_provider_status(provider)
             status_icon = f"{Fore.GREEN}✓" if provider_status['configured'] else f"{Fore.RED}✗"
             print(f"{i}. {status_icon} {provider.title()}{Style.RESET_ALL}")
         
-        provider_choice = self.get_user_choice("Select provider (1-4)")
+        provider_choice = self.get_user_choice("Select provider (1-5)")
         
         try:
             provider_index = int(provider_choice) - 1

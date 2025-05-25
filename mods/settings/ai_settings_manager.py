@@ -62,6 +62,13 @@ class AISettingsManager(BaseManager):
                 'TOP_P': '1.0',
                 'HTTP_REFERER': 'https://taskhero-ai.com',
                 'X_TITLE': 'TaskHeroAI'
+            },
+            'deepseek': {
+                'API_KEY': 'your_deepseek_api_key_here',
+                'MODEL': 'deepseek-chat',
+                'MAX_TOKENS': '4000',
+                'TEMPERATURE': '0.7',
+                'TOP_P': '1.0'
             }
         }
     
@@ -154,6 +161,27 @@ class AISettingsManager(BaseManager):
             True if successful, False otherwise
         """
         return self._set_provider_settings('openrouter', settings)
+    
+    def get_deepseek_settings(self) -> Dict[str, Any]:
+        """
+        Get DeepSeek provider settings.
+        
+        Returns:
+            Dictionary of DeepSeek settings
+        """
+        return self._get_provider_settings('deepseek')
+    
+    def set_deepseek_settings(self, settings: Dict[str, Any]) -> bool:
+        """
+        Set DeepSeek provider settings.
+        
+        Args:
+            settings: Dictionary of DeepSeek settings
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        return self._set_provider_settings('deepseek', settings)
     
     def _get_provider_settings(self, provider: str) -> Dict[str, Any]:
         """
@@ -251,7 +279,7 @@ class AISettingsManager(BaseManager):
             settings = self._get_provider_settings(provider)
             
             # Check if API key is configured (for providers that need it)
-            if provider in ['openai', 'anthropic', 'openrouter']:
+            if provider in ['openai', 'anthropic', 'openrouter', 'deepseek']:
                 api_key = settings.get('API_KEY', '')
                 if not api_key or api_key == f'your_{provider}_api_key_here':
                     return False, f"{provider.title()} API key not configured"
@@ -345,7 +373,7 @@ class AISettingsManager(BaseManager):
         """
         all_settings = {}
         
-        for provider in ['openai', 'anthropic', 'ollama', 'openrouter']:
+        for provider in ['openai', 'anthropic', 'ollama', 'openrouter', 'deepseek']:
             all_settings[provider] = self._get_provider_settings(provider)
         
         return all_settings
@@ -394,7 +422,7 @@ class AISettingsManager(BaseManager):
             # Import settings for each provider
             success = True
             for provider, provider_settings in settings.items():
-                if provider in ['openai', 'anthropic', 'ollama', 'openrouter']:
+                if provider in ['openai', 'anthropic', 'ollama', 'openrouter', 'deepseek']:
                     if not self._set_provider_settings(provider, provider_settings):
                         success = False
                         self.logger.error(f"Failed to import settings for {provider}")
@@ -423,7 +451,7 @@ class AISettingsManager(BaseManager):
             
             # Check if configured
             configured = True
-            if provider in ['openai', 'anthropic', 'openrouter']:
+            if provider in ['openai', 'anthropic', 'openrouter', 'deepseek']:
                 api_key = settings.get('API_KEY', '')
                 configured = bool(api_key and api_key != f'your_{provider}_api_key_here')
             
@@ -431,7 +459,7 @@ class AISettingsManager(BaseManager):
                 'name': provider.title(),
                 'configured': configured,
                 'settings': settings,
-                'available': provider in ['openai', 'anthropic', 'ollama', 'openrouter']
+                'available': provider in ['openai', 'anthropic', 'ollama', 'openrouter', 'deepseek']
             }
             
         except Exception as e:
@@ -453,7 +481,7 @@ class AISettingsManager(BaseManager):
         """
         results = {}
         
-        for provider in ['openai', 'anthropic', 'ollama', 'openrouter']:
+        for provider in ['openai', 'anthropic', 'ollama', 'openrouter', 'deepseek']:
             try:
                 results[provider] = await self.test_provider_connection(provider)
             except Exception as e:
@@ -508,7 +536,7 @@ class AISettingsManager(BaseManager):
         
         Args:
             function: Function name (embedding, chat, task, description, agent)
-            provider: Provider name (openai, anthropic, ollama, openrouter)
+            provider: Provider name (openai, anthropic, ollama, openrouter, deepseek)
             model: Model name
             
         Returns:
@@ -585,6 +613,10 @@ class AISettingsManager(BaseManager):
                 'anthropic/claude-3-sonnet',
                 'meta-llama/llama-2-70b-chat',
                 'google/gemini-pro'
+            ],
+            'deepseek': [
+                'deepseek-chat',
+                'deepseek-reasoner'
             ]
         }
         
