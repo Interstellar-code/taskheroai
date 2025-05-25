@@ -13,43 +13,6 @@
 - **Related Epic/Feature:** TaskHero AI Project
 - **Tags:** ai-improvement, task-creation, template-optimization, context-awareness, post-phase4
 
-## Task Naming Convention
-**Follow the TaskHero naming convention when creating tasks:**
-
-**Format:** `TASK-XXX-[TYPE]-descriptive-name.md`
-
-**Where:**
-- **XXX** = Sequential number (001, 002, 003, etc.)
-- **[TYPE]** = Task type abbreviation (must match metadata Task Type field)
-- **descriptive-name** = Brief but clear description (use hyphens, no spaces)
-
-**Task Type Abbreviations:**
-- **DEV** = Development
-- **BUG** = Bug Fix
-- **TEST** = Test Case
-- **DOC** = Documentation
-- **DES** = Design
-
-**Examples:**
-- `TASK-001-DEV-user-authentication.md`
-- `TASK-002-BUG-login-validation-error.md`
-- `TASK-003-TEST-payment-gateway.md`
-- `TASK-004-DOC-api-documentation-update.md`
-- `TASK-005-DES-dashboard-ui-redesign.md`
-
-> **Important:** The task type abbreviation in the filename must match the Task Type field in the metadata section above.
-
-### Metadata Legend (for reference only)
-- **Priority:** High/Medium/Low - Task urgency and importance level
-- **Due:** YYYY-MM-DD - Target completion date
-- **Status:** Todo/In Progress/Done/Testing/backlog - Current task state
-- **Assigned to:** Developer/Team Member - Person responsible for execution or team
-- **Task Type:** DEV/DESIGN/RESEARCH/BUG/TEST - Category of work
-- **Sequence:** Number - Order in project timeline
-- **Estimated Effort:** Small (1-8h)/Medium (1-3d)/Large (1w+) - Time investment
-- **Related Epic/Feature:** Parent feature or epic this task belongs to
-- **Tags:** Comma-separated keywords for categorization and filtering
-
 ## 1. Overview
 
 ### 1.1. Brief Description

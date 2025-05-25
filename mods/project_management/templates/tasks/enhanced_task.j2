@@ -30,7 +30,7 @@ extends: base/document_base.j2
 {%- endblock metadata %}
 
 {% block overview -%}
-{% if show_naming_convention|default(true) -%}
+{% if show_naming_convention|default(false) -%}
 ## Task Naming Convention
 **Follow the TaskHero naming convention when creating tasks:**
 
@@ -57,7 +57,7 @@ extends: base/document_base.j2
 
 > **Important:** The task type abbreviation in the filename must match the Task Type field in the metadata section above.
 
-{% if show_metadata_legend|default(true) -%}
+{% if show_metadata_legend|default(false) -%}
 ### Metadata Legend (for reference only)
 - **Priority:** High/Medium/Low - Task urgency and importance level
 - **Due:** YYYY-MM-DD - Target completion date
@@ -77,42 +77,36 @@ extends: base/document_base.j2
 
 ### 1.2. Functional Requirements
 {{ functional_requirements or '[Specific functionality that must be implemented or changed]' }}
-{% if functional_requirements_list -%}
+{% if functional_requirements_list and functional_requirements_list|length > 0 -%}
 {% for req in functional_requirements_list -%}
 - {{ req }}
 {% endfor %}
-{% else -%}
-- [Requirement 1]
-- [Requirement 2]
-- [Requirement 3]
 {%- endif %}
 
 ### 1.3. Purpose & Benefits
 {{ purpose_benefits or '[Why this task is important and what value it provides]' }}
-{% if benefits_list -%}
+{% if benefits_list and benefits_list|length > 0 -%}
 {% for benefit in benefits_list -%}
 - {{ benefit }}
 {% endfor %}
-{% else -%}
-- [Benefit 1]
-- [Benefit 2]
-- [Benefit 3]
 {%- endif %}
 
 ### 1.4. Success Criteria
-{% if success_criteria -%}
+{% if success_criteria and success_criteria|length > 0 -%}
 {% for criterion in success_criteria -%}
 - {% if criterion.completed|default(false) %}[x]{% else %}[ ]{% endif %} {{ criterion.description if criterion is mapping else criterion }}
 {% endfor %}
 {% else -%}
-- [ ] [Specific success criterion 1]
-- [ ] [Specific success criterion 2]
-- [ ] [Specific success criterion 3]
+Success criteria will be defined based on functional requirements.
 {%- endif %}
 {%- endblock overview %}
 
 {% block main_content -%}
+{% if show_flow_diagram|default(true) -%}
 ## 2. Flow Diagram
+{% if flow_description and 'N/A' in flow_description -%}
+{{ flow_description }}
+{% else -%}
 **User's perspective of the task flow using Mermaid flowchart:**
 
 ```mermaid
@@ -150,11 +144,13 @@ flowchart TD
 ```
 
 {{ flow_description or '[Describe the user journey and key decision points from the user perspective]' }}
+{%- endif %}
+{%- endif %}
 
 ## 3. Implementation Status
 
 ### 3.1. Implementation Steps
-{% if implementation_steps -%}
+{% if implementation_steps and implementation_steps|length > 0 -%}
 {% for step in implementation_steps -%}
 - {% if step.completed|default(false) %}[x]{% else %}[ ]{% endif %} **Step {{ loop.index }}: {{ step.title }}** - Status: {% if step.completed|default(false) %}✅ Complete{% elif step.in_progress|default(false) %}🔄 In Progress{% else %}⏳ Pending{% endif %} - Target: {{ step.target_date or 'YYYY-MM-DD' }}
   {% if step.substeps -%}
@@ -164,54 +160,61 @@ flowchart TD
   {%- endif %}
 {% endfor %}
 {% else -%}
-- [ ] **Step 1: [Main Step Title]** - Status: ⏳ Pending - Target: YYYY-MM-DD
-  - [ ] Sub-step 1.1: [Detailed sub-step description]
-  - [ ] Sub-step 1.2: [Detailed sub-step description]
-  - [ ] Sub-step 1.3: [Detailed sub-step description]
-- [ ] **Step 2: [Main Step Title]** - Status: ⏳ Pending - Target: YYYY-MM-DD
-  - [ ] Sub-step 2.1: [Detailed sub-step description]
-  - [ ] Sub-step 2.2: [Detailed sub-step description]
-  - [ ] Sub-step 2.3: [Detailed sub-step description]
-- [ ] **Step 3: [Main Step Title]** - Status: ⏳ Pending - Target: YYYY-MM-DD
-  - [ ] Sub-step 3.1: [Detailed sub-step description]
-  - [ ] Sub-step 3.2: [Detailed sub-step description]
-  - [ ] Sub-step 3.3: [Detailed sub-step description]
+Implementation steps will be defined during planning phase.
 {%- endif %}
 
 ## 4. Detailed Description
 {{ detailed_description or '[Detailed description of the task, including its purpose, benefits, and any relevant background information]' }}
 
-{% if show_implementation_analysis|default(true) -%}
+{% if show_implementation_analysis|default(true) and (current_implementation or current_components or current_limitations or new_features or new_features_2 or new_features_3) -%}
+{% if current_implementation and current_implementation != 'Current implementation will be analyzed during planning phase' -%}
 **Current Implementation Analysis:**
-- {{ current_implementation or '[Describe current state/implementation]' }}
-- {{ current_components or '[Key components and their roles]' }}
-- {{ current_limitations or '[Current limitations or issues]' }}
+- {{ current_implementation }}
+{% if current_components and current_components != 'Existing components will be mapped and evaluated' -%}
+- {{ current_components }}
+{%- endif %}
+{% if current_limitations and current_limitations != 'Current limitations will be identified and addressed' -%}
+- {{ current_limitations }}
+{%- endif %}
+{%- endif %}
 
+{% if (new_features and new_features != 'New features will be implemented according to requirements') or (new_features_2 and new_features_2 != 'Additional enhancements will be considered') or (new_features_3 and new_features_3 != 'Future extensibility will be planned') -%}
 **New Implementation Features:**
-- {{ new_features or '[Feature 1 and its benefits]' }}
-- {{ new_features_2 or '[Feature 2 and its benefits]' }}
-- {{ new_features_3 or '[Feature 3 and its benefits]' }}
+{% if new_features and new_features != 'New features will be implemented according to requirements' -%}
+- {{ new_features }}
+{%- endif %}
+{% if new_features_2 and new_features_2 != 'Additional enhancements will be considered' -%}
+- {{ new_features_2 }}
+{%- endif %}
+{% if new_features_3 and new_features_3 != 'Future extensibility will be planned' -%}
+- {{ new_features_3 }}
+{%- endif %}
+{%- endif %}
 
+{% if (migration_approach and migration_approach != 'Migration strategy will be developed if needed') or (backward_compatibility and backward_compatibility != 'Backward compatibility strategy will be defined') or (risk_mitigation and risk_mitigation != 'Risk mitigation strategies will be implemented') -%}
 **Migration Strategy:**
-- {{ migration_approach or '[Approach for transitioning from current to new]' }}
-- {{ backward_compatibility or '[Backward compatibility considerations]' }}
-- {{ risk_mitigation or '[Risk mitigation strategies]' }}
+{% if migration_approach and migration_approach != 'Migration strategy will be developed if needed' -%}
+- {{ migration_approach }}
+{%- endif %}
+{% if backward_compatibility and backward_compatibility != 'Backward compatibility strategy will be defined' -%}
+- {{ backward_compatibility }}
+{%- endif %}
+{% if risk_mitigation and risk_mitigation != 'Risk mitigation strategies will be implemented' -%}
+- {{ risk_mitigation }}
+{%- endif %}
+{%- endif %}
 
-{% if component_mapping|default(false) -%}
-**Component Mapping:** (if applicable)
+{% if component_mapping -%}
+**Component Mapping:**
 | Current Component | New Component | Notes |
 |------------------|---------------|-------|
 {% for mapping in component_mapping -%}
 | {{ mapping.current }} | {{ mapping.new }} | {{ mapping.notes }} |
 {% endfor %}
-{% else -%}
-| Current Component | New Component | Notes |
-|------------------|---------------|-------|
-| [Current 1] | [New 1] | [Migration notes] |
-| [Current 2] | [New 2] | [Migration notes] |
 {%- endif %}
 {%- endif %}
 
+{% if show_ui_design|default(false) -%}
 ## 5. UI Design & Specifications
 ### 5.1. Design Overview
 {{ ui_design_overview or '[Brief description of the UI changes and design goals]' }}
@@ -267,6 +270,7 @@ flowchart TD
 - [Link to existing similar components]
 - [Screenshots or mockups if available]
 {%- endif %}
+{%- endif %}
 
 ## 6. Risk Assessment
 ### 6.1. Potential Risks
@@ -281,28 +285,7 @@ flowchart TD
 | [Risk 2] | [High/Medium/Low] | [High/Medium/Low] | [Mitigation approach] |
 {%- endif %}
 
-## 7. Technical Considerations
-{{ technical_considerations or '[Any technical considerations, potential challenges, or architectural decisions]' }}
 
-**State Management:**
-- {{ state_management or '[State management approach and rationale]' }}
-- {{ data_persistence or '[Data persistence requirements]' }}
-- {{ state_sync or '[State synchronization considerations]' }}
-
-**Component Architecture:**
-- {{ component_architecture or '[Component structure and organization]' }}
-- {{ reusability or '[Reusability and modularity considerations]' }}
-- {{ integration_patterns or '[Integration patterns with existing codebase]' }}
-
-**Performance Considerations:**
-- {{ performance_requirements or '[Performance requirements and optimizations]' }}
-- {{ memory_management or '[Memory management considerations]' }}
-- {{ loading_optimizations or '[Loading and rendering optimizations]' }}
-
-**Compatibility:**
-- {{ browser_compatibility or '[Browser/platform compatibility requirements]' }}
-- {{ backward_compatibility_notes or '[Backward compatibility with existing features]' }}
-- {{ integration_compatibility or '[Integration compatibility with external systems]' }}
 
 {% if database_changes -%}
 ### 7.2. Database Changes
@@ -330,66 +313,42 @@ erDiagram
 {%- endif %}
 {%- endif %}
 
-## 8. Time Tracking
-- **Estimated hours:** {{ estimated_hours or '[X]' }}
-- **Actual hours:** {{ actual_hours or '[To be filled]' }}
 
-## 9. References
-{% if references -%}
-{% for ref in references -%}
-- {{ ref }}
-{% endfor %}
-{% else -%}
-- [External Documentation/API Reference 1]
-- [External Documentation/API Reference 2]
-- [Internal Codebase Reference 1]
-- [Internal Codebase Reference 2]
-- [Design/Mockup References]
-- [Related Tasks/Issues]
-{%- endif %}
 
-## 10. Updates
-{% if updates -%}
-{% for update in updates -%}
-- **{{ update.date }}** - {{ update.description }}
-{% endfor %}
-{% else -%}
-- **{{ current_date }}** - Task created
-{%- endif %}
+
+
+
 {%- endblock main_content %}
 
 {% block dependencies -%}
+{% if (dependencies and dependencies|length > 0) or (dependent_tasks and dependent_tasks|length > 0) or (technical_dependencies and technical_dependencies|length > 0) -%}
 ## Dependencies
+{% if dependencies and dependencies|length > 0 -%}
 ### Required By This Task
-{% if dependencies -%}
 {% for dep in dependencies -%}
 - {{ dep }}
 {% endfor %}
-{% else -%}
-- [Task ID] - [Task Title] - [Status]
 {%- endif %}
 
+{% if dependent_tasks and dependent_tasks|length > 0 -%}
 ### Dependent On This Task
-{% if dependent_tasks -%}
 {% for task in dependent_tasks -%}
 - {{ task }}
 {% endfor %}
-{% else -%}
-- [Task ID] - [Task Title] - [Status]
 {%- endif %}
 
+{% if technical_dependencies and technical_dependencies|length > 0 -%}
 ### Technical Dependencies
-{% if technical_dependencies|default(false) -%}
 {% for dep in technical_dependencies -%}
 - {{ dep.name }} - {{ dep.version or dep.requirement }}
 {% endfor %}
-{% else -%}
-- [Package/Tool 1] - [Version/Requirement]
-- [Package/Tool 2] - [Version/Requirement]
 {%- endif %}
 
+{% if dependency_type and dependency_type != 'Dependencies will be identified during planning phase' -%}
 ### Dependency Type
-{{ dependency_type or '- **Blocking**: This task cannot start until the dependency is completed\n- **Informational**: This task can start but may need information from the dependency\n- **Related**: Tasks are related but not directly dependent' }}
+{{ dependency_type }}
+{%- endif %}
+{%- endif %}
 {%- endblock dependencies %}
 
 {% block testing -%}
@@ -411,34 +370,67 @@ erDiagram
 {%- endblock testing %}
 
 {% block technical_considerations -%}
+{% if technical_considerations and technical_considerations != 'Consider performance, security, maintainability, and scalability requirements.' -%}
 ## Technical Considerations
-{{ technical_considerations or '[Any technical considerations, potential challenges, or architectural decisions]' }}
+{{ technical_considerations }}
 
+{% if (state_management and state_management != 'Define how application state will be managed and synchronized.') or (data_persistence and data_persistence != 'Data persistence requirements will be defined based on functionality needs') or (state_sync and state_sync != 'State synchronization will follow established patterns') -%}
 **State Management:**
-- {{ state_management or '[State management approach and rationale]' }}
-- {{ data_persistence or '[Data persistence requirements]' }}
-- {{ state_sync or '[State synchronization considerations]' }}
+{% if state_management and state_management != 'Define how application state will be managed and synchronized.' -%}
+- {{ state_management }}
+{%- endif %}
+{% if data_persistence and data_persistence != 'Data persistence requirements will be defined based on functionality needs' -%}
+- {{ data_persistence }}
+{%- endif %}
+{% if state_sync and state_sync != 'State synchronization will follow established patterns' -%}
+- {{ state_sync }}
+{%- endif %}
+{%- endif %}
 
+{% if (component_architecture and component_architecture != 'Plan component structure for reusability and maintainability.') or (reusability and reusability != 'Components will be designed for maximum reusability') or (integration_patterns and integration_patterns != 'Integration will follow existing architectural patterns') -%}
 **Component Architecture:**
-- {{ component_architecture or '[Component structure and organization]' }}
-- {{ reusability or '[Reusability and modularity considerations]' }}
-- {{ integration_patterns or '[Integration patterns with existing codebase]' }}
+{% if component_architecture and component_architecture != 'Plan component structure for reusability and maintainability.' -%}
+- {{ component_architecture }}
+{%- endif %}
+{% if reusability and reusability != 'Components will be designed for maximum reusability' -%}
+- {{ reusability }}
+{%- endif %}
+{% if integration_patterns and integration_patterns != 'Integration will follow existing architectural patterns' -%}
+- {{ integration_patterns }}
+{%- endif %}
+{%- endif %}
 
+{% if (performance_requirements and performance_requirements != 'Identify performance benchmarks and optimization strategies.') or (memory_management and memory_management != 'Memory usage will be optimized for performance') or (loading_optimizations and loading_optimizations != 'Loading performance will be optimized where applicable') -%}
 **Performance Considerations:**
-- {{ performance_requirements or '[Performance requirements and optimizations]' }}
-- {{ memory_management or '[Memory management considerations]' }}
-- {{ loading_optimizations or '[Loading and rendering optimizations]' }}
+{% if performance_requirements and performance_requirements != 'Identify performance benchmarks and optimization strategies.' -%}
+- {{ performance_requirements }}
+{%- endif %}
+{% if memory_management and memory_management != 'Memory usage will be optimized for performance' -%}
+- {{ memory_management }}
+{%- endif %}
+{% if loading_optimizations and loading_optimizations != 'Loading performance will be optimized where applicable' -%}
+- {{ loading_optimizations }}
+{%- endif %}
+{%- endif %}
 
+{% if (browser_compatibility and browser_compatibility != 'Cross-browser compatibility will be ensured') or (backward_compatibility_notes and backward_compatibility_notes != 'Backward compatibility will be maintained where possible') or (integration_compatibility and integration_compatibility != 'Integration compatibility with external systems will be verified') -%}
 **Compatibility:**
-- {{ browser_compatibility or '[Browser/platform compatibility requirements]' }}
-- {{ backward_compatibility_notes or '[Backward compatibility with existing features]' }}
-- {{ integration_compatibility or '[Integration compatibility with external systems]' }}
+{% if browser_compatibility and browser_compatibility != 'Cross-browser compatibility will be ensured' -%}
+- {{ browser_compatibility }}
+{%- endif %}
+{% if backward_compatibility_notes and backward_compatibility_notes != 'Backward compatibility will be maintained where possible' -%}
+- {{ backward_compatibility_notes }}
+{%- endif %}
+{% if integration_compatibility and integration_compatibility != 'Integration compatibility with external systems will be verified' -%}
+- {{ integration_compatibility }}
+{%- endif %}
+{%- endif %}
 
-{% if database_changes|default(false) -%}
+{% if database_changes -%}
 ### Database Changes
 {{ database_changes }}
 
-{% if database_schema|default(false) -%}
+{% if database_schema -%}
 ```mermaid
 erDiagram
     {{ database_schema }}
@@ -459,16 +451,24 @@ erDiagram
 ```
 {%- endif %}
 {%- endif %}
+{%- endif %}
 {%- endblock technical_considerations %}
 
 {% block time_tracking -%}
+{% if estimated_hours and estimated_hours != 'Time estimation will be provided during planning phase' -%}
 ## Time Tracking
-- **Estimated hours:** {{ estimated_hours or '[X]' }}
-- **Actual hours:** {{ actual_hours or '[To be filled]' }}
+- **Estimated hours:** {{ estimated_hours }}
+{% if actual_hours and actual_hours != 'Actual hours will be tracked during implementation' -%}
+- **Actual hours:** {{ actual_hours }}
+{%- endif %}
+{%- elif actual_hours and actual_hours != 'Actual hours will be tracked during implementation' -%}
+## Time Tracking
+- **Actual hours:** {{ actual_hours }}
+{%- endif %}
 {%- endblock time_tracking %}
 
 {% block references -%}
-{% if references|default(false) -%}
+{% if references and references|length > 0 -%}
 ## References
 {% for ref in references -%}
 - {{ ref }}
@@ -485,4 +485,6 @@ erDiagram
 {% else -%}
 - **{{ current_date }}** - Task created
 {%- endif %}
-{%- endblock updates %} 
+{%- endblock updates %}
+
+   

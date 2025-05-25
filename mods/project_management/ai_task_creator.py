@@ -19,6 +19,7 @@ from .template_engine import TemplateEngine
 from .task_manager import TaskManager, TaskPriority, TaskStatus
 from .semantic_search import SemanticSearchEngine, ContextChunk, SearchResult
 from .context_analyzer import ContextAnalyzer, ProjectContext
+from .context_analyzer_enhanced import EnhancedContextAnalyzer, EnhancedProjectContext, CodeAnalysis
 from .template_optimizer import TemplateOptimizer
 from ..ai.providers.provider_factory import ProviderFactory
 from ..ai.providers.base_provider import AIProvider
@@ -48,6 +49,7 @@ class AITaskCreator:
         
         # TASK-044: Enhanced context analysis and template optimization
         self.context_analyzer = ContextAnalyzer(str(self.project_root))
+        self.enhanced_context_analyzer = EnhancedContextAnalyzer(str(self.project_root))
         self.template_optimizer = TemplateOptimizer()
         
         # Enhanced task template path
@@ -184,6 +186,17 @@ class AITaskCreator:
                 # Traditional AI enhancement
                 context = await self._enhance_with_ai(context, description)
             
+            # TASK-044: Always apply template optimization to filter out placeholders and irrelevant sections
+            context = self.template_optimizer.optimize_template_context(
+                context, task_type, description
+            )
+            
+            # TASK-044: Generate task-specific flow diagram
+            flow_diagram_context = self.template_optimizer.generate_task_specific_flow_diagram(
+                task_type, description, context
+            )
+            context.update(flow_diagram_context)
+            
             # Generate task content using enhanced template
             task_content = self.template_engine.render_template(
                 self.enhanced_template, 
@@ -269,8 +282,8 @@ class AITaskCreator:
             'related_epic': kwargs.get('related_epic', 'TaskHero AI Project'),
             
             # Enhanced template specific fields
-            'show_naming_convention': True,
-            'show_metadata_legend': True,
+            'show_naming_convention': False,  # TASK-044: Hide naming convention (for AI prompts only)
+            'show_metadata_legend': False,    # TASK-044: Hide metadata legend (for AI prompts only)
             'show_implementation_analysis': True,
             
             # Default implementation steps
@@ -415,8 +428,10 @@ class AITaskCreator:
             # TASK-044: Enhanced context analysis
             task_type = context.get('task_type', 'Development')
             
-            # Step 1: Analyze project context for specific file references and recommendations
-            project_context = self.context_analyzer.analyze_task_context(description, task_type)
+            # Step 1: Enhanced context analysis with proper separation of user input and context
+            enhanced_context = self.enhanced_context_analyzer.analyze_task_context_enhanced(
+                description, task_type, specific_files=None
+            )
             
             # Step 2: Collect relevant context from embeddings (existing functionality)
             relevant_context = self._collect_embeddings_context(description, context)
@@ -425,93 +440,375 @@ class AITaskCreator:
             optimized_context = self._optimize_context_for_ai(relevant_context)
             
             # Phase 4B: Real AI Integration with TASK-044 enhancements
-            enhanced_context = context.copy()
+            enhanced_context_dict = context.copy()
             
-            # TASK-044: Add specific file references and recommendations
-            if project_context.relevant_files:
-                enhanced_context['relevant_files'] = [
-                    f.file_path for f in project_context.relevant_files[:5]  # Top 5 most relevant
+            # TASK-044: Enhanced context integration with proper separation
+            if enhanced_context.relevant_files:
+                # Store contextual information separately (not merged into description)
+                enhanced_context_dict['contextual_files'] = [
+                    f.file_path for f in enhanced_context.relevant_files[:5]
                 ]
-                enhanced_context['file_recommendations'] = project_context.recommendations[:10]
+                enhanced_context_dict['contextual_recommendations'] = [
+                    rec.description for rec in enhanced_context.contextual_recommendations[:5]
+                ]
                 
-                # Add specific implementation details based on actual files
-                enhanced_context['current_implementation'] = self._generate_current_implementation_analysis(
-                    project_context
-                )
+                # Generate implementation analysis based on primary file
+                if enhanced_context.primary_file_analysis:
+                    enhanced_context_dict['current_implementation'] = self._generate_enhanced_implementation_analysis(
+                        enhanced_context.primary_file_analysis, enhanced_context.user_description
+                    )
                 
-                # Add specific file references in description
-                enhanced_context['detailed_description'] = self._enhance_description_with_file_context(
-                    description, project_context
-                )
+                # Keep user description unchanged, add contextual insights separately
+                enhanced_context_dict['detailed_description'] = enhanced_context.user_description
+                enhanced_context_dict['contextual_insights'] = self._generate_contextual_insights(enhanced_context)
             
             # Step 4: Use real AI to enhance different aspects with context
             if description and self.ai_available:
                 try:
-                    # Enhanced description with AI and file context
-                    if not enhanced_context.get('detailed_description'):
-                        enhanced_context['detailed_description'] = await self._ai_enhance_description(
-                            description, context, optimized_context
+                    # Enhanced description with AI and file context (keep user description primary)
+                    if not enhanced_context_dict.get('detailed_description'):
+                        enhanced_context_dict['detailed_description'] = await self._ai_enhance_description_with_context(
+                            enhanced_context.user_description, context, enhanced_context
                         )
                     
                     # AI-generated requirements with file context
-                    enhanced_context['functional_requirements_list'] = await self._ai_generate_requirements(
-                        description, enhanced_context, optimized_context
+                    enhanced_context_dict['functional_requirements_list'] = await self._ai_generate_requirements_with_context(
+                        enhanced_context.user_description, enhanced_context_dict, enhanced_context
                     )
                     
                     # AI-generated benefits
-                    enhanced_context['benefits_list'] = await self._ai_generate_benefits(
-                        description, enhanced_context, optimized_context
+                    enhanced_context_dict['benefits_list'] = await self._ai_generate_benefits(
+                        enhanced_context.user_description, enhanced_context_dict, optimized_context
                     )
                     
                     # AI-generated implementation steps with specific file references
-                    enhanced_context['implementation_steps'] = await self._ai_generate_implementation_steps(
-                        description, enhanced_context, optimized_context
+                    enhanced_context_dict['implementation_steps'] = await self._ai_generate_implementation_steps_with_context(
+                        enhanced_context.user_description, enhanced_context_dict, enhanced_context
                     )
                     
                     # AI-generated risk assessment
-                    enhanced_context['risks'] = await self._ai_generate_risk_assessment(
-                        description, enhanced_context, optimized_context
+                    enhanced_context_dict['risks'] = await self._ai_generate_risk_assessment(
+                        enhanced_context.user_description, enhanced_context_dict, optimized_context
                     )
                     
                     # AI-generated technical considerations
-                    tech_considerations = await self._ai_generate_technical_considerations(
-                        description, enhanced_context, optimized_context
+                    tech_considerations = await self._ai_generate_technical_considerations_with_context(
+                        enhanced_context.user_description, enhanced_context_dict, enhanced_context
                     )
-                    enhanced_context.update(tech_considerations)
+                    enhanced_context_dict.update(tech_considerations)
                     
                 except Exception as ai_error:
                     logger.warning(f"AI enhancement partially failed: {ai_error}")
                     # Fall back to basic enhancement for failed components
             
             # TASK-044: Template optimization - filter irrelevant sections and customize content
-            enhanced_context = self.template_optimizer.optimize_template_context(
-                enhanced_context, task_type, description
+            enhanced_context_dict = self.template_optimizer.optimize_template_context(
+                enhanced_context_dict, task_type, description
             )
             
             # TASK-044: Generate task-specific flow diagram
             flow_diagram_context = self.template_optimizer.generate_task_specific_flow_diagram(
-                task_type, description, enhanced_context
+                task_type, description, enhanced_context_dict
             )
-            enhanced_context.update(flow_diagram_context)
+            enhanced_context_dict.update(flow_diagram_context)
             
             # Step 5: Add AI metadata
-            enhanced_context['ai_context_used'] = len(relevant_context)
-            enhanced_context['ai_enhancement_applied'] = self.ai_available
-            enhanced_context['ai_provider_used'] = self.ai_provider.get_name() if self.ai_provider else None
-            enhanced_context['task044_enhanced'] = True  # Mark as TASK-044 enhanced
-            enhanced_context['context_files_analyzed'] = len(project_context.relevant_files)
+            enhanced_context_dict['ai_context_used'] = len(relevant_context)
+            enhanced_context_dict['ai_enhancement_applied'] = self.ai_available
+            enhanced_context_dict['ai_provider_used'] = self.ai_provider.get_name() if self.ai_provider else None
+            enhanced_context_dict['task044_enhanced'] = True  # Mark as TASK-044 enhanced
+            enhanced_context_dict['context_files_analyzed'] = len(enhanced_context.relevant_files) if enhanced_context.relevant_files else 0
             
             # TASK-044: Validate template quality
-            quality_issues = self.template_optimizer.validate_optimized_template(enhanced_context)
+            quality_issues = self.template_optimizer.validate_optimized_template(enhanced_context_dict)
             if quality_issues:
                 logger.warning(f"Template quality issues detected: {quality_issues}")
-                enhanced_context['quality_issues'] = quality_issues
+                enhanced_context_dict['quality_issues'] = quality_issues
             
-            return enhanced_context
+            return enhanced_context_dict
             
         except Exception as e:
             logger.warning(f"AI enhancement failed, using default context: {e}")
             return context
+    
+    def _generate_enhanced_implementation_analysis(self, primary_file: 'CodeAnalysis', user_description: str) -> str:
+        """Generate enhanced implementation analysis based on primary file analysis."""
+        try:
+            analysis_parts = []
+            
+            if primary_file:
+                analysis_parts.append("**Current Implementation Analysis:**")
+                analysis_parts.append(f"**Primary File**: `{primary_file.file_path}` ({primary_file.language})")
+                
+                # Add specific features found
+                if primary_file.key_features:
+                    analysis_parts.append("\n**Key Features Identified:**")
+                    for feature in primary_file.key_features:
+                        analysis_parts.append(f"- {feature}")
+                
+                # Add functions/methods found
+                if primary_file.functions:
+                    analysis_parts.append(f"\n**Functions Found**: {', '.join(primary_file.functions[:5])}")
+                    if len(primary_file.functions) > 5:
+                        analysis_parts.append(f" (and {len(primary_file.functions) - 5} more)")
+                
+                # Add configuration items for config files
+                if primary_file.configuration_items:
+                    analysis_parts.append(f"\n**Configuration Items**: {len(primary_file.configuration_items)} items found")
+                
+                # Add complexity assessment
+                if primary_file.complexity_score > 0.5:
+                    analysis_parts.append(f"\n**Complexity**: Moderate to high ({primary_file.complexity_score:.2f})")
+                else:
+                    analysis_parts.append(f"\n**Complexity**: Low to moderate ({primary_file.complexity_score:.2f})")
+                
+                # Add documentation quality
+                analysis_parts.append(f"**Documentation Quality**: {primary_file.documentation_quality.title()}")
+            
+            return '\n'.join(analysis_parts) if analysis_parts else "Current implementation will be analyzed during planning phase"
+            
+        except Exception as e:
+            logger.warning(f"Error generating enhanced implementation analysis: {e}")
+            return "Current implementation will be analyzed during planning phase"
+    
+    def _generate_contextual_insights(self, enhanced_context: 'EnhancedProjectContext') -> str:
+        """Generate contextual insights from enhanced project context."""
+        try:
+            insights = []
+            
+            if enhanced_context.architectural_insights:
+                insights.append("**Architectural Insights:**")
+                for insight in enhanced_context.architectural_insights:
+                    insights.append(f"- {insight}")
+            
+            if enhanced_context.implementation_patterns:
+                insights.append("\n**Implementation Patterns:**")
+                for pattern_type, files in enhanced_context.implementation_patterns.items():
+                    if files:
+                        insights.append(f"- **{pattern_type.replace('_', ' ').title()}**: {len(files)} files")
+            
+            if enhanced_context.technology_stack:
+                insights.append("\n**Technology Stack:**")
+                for component, tech in enhanced_context.technology_stack.items():
+                    insights.append(f"- **{component.title()}**: {tech}")
+            
+            return '\n'.join(insights) if insights else "No specific contextual insights available"
+            
+        except Exception as e:
+            logger.warning(f"Error generating contextual insights: {e}")
+            return "No specific contextual insights available"
+    
+    async def _ai_enhance_description_with_context(self, user_description: str, context: Dict[str, Any], enhanced_context: 'EnhancedProjectContext') -> str:
+        """Enhance description with AI while preserving user's original intent."""
+        try:
+            task_type = context.get('task_type', 'Development')
+            title = context.get('title', 'Task')
+            
+            # Build context information for AI (but keep user description primary)
+            context_info = ""
+            if enhanced_context.primary_file_analysis:
+                primary_file = enhanced_context.primary_file_analysis
+                context_info += f"\n\nPrimary file being worked on: {primary_file.file_path}"
+                context_info += f"\nFile type: {primary_file.language} ({primary_file.file_type})"
+                if primary_file.key_features:
+                    context_info += f"\nKey features: {', '.join(primary_file.key_features[:3])}"
+            
+            if enhanced_context.contextual_recommendations:
+                context_info += "\n\nContextual recommendations:"
+                for rec in enhanced_context.contextual_recommendations[:3]:
+                    context_info += f"\n- {rec.description}"
+            
+            prompt = f"""You are enhancing a task description while preserving the user's original intent and requirements.
+
+User's original description: {user_description}
+
+Task type: {task_type}
+Task title: {title}
+
+{context_info}
+
+Please enhance the description by:
+1. Keeping the user's original requirements and intent unchanged
+2. Adding technical context based on the identified files
+3. Providing specific implementation guidance
+4. Maintaining clarity and actionability
+
+The enhanced description should start with the user's original intent and add contextual details that help with implementation."""
+
+            response = await self.ai_provider.generate_response(
+                prompt,
+                max_tokens=self.ai_config['max_response_tokens'],
+                temperature=self.ai_config['temperature']
+            )
+            
+            return response.strip()
+            
+        except Exception as e:
+            logger.error(f"AI description enhancement with context failed: {e}")
+            return user_description  # Return original description on failure
+    
+    async def _ai_generate_requirements_with_context(self, user_description: str, context: Dict[str, Any], enhanced_context: 'EnhancedProjectContext') -> List[str]:
+        """Generate requirements with enhanced context awareness."""
+        try:
+            task_type = context.get('task_type', 'Development')
+            
+            # Build context for AI
+            context_info = ""
+            if enhanced_context.primary_file_analysis:
+                primary_file = enhanced_context.primary_file_analysis
+                context_info += f"\n\nPrimary file: {primary_file.file_path}"
+                if primary_file.functions:
+                    context_info += f"\nExisting functions: {', '.join(primary_file.functions[:5])}"
+                if primary_file.configuration_items:
+                    context_info += f"\nConfiguration items: {len(primary_file.configuration_items)} found"
+            
+            prompt = f"""Generate specific functional requirements for this {task_type} task based on the user's description and code context.
+
+User description: {user_description}
+
+{context_info}
+
+Generate 5-8 specific, testable requirements that:
+1. Address the user's stated needs
+2. Consider the existing code structure
+3. Are implementable within the current architecture
+4. Include specific technical details based on the file analysis
+
+Format as a simple list, one requirement per line starting with "- "."""
+
+            response = await self.ai_provider.generate_response(
+                prompt,
+                max_tokens=800,
+                temperature=0.6
+            )
+            
+            # Parse response into list
+            requirements = []
+            for line in response.strip().split('\n'):
+                line = line.strip()
+                if line.startswith('- '):
+                    requirements.append(line[2:])
+                elif line and not line.startswith('#'):
+                    requirements.append(line)
+            
+            return requirements[:8] if requirements else self._get_fallback_requirements(task_type)
+            
+        except Exception as e:
+            logger.error(f"AI requirements generation with context failed: {e}")
+            return self._get_fallback_requirements(context.get('task_type', 'Development'))
+    
+    async def _ai_generate_implementation_steps_with_context(self, user_description: str, context: Dict[str, Any], enhanced_context: 'EnhancedProjectContext') -> List[Dict[str, Any]]:
+        """Generate implementation steps with enhanced context awareness."""
+        try:
+            task_type = context.get('task_type', 'Development')
+            due_date = context.get('due_date')
+            
+            # Build specific context from primary file
+            context_info = ""
+            if enhanced_context.primary_file_analysis:
+                primary_file = enhanced_context.primary_file_analysis
+                context_info += f"\n\nPrimary file to modify: {primary_file.file_path}"
+                context_info += f"\nFile type: {primary_file.language}"
+                
+                if primary_file.key_features:
+                    context_info += f"\nExisting features: {', '.join(primary_file.key_features)}"
+                
+                if primary_file.functions:
+                    context_info += f"\nExisting functions: {', '.join(primary_file.functions[:5])}"
+                
+                if primary_file.specific_patterns:
+                    context_info += f"\nCode patterns: {', '.join(primary_file.specific_patterns)}"
+            
+            prompt = f"""Create detailed implementation steps for this {task_type} task with specific file context.
+
+User description: {user_description}
+
+{context_info}
+
+Generate 3-5 implementation phases that:
+1. Work with the existing file structure
+2. Follow the identified code patterns
+3. Leverage existing functions and features
+4. Provide specific, actionable steps
+
+Format as:
+Phase 1: [Title]
+- [Specific step 1]
+- [Specific step 2]
+
+Phase 2: [Title]
+- [Specific step 1]
+- [Specific step 2]"""
+
+            response = await self.ai_provider.generate_response(
+                prompt,
+                max_tokens=1000,
+                temperature=0.6
+            )
+            
+            # Parse response into structured format
+            steps = self._parse_implementation_steps(response, due_date)
+            return steps if steps else self._get_fallback_implementation_steps(due_date)
+            
+        except Exception as e:
+            logger.error(f"AI implementation steps generation with context failed: {e}")
+            return self._get_fallback_implementation_steps(context.get('due_date'))
+    
+    async def _ai_generate_technical_considerations_with_context(self, user_description: str, context: Dict[str, Any], enhanced_context: 'EnhancedProjectContext') -> Dict[str, str]:
+        """Generate technical considerations with enhanced context awareness."""
+        try:
+            task_type = context.get('task_type', 'Development')
+            
+            # Build context from file analysis
+            context_info = ""
+            if enhanced_context.primary_file_analysis:
+                primary_file = enhanced_context.primary_file_analysis
+                context_info += f"\n\nFile analysis context:"
+                context_info += f"\n- Primary file: {primary_file.file_path} ({primary_file.language})"
+                context_info += f"\n- Complexity score: {primary_file.complexity_score:.2f}"
+                context_info += f"\n- Documentation quality: {primary_file.documentation_quality}"
+                
+                if primary_file.key_features:
+                    context_info += f"\n- Key features: {', '.join(primary_file.key_features)}"
+            
+            if enhanced_context.technology_stack:
+                context_info += f"\n\nTechnology stack: {enhanced_context.technology_stack}"
+            
+            prompt = f"""Provide specific technical considerations for this {task_type} task based on code analysis.
+
+User description: {user_description}
+
+{context_info}
+
+Provide specific guidance on:
+1. Implementation approach based on existing code patterns
+2. Integration considerations with current architecture
+3. Performance implications
+4. Maintenance and testing considerations
+
+Keep recommendations specific to the analyzed codebase."""
+
+            response = await self.ai_provider.generate_response(
+                prompt,
+                max_tokens=600,
+                temperature=0.6
+            )
+            
+            return {
+                'technical_considerations': response.strip(),
+                'performance_requirements': 'Performance requirements based on existing code patterns and complexity analysis',
+                'state_management': 'State management following identified patterns in the codebase',
+                'component_architecture': 'Component architecture aligned with existing file structure and patterns'
+            }
+            
+        except Exception as e:
+            logger.error(f"AI technical considerations generation with context failed: {e}")
+            return {
+                'technical_considerations': 'Consider performance, security, maintainability, and scalability requirements.',
+                'performance_requirements': 'Identify performance benchmarks and optimization strategies.',
+                'state_management': 'Define how application state will be managed and synchronized.',
+                'component_architecture': 'Plan component structure for reusability and maintainability.'
+            }
     
     def _generate_current_implementation_analysis(self, project_context: ProjectContext) -> str:
         """Generate analysis of current implementation based on project context."""
