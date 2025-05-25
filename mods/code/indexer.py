@@ -1396,16 +1396,21 @@ END OF FILE:
         Returns:
             List[str]: List of absolute paths to files that need updating.
         """
+        import time
+        from colorama import Fore, Style
+        
         logger.debug(f"Getting outdated files for {self.root_path}")
         outdated: List[str] = []
 
         try:
             if not os.path.exists(self.index_dir):
                 logger.warning(f"Index directory does not exist, will need to create it: {self.index_dir}")
+                print(f"{Fore.YELLOW}📁 No existing index found - will index all eligible files{Style.RESET_ALL}")
                 return self._get_all_indexable_files()
 
             try:
                 logger.debug(f"Creating DirectoryParser")
+                print(f"{Fore.YELLOW}🔍 Checking for files that need updating...{Style.RESET_ALL}")
                 parser: DirectoryParser = DirectoryParser(
                     self.root_path, gitignore_path=self.gitignore_path
                 )
@@ -1421,13 +1426,24 @@ END OF FILE:
                 logger.error(f"Failed to parse directory tree: {str(e)}", exc_info=True)
                 raise
 
+            checked_count = 0
+            last_progress_time = time.time()
+            
             def check_entry(entry: DirectoryEntry):
+                nonlocal checked_count, last_progress_time
+                
+                checked_count += 1
+                current_time = time.time()
+                
+                # Show progress every 100 files or every 2 seconds
+                if checked_count % 100 == 0 or (current_time - last_progress_time) >= 2.0:
+                    print(f"\r{Fore.CYAN}📊 Checked {checked_count} items, found {len(outdated)} outdated{Style.RESET_ALL}", end="", flush=True)
+                    last_progress_time = current_time
+                
                 try:
                     should_update: bool = self._should_update_file(entry)
                     if should_update:
                         outdated.append(entry.path)
-                        if len(outdated) % 100 == 0:
-                            logger.debug(f"Found {len(outdated)} outdated files so far")
                 except Exception as e:
                     logger.error(f"Error checking if file should be updated {entry.path}: {str(e)}", exc_info=True)
                     outdated.append(entry.path)
@@ -1437,6 +1453,8 @@ END OF FILE:
 
             logger.debug(f"Checking for outdated files")
             check_entry(root_entry)
+            
+            print(f"\r{Fore.GREEN}✅ Scan complete - checked {checked_count} items, found {len(outdated)} files to update{Style.RESET_ALL}")
             logger.info(f"Found {len(outdated)} outdated files")
 
             if outdated:
@@ -1457,22 +1475,37 @@ END OF FILE:
         Returns:
             List[str]: List of absolute paths to all files that should be indexed.
         """
+        import time
+        from colorama import Fore, Style
+        
         logger.debug(f"Getting all indexable files for {self.root_path}")
         indexable_files: List[str] = []
 
         try:
+            print(f"{Fore.YELLOW}🔍 Scanning for all indexable files...{Style.RESET_ALL}")
             parser: DirectoryParser = DirectoryParser(
                 self.root_path, gitignore_path=self.gitignore_path
             )
 
             root_entry: DirectoryEntry = parser.parse()
 
+            checked_count = 0
+            last_progress_time = time.time()
+
             def collect_files(entry: DirectoryEntry):
+                nonlocal checked_count, last_progress_time
+                
+                checked_count += 1
+                current_time = time.time()
+                
+                # Show progress every 100 files or every 2 seconds
+                if checked_count % 100 == 0 or (current_time - last_progress_time) >= 2.0:
+                    print(f"\r{Fore.CYAN}📊 Checked {checked_count} items, found {len(indexable_files)} indexable{Style.RESET_ALL}", end="", flush=True)
+                    last_progress_time = current_time
+                
                 try:
                     if self._should_index_file(entry):
                         indexable_files.append(entry.path)
-                        if len(indexable_files) % 100 == 0:
-                            logger.debug(f"Found {len(indexable_files)} indexable files so far")
                 except Exception as e:
                     logger.error(f"Error checking if file should be indexed {entry.path}: {str(e)}", exc_info=True)
 
@@ -1480,6 +1513,8 @@ END OF FILE:
                     collect_files(child)
 
             collect_files(root_entry)
+            
+            print(f"\r{Fore.GREEN}✅ Scan complete - checked {checked_count} items, found {len(indexable_files)} files to index{Style.RESET_ALL}")
             logger.info(f"Found {len(indexable_files)} indexable files")
 
             if indexable_files:

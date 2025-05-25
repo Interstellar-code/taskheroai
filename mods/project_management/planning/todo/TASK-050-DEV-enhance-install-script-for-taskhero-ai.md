@@ -1,19 +1,19 @@
 
 
-# enhance existing MCP to include new tools
+# enhance install script for taskhero ai
 
 ## Metadata
-- **Task ID:** TASK-039
+- **Task ID:** TASK-050
 - **Created:** 2025-05-25
-- **Due:** 2025-06-01
-- **Priority:** Medium
+- **Due:** 2025-05-25
+- **Priority:** High
 - **Status:** Todo
 - **Assigned to:** Developer
 - **Task Type:** Development
-- **Sequence:** 39
+- **Sequence:** 50
 - **Estimated Effort:** Medium
 - **Related Epic/Feature:** TaskHero AI Project
-- **Tags:** mcp server, enhancement, taskhero, task, project
+- **Tags:** install script, initial setup, initial settings
 ## Task Naming Convention
 **Follow the TaskHero naming convention when creating tasks:**
 
@@ -52,15 +52,19 @@
 - **Tags:** Comma-separated keywords for categorization and filtering
 ## 1. Overview
 ### 1.1. Brief Description
-the existing code base has already MCP server capabilities to offer the embeddings via the tool call, since we have added new task management features into the app. we have to update the mcp server to...
+Task Title: Enhance Install Script for TaskHero AI
+
+Task Description:
+
+This task involves enhancing the existing setup_windows.bat installation script for TaskHero AI. The goal is to improve the user ...
 
 ### 1.2. Functional Requirements
-Implement enhance existing mcp to include new tools according to specifications
+["The script must be capable of installing all the necessary packages for setting up the app requirements. This functionality should be tested by verifying the successful installation of the packages and the app's proper functioning after the setup.", "The script should have an interactive interface that prompts the user to answer specific questions about the setup process. This can be verified by checking the user's input against expected responses.", 'The script should be able to ask the user if the installation will serve as a central repository for all codebases or will be singular. This can be tested by checking the configuration settings after the setup is complete.', 'The script should prompt the user to provide the path of the codebase which taskhero is going to index. This can be tested by verifying if the provided path is correctly set in the configuration.', 'The script should ask the user for the path of the project tasks files storage. It should provide options for a default present folder or a root folder /taskherofiles. This can be tested by verifying if the selected path is correctly set in the configuration.', "The script should query the user if taskhero API and MCP functions will be used. This can be verified by checking if the corresponding settings are enabled or disabled based on the user's response.", 'The script should ask the user for API details required by taskhero to function. This can be tested by verifying if the provided API details are correctly set in the ENV file.', 'The script should store all the user-provided details in the app settings json file and API settings in the ENV file. This can be tested by verifying if the details are correctly stored in the respective files.']
 - [Requirement 1]
 - [Requirement 2]
 - [Requirement 3]
 ### 1.3. Purpose & Benefits
-This task enhances the TaskHero AI system by implementing enhance existing mcp to include new tools.
+This task enhances the TaskHero AI system by implementing enhance install script for taskhero ai.
 - [Benefit 1]
 - [Benefit 2]
 - [Benefit 3]
@@ -83,26 +87,76 @@ C -->|Option B| E[Return result]
     F --> G[User sees result]
 ```
 
-User workflow for enhance existing MCP to include new tools implementation
+User workflow for enhance install script for taskhero ai implementation
 
 ## 3. Implementation Status
 
 ### 3.1. Implementation Steps
-- [ ] **Step 1: Requirements Analysis** - Status: ⏳ Pending - Target: 2025-06-01
-- [ ] Sub-step 1: Review requirements and specifications
-- [ ] Sub-step 2: Identify key stakeholders and dependencies
-- [ ] Sub-step 3: Define acceptance criteria
-- [ ] **Step 2: Design and Planning** - Status: ⏳ Pending - Target: 2025-06-01
-- [ ] Sub-step 1: Create technical design document
-- [ ] Sub-step 2: Plan implementation approach
-- [ ] Sub-step 3: Identify potential risks and mitigation strategies
-- [ ] **Step 3: Implementation** - Status: ⏳ Pending - Target: 2025-06-01
-- [ ] Sub-step 1: Implement core functionality
-- [ ] Sub-step 2: Add error handling and validation
-- [ ] Sub-step 3: Write unit tests
+- [ ] **Step 1: Requirements Analysis and Planning** - Status: ⏳ Pending - Target: 2025-05-25
+- [ ] Sub-step 1: Analyze the existing setup_windows.bat file for taskhero ai and identify areas that need enhancement.
+- [ ] Sub-step 2: Understand the application requirements to be installed and how they're currently being handled.
+- [ ] Sub-step 3: Plan the user interaction flow for answering the questions mentioned in the task description.
+- [ ] Sub-step 4: Deliverables: Documented requirements and planned user interaction flow.
+- [ ] **Step 2: Design and Architecture** - Status: ⏳ Pending - Target: 2025-05-25
+- [ ] Sub-step 1: Design the architecture of how the setup script will be divided into parts.
+- [ ] Sub-step 2: Design the flow of how the script will handle user inputs and save them into the app settings json file and ENV file.
+- [ ] Sub-step 3: Design the mechanism of how the script will skip the settings that are already completed in the subsequent runs.
+- [ ] Sub-step 4: Deliverables: Detailed design document of the enhanced setup script.
+- [ ] **Step 3: Implementation and Development** - Status: ⏳ Pending - Target: 2025-05-25
+- [ ] Sub-step 1: Develop the first part of the script that installs the packages to setup the app requirements.
+- [ ] Sub-step 2: Develop the second part that interacts with the user to get the answers to the questions and save them in the app settings json file and ENV file.
+- [ ] Sub-step 3: Implement the mechanism to skip the settings that are already completed when the script is run the next time.
+- [ ] Sub-step 4: Deliverables: Enhanced setup_windows.bat file.
+- [ ] **Step 4: Testing and Validation** - Status: ⏳ Pending - Target: 2025-05-25
+- [ ] Sub-step 1: Test the script on different windows machines to ensure it's working as expected.
+- [ ] Sub-step 2: Validate that the user interaction flow is smooth and the script is indeed more informative and elegant.
+- [ ] Sub-step 3: Validate that the script is able to correctly save the settings and skip them in the subsequent runs.
+- [ ] Sub-step 4: Deliverables: Test reports and validated setup_windows.bat file.
+- [ ] **Step 5: Deployment and Documentation** - Status: ⏳ Pending - Target: 2025-05-25
+- [ ] Sub-step 1: Deploy the enhanced script in the production environment.
+- [ ] Sub-step 2: Document the changes made in the script and how to use it.
+- [ ] Sub-step 3: Deliverables: Deployed setup_windows.bat file and its documentation.
 
 ## 4. Detailed Description
-the existing code base has already MCP server capabilities to offer the embeddings via the tool call, since we have added new task management features into the app. we have to update the mcp server tools to also add these functions. the end result will allow mcp clients to get new tool calls from the mcp server of our app to get new capabiltiies.
+Task Title: Enhance Install Script for TaskHero AI
+
+Task Description:
+
+This task involves enhancing the existing setup_windows.bat installation script for TaskHero AI. The goal is to improve the user experience by making the script more informative and elegant, and to gather necessary setup parameters from the user. The enhanced script will also need to handle the persistence of these parameters so that they are not requested every time the script is run.
+
+Technical Context:
+
+The existing setup_windows.bat script is used to install TaskHero AI and initiate its virtual environment on Windows systems. It currently executes app.py, which starts the TaskHero application. The enhancement should be made keeping in view the existing flow and functionality of the script, while integrating the new features described below.
+
+Key Implementation Considerations:
+
+1. Divide the script into two parts: The first part should install the necessary packages and setup the app requirements. The second part should handle the interactions with the user.
+
+2. User Interaction: The script should ask the user questions regarding the setup, including: 
+
+   - Whether TaskHero will serve as a central repository for all codebases or function within an existing codebase
+   - The path of the codebase that TaskHero should index
+   - The location of project tasks files storage (either the current folder or /taskherofiles)
+   - Whether TaskHero API and MCP functions will be used
+   - API details needed for TaskHero to function.
+
+3. Persistence: All the collected details should be stored in the app's settings JSON file and the environment (ENV) file as relevant. If these settings are already present from a previous run, the script should skip the interaction part and proceed directly to run the app.
+
+Expected Deliverables:
+
+1. An enhanced setup_windows.bat script that implements the above considerations.
+2. Documentation describing the changes made, how the new script works, and how to use it.
+
+Integration Points:
+
+This task interacts with the existing system at several points:
+
+1. It installs and sets up TaskHero AI and its virtual environment.
+2. It interacts with the user to gather necessary setup parameters.
+3. It stores these parameters in the app's settings and ENV files as appropriate.
+4. It initiates the running of app.py, which starts the TaskHero application.
+
+The enhanced script should maintain compatibility with these existing system components and processes. All changes should be documented and tested to ensure seamless integration.
 
 **Current Implementation Analysis:**
 - Current implementation will be analyzed during planning phase
@@ -169,8 +223,11 @@ UI design considerations will be defined during implementation phase.
 ### 6.1. Potential Risks
 | Risk | Impact | Probability | Mitigation Strategy |
 |------|--------|-------------|-------------------|
-| Technical complexity higher than estimated | Medium | Low | Break down into smaller tasks, seek technical review |
-| Dependencies not available on time | High | Medium | Identify alternative approaches, communicate early with dependencies |
+| Inadequate error handling in the script | High | Medium | Implement comprehensive error handling and logging within the script to capture any exceptions or issues that arise during the installation process. This will allow developers to troubleshoot and resolve issues quickly. |
+| User input errors | Medium | High | Validate user input thoroughly to prevent incorrect entries. Provide clear instructions and examples for each input prompt. Implement defaults where appropriate to minimize the amount of input required from the user. |
+| Compatibility issues with different Windows versions | Medium | Medium | Test the script across different Windows versions to ensure compatibility. If needed, create different scripts or script versions for different Windows versions. |
+| Inadequate documentation leading to incorrect use | Medium | Low | Provide clear, concise, and comprehensive documentation for the script. Include details about its purpose, how to use it, what each section does, and what inputs are expected. |
+| Failure to save settings or loss of settings data | High | Low | Implement a robust mechanism for saving and retrieving settings data. This could include data validation, redundancy, and backup measures to prevent data loss. |
 
 ## 7. Technical Considerations
 Consider performance, security, maintainability, and scalability requirements.
@@ -211,8 +268,7 @@ Consider performance, security, maintainability, and scalability requirements.
 - **2025-05-25** - Task created
 ## Dependencies
 ### Required By This Task
-- task-007
-
+- [Task ID] - [Task Title] - [Status]
 ### Dependent On This Task
 - [Task ID] - [Task Title] - [Status]
 ### Technical Dependencies
@@ -256,4 +312,4 @@ Consider performance, security, maintainability, and scalability requirements.
 ## Updates
 - **2025-05-25** - Task created
 ---
-*Generated by TaskHero AI Template Engine on 2025-05-25 12:29:41* 
+*Generated by TaskHero AI Template Engine on 2025-05-25 15:36:59* 

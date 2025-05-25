@@ -180,9 +180,156 @@ class CLIManager(BaseManager):
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
     
     def _handle_index_code(self) -> None:
-        """Handle index code option with pre-analysis and detailed logging."""
+        """Handle index code option with smart indexing and detailed logging."""
         print("\n" + Fore.CYAN + "=" * 70 + Style.RESET_ALL)
         print(Fore.CYAN + Style.BRIGHT + "🔍 Smart Code Directory Indexing" + Style.RESET_ALL)
+        print(Fore.CYAN + "=" * 70 + Style.RESET_ALL)
+        
+        try:
+            # Import required modules
+            from ..code.smart_indexer import SmartIndexer
+            from ..code.indexer import FileIndexer
+            from ..code.decisions import FileSelector, ProjectAnalyzer
+            from ..code.indexing_logger import IndexingLogger, PreIndexingAnalyzer
+            
+            # Get directory to index
+            if self.indexer and self.index_outdated:
+                directory = self.indexer.root_path
+                print(f"{Fore.YELLOW}Using current directory: {Fore.CYAN}{directory}{Style.RESET_ALL}")
+            else:
+                last_dir = ""
+                if self.settings_manager:
+                    last_dir = self.settings_manager.get_last_directory()
+                    
+                default_dir = last_dir if last_dir else os.getcwd()
+                print(f"{Fore.YELLOW}Enter directory path {Fore.CYAN}(default: {default_dir}){Fore.YELLOW}:{Style.RESET_ALL}")
+                directory = input(f"{Fore.GREEN}> {Style.RESET_ALL}").strip()
+                
+                if not directory:
+                    directory = default_dir
+                    
+                if not os.path.isdir(directory):
+                    print(f"{Fore.RED}Error: '{directory}' is not a valid directory.{Style.RESET_ALL}")
+                    return
+            
+            print(f"{Fore.CYAN}Target directory: {Style.BRIGHT}{directory}{Style.RESET_ALL}")
+            
+            # Step 1: Smart indexing analysis
+            print(f"\n{Fore.GREEN}🔍 Step 1: Smart indexing analysis...{Style.RESET_ALL}")
+            
+            # Initialize smart indexer
+            smart_indexer = SmartIndexer(directory)
+            
+            # Check current indexing status
+            status = smart_indexer.get_indexing_status()
+            print(f"{Fore.CYAN}Current Status: {status['overall_status'].upper()}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Message: {status['message']}{Style.RESET_ALL}")
+            
+            # Show recommendations
+            if status['analysis']['recommendations']:
+                print(f"\n{Fore.YELLOW}💡 Smart Recommendations:{Style.RESET_ALL}")
+                for rec in status['analysis']['recommendations']:
+                    print(f"  • {rec}")
+            
+            # Get files that actually need indexing
+            files_to_index, analysis_info = smart_indexer.get_files_needing_indexing()
+            scan_type = analysis_info.get('scan_type', 'unknown')
+            
+            print(f"\n{Fore.CYAN}📊 Smart Analysis Results:{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Scan type: {scan_type}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Files needing indexing: {len(files_to_index)}{Style.RESET_ALL}")
+            
+            if len(files_to_index) == 0:
+                print(f"{Fore.GREEN}✅ All files are up to date! No indexing needed.{Style.RESET_ALL}")
+                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                return
+            
+            # Show sample files
+            if files_to_index:
+                print(f"\n{Fore.YELLOW}Sample files to index:{Style.RESET_ALL}")
+                for file_path in files_to_index[:10]:  # Show first 10
+                    rel_path = os.path.relpath(file_path, directory)
+                    print(f"  • {rel_path}")
+                
+                if len(files_to_index) > 10:
+                    print(f"  ... and {len(files_to_index) - 10} more files")
+            
+            # Ask for confirmation
+            print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+            confirmation = input(f"{Fore.GREEN}Proceed with smart indexing? (y/N): {Style.RESET_ALL}").strip().lower()
+            
+            if confirmation not in ['y', 'yes']:
+                print(f"{Fore.YELLOW}Operation cancelled by user.{Style.RESET_ALL}")
+                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                return
+            
+            # Step 2: Initialize components for smart indexing
+            print(f"\n{Fore.GREEN}🚀 Step 2: Initializing smart indexing components...{Style.RESET_ALL}")
+            
+            # Initialize or reuse indexer components
+            if not self.indexer or self.indexer.root_path != directory:
+                self.logger.info(f"Creating indexer for directory: {directory}")
+                self.indexer = smart_indexer.indexer  # Use the smart indexer's FileIndexer
+                self.file_selector = FileSelector()
+                self.project_analyzer = ProjectAnalyzer(self.indexer)
+                
+                # Set AI manager dependencies when indexer is created
+                if self.ai_manager:
+                    self.ai_manager.set_dependencies(self.indexer, self.file_selector, self.project_analyzer)
+            
+            # Step 3: Perform smart indexing
+            print(f"\n{Fore.GREEN}⚡ Step 3: Performing smart indexing...{Style.RESET_ALL}")
+            
+            try:
+                # Use smart indexing instead of traditional indexing
+                result = smart_indexer.smart_index(force_reindex=False)
+                
+                if result['status'] == 'no_action_needed':
+                    print(f"{Fore.GREEN}✅ {result['message']}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}⏱️  Analysis time: {result['processing_time']:.2f} seconds{Style.RESET_ALL}")
+                elif result['status'] == 'completed':
+                    print(f"{Fore.GREEN}🎉 Smart indexing completed successfully!{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}📊 Files indexed: {result['files_indexed']}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}📁 Files processed: {result['files_to_process']}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}⏱️  Processing time: {result['processing_time']:.2f} seconds{Style.RESET_ALL}")
+                    
+                    # Show scan type
+                    scan_type = result['analysis'].get('scan_type', 'unknown')
+                    print(f"{Fore.CYAN}🔍 Scan type: {scan_type}{Style.RESET_ALL}")
+                    
+                    # Calculate performance metrics
+                    if result['files_indexed'] > 0:
+                        rate = result['files_indexed'] / result['processing_time']
+                        print(f"{Fore.CYAN}⚡ Processing rate: {rate:.1f} files/second{Style.RESET_ALL}")
+                        
+                    # Save the directory
+                    if self.settings_manager:
+                        self.settings_manager.set_last_directory(directory)
+                        
+                    # Update AI manager dependencies after indexing
+                    if self.ai_manager:
+                        self.ai_manager.set_dependencies(self.indexer, self.file_selector, self.project_analyzer)
+                        
+                    self.index_outdated = False
+                    
+                elif result['status'] == 'failed':
+                    print(f"{Fore.RED}❌ Smart indexing failed: {result['error']}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}⏱️  Time before failure: {result['processing_time']:.2f} seconds{Style.RESET_ALL}")
+                
+            except Exception as e:
+                print(f"\n{Fore.RED}❌ Error during smart indexing: {str(e)}{Style.RESET_ALL}")
+                self.logger.error(f"Smart indexing error: {e}", exc_info=True)
+                
+        except Exception as e:
+            self.logger.error(f"Error in smart indexing: {e}")
+            print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+        
+        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+    
+    def _handle_index_code_old(self) -> None:
+        """Handle index code option with pre-analysis and detailed logging (old version)."""
+        print("\n" + Fore.CYAN + "=" * 70 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "🔍 Traditional Code Directory Indexing" + Style.RESET_ALL)
         print(Fore.CYAN + "=" * 70 + Style.RESET_ALL)
         
         try:
@@ -484,12 +631,40 @@ class CLIManager(BaseManager):
 
             # Check index status
             index_status = self.indexer.is_index_complete()
-            status_str = "Complete" if index_status["complete"] else "Incomplete"
-            status_color = Fore.GREEN if index_status["complete"] else Fore.YELLOW
+            
+            # Determine status message based on the type of incompleteness
+            if index_status["complete"]:
+                status_str = "Complete"
+                status_color = Fore.GREEN
+                status_message = "All files are indexed and up to date"
+            else:
+                missing_count = index_status.get("missing_count", 0)
+                outdated_count = index_status.get("outdated_count", 0)
+                
+                if missing_count > 0 and outdated_count == 0:
+                    if missing_count <= 3:
+                        status_str = "Mostly Complete"
+                        status_color = Fore.CYAN
+                        status_message = f"{missing_count} new files found (not yet indexed)"
+                    else:
+                        status_str = "Incomplete"
+                        status_color = Fore.YELLOW
+                        status_message = f"{missing_count} files are not indexed"
+                elif outdated_count > 0 and missing_count == 0:
+                    status_str = "Needs Update"
+                    status_color = Fore.YELLOW
+                    status_message = f"{outdated_count} files need updating"
+                elif missing_count > 0 and outdated_count > 0:
+                    status_str = "Incomplete"
+                    status_color = Fore.YELLOW
+                    status_message = f"{missing_count} files not indexed, {outdated_count} files need updating"
+                else:
+                    status_str = "Incomplete"
+                    status_color = Fore.YELLOW
+                    status_message = index_status.get("reason", "Unknown issue")
+            
             print(f"{Fore.CYAN}Index Status: {status_color}{Style.BRIGHT}{status_str}{Style.RESET_ALL}")
-
-            if not index_status["complete"] and "reason" in index_status:
-                print(f"{Fore.YELLOW}Reason: {index_status['reason']}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Reason: {status_message}{Style.RESET_ALL}")
 
             # Show index directory info
             index_dir = self.indexer.index_dir
@@ -1100,25 +1275,61 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
             self._handle_ai_enhanced_task()
     
     def _handle_ai_enhanced_task(self) -> None:
-        """Handle AI-enhanced task creation."""
+        """Handle AI-enhanced task creation with Phase 4C progressive wizard."""
         try:
+            import asyncio
             from ..project_management.ai_task_creator import AITaskCreator
             
-            print(f"\n{Fore.CYAN}🤖 AI-Enhanced Task Creation{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
-            print(f"{Fore.GREEN}✨ Comprehensive task creation with AI assistance{Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}🚀 AI-Enhanced Task Creation - Phase 4C{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}✨ Progressive task creation with interactive context selection{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}🔍 Semantic search + 🧠 AI enhancement + 👤 User control{Style.RESET_ALL}")
+            print()
             
-            # Initialize AI Task Creator
-            ai_creator = AITaskCreator(project_root=str(Path.cwd()))
+            # Show creation method options
+            print(f"{Fore.CYAN}Choose creation method:{Style.RESET_ALL}")
+            print(f"  1. 🚀 Progressive Wizard (Recommended) - Step-by-step with context selection")
+            print(f"  2. ⚡ Quick Interactive - Traditional single-step creation")
+            print(f"  0. ← Back to main menu")
             
-            # Use interactive creation
-            success, task_id, result = ai_creator.create_task_interactive()
+            choice = input(f"\n{Fore.GREEN}Select option (1-2, default 1): {Style.RESET_ALL}").strip()
+            
+            if choice == '0':
+                return
+            elif choice == '2':
+                # Traditional interactive creation
+                print(f"\n{Fore.CYAN}🤖 Quick Interactive Task Creation{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+                
+                # Initialize AI Task Creator
+                ai_creator = AITaskCreator(project_root=str(Path.cwd()))
+                
+                # Run traditional interactive creation
+                success, task_id, result = asyncio.run(ai_creator.create_task_interactive())
+            else:
+                # Progressive wizard (default)
+                print(f"\n{Fore.CYAN}🚀 Progressive Task Creation Wizard{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+                
+                # Initialize AI Task Creator
+                ai_creator = AITaskCreator(project_root=str(Path.cwd()))
+                
+                # Run progressive creation wizard
+                success, task_id, result = asyncio.run(ai_creator.create_task_progressive())
             
             if success:
                 print(f"\n{Fore.GREEN}🎉 AI-Enhanced Task Created Successfully!{Style.RESET_ALL}")
                 print(f"   Task ID: {Fore.CYAN}{task_id}{Style.RESET_ALL}")
                 print(f"   File: {Path(result).name if result else 'N/A'}")
                 print(f"   Location: mods/project_management/planning/todo/")
+                
+                if choice != '2':  # Progressive wizard
+                    print(f"\n{Fore.CYAN}✨ Task created with Phase 4C enhancements:{Style.RESET_ALL}")
+                    print(f"   🔍 Interactive context selection")
+                    print(f"   🤖 Progressive AI enhancement")
+                    print(f"   📊 Quality scoring and feedback")
+                else:
+                    print(f"\n{Fore.CYAN}✨ Task enhanced with real AI content generation{Style.RESET_ALL}")
             else:
                 print(f"\n{Fore.RED}❌ Task creation failed: {result}{Style.RESET_ALL}")
                 

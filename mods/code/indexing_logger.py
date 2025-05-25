@@ -203,6 +203,8 @@ class PreIndexingAnalyzer:
         """
         self.root_path = root_path
         self.gitignore_path = gitignore_path
+        self.processed_count = 0
+        self.last_progress_time = 0
         
     def analyze(self) -> Dict[str, Any]:
         """
@@ -211,11 +213,41 @@ class PreIndexingAnalyzer:
         Returns:
             Dictionary with analysis results
         """
+        import time
+        from colorama import Fore, Style
         from .directory import DirectoryParser
         
+        print(f"{Fore.YELLOW}🔍 Scanning directory structure...{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}📂 Root: {self.root_path}{Style.RESET_ALL}")
+        
+        start_time = time.time()
+        
         # Initialize parser with gitignore
+        print(f"{Fore.YELLOW}⚙️  Initializing directory parser...{Style.RESET_ALL}")
         parser = DirectoryParser(self.root_path, self.gitignore_path)
+        
+        print(f"{Fore.YELLOW}📁 Parsing directory tree (this may take a moment for large projects)...{Style.RESET_ALL}")
+        
+        # Create a custom progress callback for directory parsing
+        self._parse_progress_count = 0
+        self._parse_last_time = time.time()
+        
+        # Monkey patch the parser to show progress during parsing
+        original_parse_single = parser._parse_single_entry
+        def progress_parse_single(dir_entry, current_parent_path):
+            self._parse_progress_count += 1
+            current_time = time.time()
+            if self._parse_progress_count % 50 == 0 or (current_time - self._parse_last_time) >= 1.5:
+                print(f"\r{Fore.CYAN}📁 Scanning... {self._parse_progress_count} items found{Style.RESET_ALL}", end="", flush=True)
+                self._parse_last_time = current_time
+            return original_parse_single(dir_entry, current_parent_path)
+        
+        parser._parse_single_entry = progress_parse_single
+        
         root_entry = parser.parse()
+        
+        parse_time = time.time() - start_time
+        print(f"\r{Fore.GREEN}✅ Directory tree parsed in {parse_time:.2f} seconds - found {self._parse_progress_count} items{Style.RESET_ALL}")
         
         analysis = {
             "total_files": 0,
@@ -237,14 +269,34 @@ class PreIndexingAnalyzer:
             except Exception:
                 pass
         
-        # Analyze directory structure
+        # Reset counters for analysis phase
+        self.processed_count = 0
+        self.last_progress_time = time.time()
+        
+        print(f"{Fore.YELLOW}🔍 Analyzing files for indexing eligibility...{Style.RESET_ALL}")
+        
+        # Analyze directory structure with progress
         self._analyze_entry(root_entry, parser, analysis, "")
+        
+        analysis_time = time.time() - start_time
+        print(f"\r{Fore.GREEN}✅ Analysis completed in {analysis_time:.2f} seconds - processed {self.processed_count} items{Style.RESET_ALL}")
         
         return analysis
     
     def _analyze_entry(self, entry, parser, analysis: Dict[str, Any], rel_path: str) -> None:
         """Recursively analyze directory entry."""
+        import time
+        from colorama import Fore, Style
         from .indexer import FileIndexer
+        
+        # Update progress counter
+        self.processed_count += 1
+        
+        # Show progress every 100 items or every 2 seconds
+        current_time = time.time()
+        if self.processed_count % 100 == 0 or (current_time - self.last_progress_time) >= 2.0:
+            print(f"\r{Fore.CYAN}📊 Analyzing... {self.processed_count} items processed{Style.RESET_ALL}", end="", flush=True)
+            self.last_progress_time = current_time
         
         if entry.is_file():
             analysis["total_files"] += 1
