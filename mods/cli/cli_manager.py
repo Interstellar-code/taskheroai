@@ -1080,20 +1080,71 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
             input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
     
     def _handle_quick_create_task(self) -> None:
-        """Handle quick create task option - Enhanced with ProjectPlanner."""
-        print(f"\n{Fore.CYAN}➕ Quick Create Task{Style.RESET_ALL}")
+        """Handle quick create task option - Enhanced with AI Task Creator."""
+        print(f"\n{Fore.CYAN}➕ Enhanced Task Creation{Style.RESET_ALL}")
         print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
         
+        # Show creation options
+        print(f"{Fore.GREEN}Choose creation method:{Style.RESET_ALL}")
+        print(f"  1. 🚀 AI-Enhanced Task Creation (Comprehensive)")
+        print(f"  2. ⚡ Quick Task Creation (Basic)")
+        print(f"  0. ← Back to main menu")
+        
+        choice = input(f"\n{Fore.GREEN}Select option (1-2, default 1): {Style.RESET_ALL}").strip()
+        
+        if choice == "2":
+            self._handle_quick_basic_task()
+        elif choice == "0":
+            return
+        else:  # Default to AI-enhanced
+            self._handle_ai_enhanced_task()
+    
+    def _handle_ai_enhanced_task(self) -> None:
+        """Handle AI-enhanced task creation."""
+        try:
+            from ..project_management.ai_task_creator import AITaskCreator
+            
+            print(f"\n{Fore.CYAN}🤖 AI-Enhanced Task Creation{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}✨ Comprehensive task creation with AI assistance{Style.RESET_ALL}")
+            
+            # Initialize AI Task Creator
+            ai_creator = AITaskCreator(project_root=str(Path.cwd()))
+            
+            # Use interactive creation
+            success, task_id, result = ai_creator.create_task_interactive()
+            
+            if success:
+                print(f"\n{Fore.GREEN}🎉 AI-Enhanced Task Created Successfully!{Style.RESET_ALL}")
+                print(f"   Task ID: {Fore.CYAN}{task_id}{Style.RESET_ALL}")
+                print(f"   File: {Path(result).name if result else 'N/A'}")
+                print(f"   Location: mods/project_management/planning/todo/")
+            else:
+                print(f"\n{Fore.RED}❌ Task creation failed: {result}{Style.RESET_ALL}")
+                
+        except ImportError as e:
+            print(f"{Fore.RED}❌ AI Task Creator not available: {e}{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Falling back to basic task creation...{Style.RESET_ALL}")
+            self._handle_quick_basic_task()
+        except Exception as e:
+            self.logger.error(f"AI task creation error: {e}")
+            print(f"{Fore.RED}❌ Error in AI task creation: {e}{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Falling back to basic task creation...{Style.RESET_ALL}")
+            self._handle_quick_basic_task()
+            
+        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+    
+    def _handle_quick_basic_task(self) -> None:
+        """Handle basic quick task creation (original functionality)."""
         try:
             # Use ProjectPlanner if available for enhanced task creation
             if self.project_planner:
-                print(f"{Fore.GREEN}✨ Enhanced task creation with auto-generated ID{Style.RESET_ALL}")
+                print(f"{Fore.GREEN}⚡ Quick Task Creation{Style.RESET_ALL}")
                 
                 # Get basic task info
                 title = input(f"{Fore.GREEN}Task title: {Style.RESET_ALL}").strip()
                 if not title:
                     print(f"{Fore.YELLOW}Task creation cancelled.{Style.RESET_ALL}")
-                    input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
                     return
                 
                 # Optional description
@@ -1166,8 +1217,6 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
         except Exception as e:
             self.logger.error(f"Task creation error: {e}")
             print(f"{Fore.RED}Error creating task: {e}{Style.RESET_ALL}")
-            
-        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
     
     def _handle_quick_view_tasks(self) -> None:
         """Handle quick view tasks option - Enhanced with better task display."""
