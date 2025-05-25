@@ -2,12 +2,11 @@
 setlocal enabledelayedexpansion
 
 echo.
-echo ================================================================================
-echo                            TaskHero AI - Enhanced Setup
-echo ================================================================================
-echo   Welcome to the TaskHero AI Installation and Configuration Wizard!
-echo   This script will guide you through the complete setup process.
-echo ================================================================================
+echo ========================================================
+echo               TaskHero AI - Setup Script
+echo ========================================================
+echo Windows Setup Script for TaskHero AI
+echo ========================================================
 echo.
 
 :: Skip over function definitions during main execution
@@ -45,107 +44,51 @@ if not exist "%file_path%" (
 :: This is a simplified check for batch-only mode
 exit /b 0
 
-:: Function to check if a setup step was completed
+:: Function to check if a setup step was completed (with Python fallback)
 :check_setup_completed
 set "step_name=%1"
-if exist ".taskhero_setup.json" (
-    findstr /c:"\"%step_name%\"" .taskhero_setup.json | findstr /c:"\"completed\": true" >nul 2>&1
-    exit /b %errorlevel%
-)
-exit /b 1
-
-:: Function to mark a setup step as completed
-:mark_setup_completed
-set "step_name=%1"
-:: Create or update the setup file using Python if available
+:: Try Python-based tracking first if available
 python --version >nul 2>&1
 if %errorlevel% equ 0 (
-    python -c "import json,os; data=json.load(open('.taskhero_setup.json')) if os.path.exists('.taskhero_setup.json') else {'setup_completed':{}}; data.setdefault('setup_completed',{})['%step_name%']={'completed':True}; json.dump(data,open('.taskhero_setup.json','w'),indent=2)" 2>nul
-    if !errorlevel! equ 0 exit /b 0
+    if exist setup_tracker.py (
+        python setup_tracker.py check %step_name% >nul 2>&1
+        exit /b %errorlevel%
+    )
 )
-:: Fallback: create simple marker
-echo {"setup_completed":{"%step_name%":{"completed":true}}} > .taskhero_setup.json
+:: Fall back to batch-only tracking
+call :check_setup_completed_fallback %step_name%
+exit /b %errorlevel%
+
+:: Function to mark a setup step as completed (with Python fallback)
+:mark_setup_completed
+set "step_name=%1"
+:: Try Python-based tracking first if available
+python --version >nul 2>&1
+if %errorlevel% equ 0 (
+    if exist setup_tracker.py (
+        python setup_tracker.py mark %step_name% >nul 2>&1
+        exit /b 0
+    )
+)
+:: Fall back to batch-only tracking
+call :mark_setup_completed_fallback %step_name%
 exit /b 0
 
-:: Function to check if a file is newer than a completed step
+:: Function to check if a file is newer than a completed step (with Python fallback)
 :check_file_newer
 set "file_path=%1"
 set "step_name=%2"
-if not exist "%file_path%" exit /b 1
-if not exist ".taskhero_setup.json" exit /b 0
-:: Simple check: if file exists and setup exists, assume file might be newer
-exit /b 0
-
-:: Function to display progress bar
-:show_progress
-set "step=%1"
-set "total=%2"
-set "description=%3"
-set /a "progress=(%step%*50)/%total%"
-set "bar="
-for /l %%i in (1,1,%progress%) do set "bar=!bar!█"
-for /l %%i in (%progress%,1,49) do set "bar=!bar!░"
-echo ║ %description% [!bar!] %step%/%total% ║
-exit /b 0
-
-:: Function to get user input with validation
-:get_user_input
-set "prompt=%1"
-set "variable_name=%2"
-set "validation_type=%3"
-:input_loop
-echo.
-echo %prompt%
-set /p "user_input=Enter your choice: "
-if "%validation_type%"=="yn" (
-    if /i "!user_input!"=="Y" (
-        set "%variable_name%=Y"
-        exit /b 0
+:: Try Python-based tracking first if available
+python --version >nul 2>&1
+if %errorlevel% equ 0 (
+    if exist setup_tracker.py (
+        python setup_tracker.py file_newer %file_path% %step_name% >nul 2>&1
+        exit /b %errorlevel%
     )
-    if /i "!user_input!"=="N" (
-        set "%variable_name%=N"
-        exit /b 0
-    )
-    echo [ERROR] Please enter Y or N only.
-    goto :input_loop
 )
-if "%validation_type%"=="path" (
-    if "!user_input!"=="" (
-        echo [ERROR] Path cannot be empty.
-        goto :input_loop
-    )
-    set "%variable_name%=!user_input!"
-    exit /b 0
-)
-if "%validation_type%"=="option" (
-    if "!user_input!"=="1" (
-        set "%variable_name%=1"
-        exit /b 0
-    )
-    if "!user_input!"=="2" (
-        set "%variable_name%=2"
-        exit /b 0
-    )
-    if "!user_input!"=="3" (
-        set "%variable_name%=3"
-        exit /b 0
-    )
-    echo [ERROR] Please enter 1, 2, or 3 only.
-    goto :input_loop
-)
-set "%variable_name%=!user_input!"
-exit /b 0
-
-
-
-:: Function to display section header
-:show_section
-set "title=%1"
-echo.
-echo ================================================================================
-echo  %title%
-echo ================================================================================
-exit /b 0
+:: Fall back to batch-only tracking
+call :check_file_newer_fallback %file_path% %step_name%
+exit /b %errorlevel%
 
 :: Main execution starts here
 :main
@@ -154,13 +97,7 @@ exit /b 0
 set FORCE_SETUP=0
 if "%1"=="--force" (
     set FORCE_SETUP=1
-    echo   [INFO] Force setup mode enabled - all steps will be executed.
-    echo ================================================================================
-    echo.
-) else (
-    echo   [INFO] This wizard will install packages and configure your TaskHero AI setup.
-    echo   [INFO] Previously completed steps will be automatically skipped.
-    echo ================================================================================
+    echo [INFO] Force setup mode enabled - all steps will be executed.
     echo.
 )
 
@@ -186,7 +123,7 @@ if %errorlevel% neq 0 (
     set "MAJOR=0"
     set "MINOR=0"
     set "PATCH=0"
-
+    
     :: Parse version string carefully
     for /f "tokens=1,2,3 delims=." %%a in ("!PYTHON_VERSION!") do (
         set "MAJOR=%%a"
@@ -330,14 +267,14 @@ echo [STEP 5] Checking for Ollama...
 set SKIP_OLLAMA_CHECK=0
 if exist .env (
     echo [INFO] Checking existing .env configuration...
-
+    
     :: Check for custom OLLAMA_HOST configuration
     findstr /i "OLLAMA_HOST=" .env >nul 2>&1
     if !errorlevel! equ 0 (
         echo [INFO] Custom OLLAMA_HOST found in .env file.
         set SKIP_OLLAMA_CHECK=1
     )
-
+    
     :: Check if any providers are set to non-ollama values
     findstr /i "AI_.*_PROVIDER=" .env | findstr /v /i "ollama" >nul 2>&1
     if !errorlevel! equ 0 (
@@ -498,244 +435,37 @@ if not exist .env (
 
 :skip_env_creation
 
-:: ============================================================================
-:: INTERACTIVE CONFIGURATION WIZARD
-:: ============================================================================
-
-call :show_section "STEP 7: TaskHero AI Configuration Wizard                              "
-
-:: Check if all configurations are already completed
-if %FORCE_SETUP% equ 0 (
-    call :check_setup_completed "configuration_completed"
-    if !errorlevel! equ 0 (
-        echo   [INFO] Configuration already completed. Skipping configuration wizard.
-        echo   [INFO] Use --force flag to reconfigure.
-        echo ================================================================================
-        goto :skip_configuration
-    )
-)
-
-echo   [INFO] Starting interactive configuration wizard...
-echo   [INFO] This will configure TaskHero AI for your specific needs.
-echo ================================================================================
-
-:: Configuration Step 1: Repository Type
 echo.
-call :show_section "Configuration 1/5: Repository Type                                      "
-echo   Will this be a central repository for all different code bases,
-echo   or will it reside within an existing codebase?
+echo ========================================================
+echo TaskHero AI setup completed successfully!
 echo.
-echo   1. Central repository (recommended for multiple projects)
-echo   2. Singular repository (embedded in existing codebase)
-echo ================================================================================
-
-if %FORCE_SETUP% equ 0 (
-    call :check_config_exists "repository_type"
-    if !errorlevel! equ 0 (
-        echo [INFO] Repository type already configured. Skipping...
-        goto :config_codebase_path
-    )
-)
-
-call :get_user_input "Please select repository type (1 or 2):" REPO_TYPE "option"
-if "!REPO_TYPE!"=="1" (
-    set REPO_TYPE_NAME=central
-    echo [SUCCESS] Selected: Central repository
-) else (
-    set REPO_TYPE_NAME=singular
-    echo [SUCCESS] Selected: Singular repository
-)
-call :save_config "repository_type" "!REPO_TYPE_NAME!"
-
-:config_codebase_path
-:: Configuration Step 2: Codebase Path
-echo.
-call :show_section "Configuration 2/5: Codebase Path                                       "
-echo   Please specify the path of the codebase that TaskHero will index.
-echo   Current directory: %CD%
-echo.
-echo   Examples:
-echo   - C:\Projects\MyProject
-echo   - .\MyProject (relative path)
-echo   - %CD% (current directory)
-echo ================================================================================
-
-if %FORCE_SETUP% equ 0 (
-    call :check_config_exists "codebase_path"
-    if !errorlevel! equ 0 (
-        echo [INFO] Codebase path already configured. Skipping...
-        goto :config_task_storage
-    )
-)
-
-call :get_user_input "Enter the codebase path:" CODEBASE_PATH "path"
-:: Validate path exists
-if not exist "!CODEBASE_PATH!" (
-    echo [WARNING] Path does not exist: !CODEBASE_PATH!
-    call :get_user_input "Continue anyway? (Y/N):" CONTINUE_PATH "yn"
-    if /i "!CONTINUE_PATH!"=="N" goto :config_codebase_path
-)
-echo [SUCCESS] Codebase path set to: !CODEBASE_PATH!
-call :save_config "codebase_path" "!CODEBASE_PATH!"
-
-:config_task_storage
-:: Configuration Step 3: Task Files Storage
-echo.
-call :show_section "Configuration 3/5: Task Files Storage Location                         "
-echo   Where would you like to store project task files?
-echo.
-echo   1. Present folder (%CD%)
-echo   2. Root folder /taskherofiles
-echo   3. Custom path (you will specify)
-echo ================================================================================
-
-if %FORCE_SETUP% equ 0 (
-    call :check_config_exists "task_storage_location"
-    if !errorlevel! equ 0 (
-        echo [INFO] Task storage location already configured. Skipping...
-        goto :config_api_usage
-    )
-)
-
-call :get_user_input "Please select storage location (1, 2, or 3):" STORAGE_CHOICE "option"
-if "!STORAGE_CHOICE!"=="1" (
-    set TASK_STORAGE=%CD%
-    echo [SUCCESS] Selected: Present folder
-) else if "!STORAGE_CHOICE!"=="2" (
-    set TASK_STORAGE=%CD%\taskherofiles
-    echo [SUCCESS] Selected: Root folder /taskherofiles
-    if not exist "!TASK_STORAGE!" mkdir "!TASK_STORAGE!"
-) else (
-    call :get_user_input "Enter custom path for task files:" TASK_STORAGE "path"
-    echo [SUCCESS] Selected: Custom path
-    if not exist "!TASK_STORAGE!" (
-        echo [INFO] Creating directory: !TASK_STORAGE!
-        mkdir "!TASK_STORAGE!" 2>nul
-    )
-)
-call :save_config "task_storage_location" "!TASK_STORAGE!"
-
-:config_api_usage
-:: Configuration Step 4: API and MCP Functions
-echo.
-call :show_section "Configuration 4/5: API and MCP Functions                               "
-echo   Will TaskHero API and MCP functions be used?
-echo   This enables advanced AI features and integrations.
-echo.
-echo   Y - Yes, enable API and MCP functions
-echo   N - No, use basic functionality only
-echo ================================================================================
-
-if %FORCE_SETUP% equ 0 (
-    call :check_config_exists "api_usage_enabled"
-    if !errorlevel! equ 0 (
-        echo [INFO] API usage preference already configured. Skipping...
-        goto :config_api_details
-    )
-)
-
-call :get_user_input "Enable API and MCP functions? (Y/N):" API_ENABLED "yn"
-if /i "!API_ENABLED!"=="Y" (
-    echo [SUCCESS] API and MCP functions will be enabled
-    call :save_config "api_usage_enabled" "true"
-    goto :config_api_details
-) else (
-    echo [SUCCESS] Using basic functionality only
-    call :save_config "api_usage_enabled" "false"
-    goto :config_complete
-)
-
-:config_api_details
-:: Configuration Step 5: API Details (only if API is enabled)
-echo.
-call :show_section "Configuration 5/5: API Provider Configuration                          "
-echo   Configure your preferred AI providers and API keys.
-echo   You can configure multiple providers or skip for now.
-echo.
-echo   Available providers:
-echo   - OpenAI (GPT models)
-echo   - Anthropic (Claude models)
-echo   - DeepSeek (DeepSeek models)
-echo   - OpenRouter (Multiple models)
-echo   - Ollama (Local models)
-echo ================================================================================
-
-if %FORCE_SETUP% equ 0 (
-    call :check_config_exists "api_providers_configured"
-    if !errorlevel! equ 0 (
-        echo [INFO] API providers already configured. Skipping...
-        goto :config_complete
-    )
-)
-
-echo [INFO] API configuration can be done manually by editing the .env file.
-echo [INFO] Default configuration uses Ollama (local models).
-call :get_user_input "Would you like to configure API keys now? (Y/N):" CONFIGURE_APIS "yn"
-
-if /i "!CONFIGURE_APIS!"=="Y" (
-    echo.
-    echo [INFO] Opening .env file for manual configuration...
-    echo [INFO] Please edit the API keys and providers as needed.
-    echo [INFO] Save and close the file when done, then press any key to continue.
-    pause
-    if exist "%WINDIR%\system32\notepad.exe" (
-        start /wait notepad.exe .env
-    ) else (
-        echo [INFO] Please manually edit the .env file with your preferred text editor.
-        pause
-    )
-) else (
-    echo [INFO] Skipping API configuration. You can configure later by editing .env file.
-)
-
-call :save_config "api_providers_configured" "true"
-
-:config_complete
-echo.
-call :show_section "Configuration Complete!                                                "
-echo   [SUCCESS] TaskHero AI configuration has been completed successfully!
-echo   [INFO] All settings have been saved and will be remembered for future runs.
-echo ================================================================================
-
-call :mark_setup_completed "configuration_completed"
-
-:skip_configuration
-
-echo.
-echo ================================================================================
-echo                        TaskHero AI Setup Complete!
-echo ================================================================================
-echo   Installation and configuration completed successfully!
-echo.
-echo   To start the application, run:
-echo     venv\Scripts\activate
-echo     python app.py
+echo To start the application, run:
+echo   venv\Scripts\activate
+echo   python app.py
 echo.
 if %PYTHON_AVAILABLE% equ 1 (
-    echo   Setup status has been saved to .taskhero_setup.json
+    echo Setup status has been saved to .app_settings.json
 ) else (
-    echo   Setup status tracking is limited without Python
+    echo Setup status has been saved to .setup_*.done files
 )
-echo   To force re-run all steps, use: setup_windows.bat --force
+echo To force re-run all steps, use: setup_windows.bat --force
 echo.
-echo   For more information, see the README.md file.
-echo ================================================================================
+echo For more information, see the README.md file.
+echo ========================================================
 echo.
 
-:: Auto-start TaskHero AI
+:: Offer to run the application
 if %PYTHON_AVAILABLE% equ 1 (
-    echo.
-    call :show_section "Starting TaskHero AI                                                   "
-    echo   Setup complete! Starting TaskHero AI automatically...
-    echo ================================================================================
-    echo.
-    python app.py
+    echo Would you like to run TaskHero AI now? (Y/N)
+    set /p RUN_APP="Enter your choice (Y/N): "
+    if /i "!RUN_APP!"=="Y" (
+        echo.
+        echo Starting TaskHero AI...
+        python app.py
+    )
 ) else (
     echo.
-    echo ================================================================================
-    echo   [INFO] Please install Python and re-run this script to start TaskHero AI.
-    echo ================================================================================
-    pause
+    echo [INFO] Please install Python and re-run this script to start TaskHero AI.
 )
 
 endlocal
