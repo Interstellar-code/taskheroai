@@ -1,0 +1,180 @@
+{# METADATA
+title: Project Status Report Template
+description: Comprehensive project status report with analytics, team updates, and visual progress tracking
+version: 1.0.0
+category: reports
+tags: report, status, analytics, team, progress
+author: TaskHero AI
+created: {{ current_date }}
+modified: {{ current_date }}
+requires: 
+variables: project_name, report_date, total_tasks, accomplishments, current_work, blockers, team_updates
+is_base: false
+#}
+
+# {{ project_name or 'Project' }} Status Report - {{ report_date or current_date }}
+
+## 📊 Executive Summary
+{{ executive_summary or 'Provide a brief executive summary of the project status, key achievements, and upcoming priorities.' }}
+
+## 📈 Project Overview
+- **Total Tasks:** {{ total_tasks or 0 }}
+- **Completed Tasks:** {{ completed_tasks or 0 }} ({{ completion_percentage or 0 }}%)
+- **In Progress Tasks:** {{ inprogress_tasks or 0 }} ({{ inprogress_percentage or 0 }}%)
+- **Todo Tasks:** {{ todo_tasks or 0 }} ({{ todo_percentage or 0 }}%)
+- **Overdue Tasks:** {{ overdue_tasks or 0 }}
+- **Overall Health:** {% if health_score -%}{{ health_score }}%{% else %}{{ 'Green' if (completion_percentage or 0) > 70 else 'Yellow' if (completion_percentage or 0) > 40 else 'Red' }}{% endif %}
+
+## 🏆 Recent Accomplishments
+{% if accomplishments -%}
+{% for accomplishment in accomplishments %}
+- **{{ accomplishment.title }}**{% if accomplishment.date %} ({{ accomplishment.date }}){% endif %}
+  - {{ accomplishment.description }}
+  {% if accomplishment.impact -%}- Impact: {{ accomplishment.impact }}{%- endif %}
+{% endfor %}
+{%- else -%}
+- Task completion tracking and reporting system implemented
+- Project milestone tracking established
+- Team collaboration processes improved
+{%- endif %}
+
+## 🚧 Current Work
+{% if current_work -%}
+{% for work in current_work %}
+- **{{ work.title }}**{% if work.assignee %} ({{ work.assignee }}){% endif %}
+  - Status: {{ work.status or 'In Progress' }}
+  - Progress: {{ work.progress or 0 }}%
+  {% if work.due_date -%}- Due: {{ work.due_date }}{%- endif %}
+  {% if work.blockers -%}- Blockers: {{ work.blockers }}{%- endif %}
+{% endfor %}
+{%- else -%}
+- Template system enhancement and testing
+- Project documentation updates
+- Task management workflow optimization
+{%- endif %}
+
+## 🚩 Blockers & Risks
+{% if blockers -%}
+{% for blocker in blockers %}
+- **{{ blocker.severity or 'Medium' }} Risk**: {{ blocker.title }}
+  - Description: {{ blocker.description }}
+  - Impact: {{ blocker.impact }}
+  - Mitigation: {{ blocker.mitigation }}
+  - Owner: {{ blocker.owner or 'TBD' }}
+  - Target Resolution: {{ blocker.target_date or 'TBD' }}
+{% endfor %}
+{%- else -%}
+- No significant blockers currently identified
+- Risk management processes are in place
+- Regular monitoring and mitigation strategies active
+{%- endif %}
+
+## 📅 Upcoming Deadlines
+{% if upcoming_deadlines -%}
+| Task ID | Title | Due Date | Assigned To | Status | Risk Level |
+|---------|-------|----------|-------------|--------|------------|
+{% for deadline in upcoming_deadlines %}
+| {{ deadline.id }} | {{ deadline.title }} | {{ deadline.due_date }} | {{ deadline.assignee }} | {{ deadline.status }} | {{ deadline.risk or 'Low' }} |
+{% endfor %}
+{%- else -%}
+*No immediate deadlines in the next 2 weeks*
+{%- endif %}
+
+## 📈 Progress Visualization
+### Burndown Chart
+```mermaid
+---
+title: Sprint Burndown
+---
+xychart-beta
+    title "{{ sprint_name or 'Current Sprint' }} Burndown"
+    x-axis [{% for day in burndown_days or ['Week 1', 'Week 2', 'Week 3', 'Week 4'] %}"{{ day }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+    y-axis "Remaining Tasks" 0 --> {{ initial_tasks or 100 }}
+    line [{% for value in burndown_values or [100, 75, 45, 20] %}{{ value }}{% if not loop.last %}, {% endif %}{% endfor %}]
+```
+
+### Completion by Priority
+```mermaid
+pie title Task Completion by Priority
+    "High Priority" : {{ high_priority_completed or 15 }}
+    "Medium Priority" : {{ medium_priority_completed or 25 }}
+    "Low Priority" : {{ low_priority_completed or 10 }}
+    "Remaining" : {{ remaining_tasks or 50 }}
+```
+
+## 🎯 Key Metrics
+- **Sprint Velocity**: {{ sprint_velocity or 'TBD' }} tasks/sprint
+- **Cycle Time**: {{ cycle_time or 'TBD' }} days average
+- **Defect Rate**: {{ defect_rate or 'TBD' }}%
+- **Team Utilization**: {{ team_utilization or 'TBD' }}%
+- **Customer Satisfaction**: {{ customer_satisfaction or 'TBD' }}/10
+
+## 👥 Team Updates
+{% if team_updates -%}
+{% for member in team_updates %}
+### {{ member.name }}
+- **Focus Areas**: {{ member.focus_areas | join(', ') if member.focus_areas else 'General development' }}
+- **Completed**: {{ member.completed or 'Various tasks completed' }}
+- **Current Work**: {{ member.current_work or 'Continuing project tasks' }}
+- **Blockers**: {{ member.blockers or 'None' }}
+- **Availability**: {{ member.availability or '100%' }}
+{% if member.achievements -%}
+- **Notable Achievements**: {{ member.achievements }}
+{%- endif %}
+{% endfor %}
+{%- else -%}
+### Development Team
+- **Focus Areas**: Template system, project management, automation
+- **Completed**: Phase 1 template engine implementation
+- **Current Work**: Phase 2 template migration and enhancement
+- **Blockers**: None currently
+- **Availability**: 100%
+{%- endif %}
+
+## 💡 Recommendations & Next Steps
+{% if recommendations -%}
+{% for rec in recommendations %}
+- **{{ rec.priority or 'Medium' }} Priority**: {{ rec.title }}
+  - Description: {{ rec.description }}
+  - Expected Impact: {{ rec.impact }}
+  - Timeline: {{ rec.timeline }}
+{% endfor %}
+{%- else -%}
+- Continue with Phase 2 template migration
+- Implement automated testing for all templates
+- Enhance documentation and user guides
+- Plan Phase 3 AI integration features
+{%- endif %}
+
+## 📋 Action Items
+{% if action_items -%}
+| Item | Owner | Due Date | Priority | Status |
+|------|-------|----------|----------|--------|
+{% for item in action_items %}
+| {{ item.description }} | {{ item.owner }} | {{ item.due_date }} | {{ item.priority }} | {{ item.status }} |
+{% endfor %}
+{%- else -%}
+| Item | Owner | Due Date | Priority | Status |
+|------|-------|----------|----------|--------|
+| Complete Phase 2 template migration | Development Team | Next Week | High | In Progress |
+| Test enhanced templates | QA Team | Next Week | Medium | Pending |
+{%- endif %}
+
+## 📊 Appendix: Detailed Metrics
+### Task Distribution
+{% if task_distribution -%}
+{% for category in task_distribution %}
+- **{{ category.name }}**: {{ category.count }} tasks ({{ category.percentage }}%)
+{% endfor %}
+{%- endif %}
+
+### Quality Metrics
+- **Code Coverage**: {{ code_coverage or 'TBD' }}%
+- **Test Pass Rate**: {{ test_pass_rate or 'TBD' }}%
+- **Bug Density**: {{ bug_density or 'TBD' }} bugs/KLOC
+- **Technical Debt**: {{ technical_debt or 'TBD' }} hours
+
+---
+**Report Period**: {{ report_start_date or 'Week Start' }} to {{ report_end_date or current_date }}  
+**Next Report**: {{ next_report_date or 'Next Week' }}  
+*Generated by {{ generator or 'TaskHero AI Template Engine' }} on {{ generated_at or current_datetime }}* 

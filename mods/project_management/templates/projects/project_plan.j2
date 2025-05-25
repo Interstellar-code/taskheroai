@@ -1,0 +1,158 @@
+{# METADATA
+title: Project Plan Template
+description: Comprehensive project plan template with task management, progress tracking, and analytics
+version: 1.0.0
+category: projects
+tags: project, plan, kanban, analytics, tracking
+author: TaskHero AI
+created: {{ current_date }}
+modified: {{ current_date }}
+requires: 
+variables: project_name, total_tasks, task_summary, completion_stats, kanban_data, timeline
+is_base: false
+#}
+
+# {{ project_name or 'Project Name' }}
+
+## 📊 Project Statistics
+- **Total Tasks:** {{ total_tasks or 0 }}
+- **✅ Done:** {{ done_count or 0 }}
+- **🧪 Testing:** {{ testing_count or 0 }}
+- **🔄 Dev Done:** {{ devdone_count or 0 }}
+- **⏳ In Progress:** {{ inprogress_count or 0 }}
+- **📋 Todo:** {{ todo_count or 0 }}
+- **📊 Backlog:** {{ backlog_count or 0 }}
+- **🎯 Completion Rate:** {{ completion_rate or 0 }}%
+- **⏱️ Estimated Total Hours:** {{ total_estimated_hours or 0 }}
+- **⏱️ Hours Logged:** {{ total_actual_hours or 0 }}
+- **🎯 Progress:** {{ progress_percentage or 0 }}%
+
+## 📋 Kanban Board
+```mermaid
+kanban
+  Backlog
+{% for task in kanban_backlog or [] %}
+    {{ task.id }}: {{ task.title }}
+{% endfor %}
+  Todo
+{% for task in kanban_todo or [] %}
+    {{ task.id }}: {{ task.title }}
+{% endfor %}
+  [In Progress]
+{% for task in kanban_inprogress or [] %}
+    {{ task.id }}: {{ task.title }}
+{% endfor %}
+  [Dev Done]
+{% for task in kanban_devdone or [] %}
+    {{ task.id }}: {{ task.title }}
+{% endfor %}
+  [Testing]
+{% for task in kanban_testing or [] %}
+    {{ task.id }}: {{ task.title }}
+{% endfor %}
+  [Done]
+{% for task in kanban_done or [] %}
+    {{ task.id }}: {{ task.title }}
+{% endfor %}
+```
+
+## 📝 Task Summary
+| ID | Status | Title | Type | Priority | Due Date | Assigned To | Progress |
+|----|--------|-------|------|----------|----------|-------------|----------|
+{% for task in tasks or [] -%}
+| {{ task.id }} | {{ task.status }} | {{ task.title }} | {{ task.type or 'General' }} | {{ task.priority or 'Medium' }} | {{ task.due_date or 'TBD' }} | {{ task.assignee or 'Unassigned' }} | {{ task.progress or '0' }}% |
+{% endfor %}
+
+## 🔗 Task Dependencies
+{% if dependencies -%}
+| Task ID | Task Name | Depends On | Required By |
+|---------|-----------|------------|-------------|
+{% for dep in dependencies -%}
+| {{ dep.task_id }} | {{ dep.task_name }} | {{ dep.depends_on | join(', ') if dep.depends_on else 'None' }} | {{ dep.required_by | join(', ') if dep.required_by else 'None' }} |
+{% endfor %}
+{%- else -%}
+*No task dependencies defined*
+{%- endif %}
+
+## ⏳ Project Timeline
+{% if timeline_entries -%}
+```mermaid
+timeline
+    title {{ project_name or 'Project' }} Timeline
+{% for entry in timeline_entries %}
+    {{ entry.date }} : {{ entry.title }}
+                    : {{ entry.description }}
+{% endfor %}
+```
+{%- else -%}
+```mermaid
+timeline
+    title {{ project_name or 'Project' }} Timeline
+    {{ current_date }} : Project started
+    TBD : Phase 1 completion target
+    TBD : Project completion target
+```
+{%- endif %}
+
+## 📈 Progress Analytics
+### Completion by Category
+{% if task_categories -%}
+{% for category in task_categories %}
+- **{{ category.name }}**: {{ category.completed }}/{{ category.total }} ({{ category.percentage }}%)
+{% endfor %}
+{%- endif %}
+
+### Team Performance
+{% if team_performance -%}
+{% for member in team_performance %}
+- **{{ member.name }}**: {{ member.completed_tasks }} completed, {{ member.hours_logged }} hours logged
+{% endfor %}
+{%- endif %}
+
+## 🎯 Current Sprint/Phase
+{% if current_sprint -%}
+- **Sprint:** {{ current_sprint.name }}
+- **Duration:** {{ current_sprint.start_date }} to {{ current_sprint.end_date }}
+- **Goal:** {{ current_sprint.goal }}
+- **Tasks:** {{ current_sprint.tasks | length }} tasks
+- **Progress:** {{ current_sprint.progress }}%
+{%- endif %}
+
+## 🚧 Blockers & Risks
+{% if blockers -%}
+{% for blocker in blockers %}
+- **{{ blocker.severity or 'Medium' }}**: {{ blocker.description }}
+  - Impact: {{ blocker.impact }}
+  - Mitigation: {{ blocker.mitigation }}
+{% endfor %}
+{%- else -%}
+*No current blockers identified*
+{%- endif %}
+
+## 📅 Upcoming Milestones
+{% if milestones -%}
+| Milestone | Target Date | Status | Dependencies |
+|-----------|-------------|--------|--------------|
+{% for milestone in milestones %}
+| {{ milestone.name }} | {{ milestone.date }} | {{ milestone.status }} | {{ milestone.dependencies | join(', ') if milestone.dependencies else 'None' }} |
+{% endfor %}
+{%- else -%}
+*No milestones defined*
+{%- endif %}
+
+## 🔄 Recent Updates
+{% if recent_updates -%}
+{% for update in recent_updates %}
+- **{{ update.date }}**: {{ update.description }}
+{% endfor %}
+{%- endif %}
+- **{{ current_date }}**: Project plan updated
+
+## 📊 Metrics Dashboard
+- **Velocity**: {{ velocity or 'TBD' }} tasks/week
+- **Burndown Rate**: {{ burndown_rate or 'TBD' }} hours/day
+- **Quality Score**: {{ quality_score or 'TBD' }}%
+- **Risk Level**: {{ risk_level or 'Low' }}
+
+---
+*Generated by {{ generator or 'TaskHero AI Template Engine' }} on {{ generated_at or current_datetime }}* 

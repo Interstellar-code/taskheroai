@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 100
+    },
+    "author": {
+      "type": "string",
+      "minLength": 2
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 50
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "title",
+    "author",
+    "date",
+    "summary"
+  ],
+  "additionalProperties": true
+}

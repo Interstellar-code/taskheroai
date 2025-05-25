@@ -1,0 +1,204 @@
+{# METADATA
+title: General Task Template
+description: General purpose task template with comprehensive tracking and documentation
+version: 1.0.0
+category: tasks
+tags: task, general, tracking, documentation
+author: TaskHero AI
+created: {{ current_date }}
+modified: {{ current_date }}
+requires: base/document_base.j2
+variables: task_id, title, description, priority, status, implementation_steps, dependencies
+is_base: false
+extends: base/document_base.j2
+#}
+
+{% extends "base/document_base.j2" %}
+
+{% block metadata -%}
+- **Task ID:** {{ task_id }}
+- **Created:** {{ created or current_date }}
+- **Due:** {{ due_date or '' }}
+- **Priority:** {{ priority or 'Medium' }}
+- **Status:** {{ status or 'Todo' }}
+- **Assigned to:** {{ assignee or 'Unassigned' }}
+- **Task Type:** {{ task_type or 'General' }}
+- **Sequence:** {{ sequence or '' }}
+- **Tags:** {{ tags | join(', ') if tags else '' }}
+{%- endblock metadata %}
+
+{% block main_content -%}
+{% if show_flow_diagram|default(false) or flow_description -%}
+## Flow Diagram
+{% if flow_description -%}
+{{ flow_description }}
+{% endif %}
+
+```mermaid
+flowchart TD
+    A[Start] --> B[{{ flow_steps[0].title if flow_steps and flow_steps|length > 0 else 'Process 1' }}]
+    B --> C{Decision Point}
+    C -->|Yes| D[{{ flow_steps[1].title if flow_steps and flow_steps|length > 1 else 'Process 2' }}]
+    C -->|No| E[Alternative Process]
+    D --> F[End]
+    E --> F
+```
+
+{% if flow_notes -%}
+{{ flow_notes }}
+{%- endif %}
+{%- endif %}
+
+## Implementation Status
+
+### Main Implementation Steps
+{% if implementation_steps -%}
+{% for step in implementation_steps -%}
+- {% if step.completed|default(false) %}[x]{% else %}[ ]{% endif %} **Step {{ loop.index }}: {{ step.title }}**
+  {% if step.substeps -%}
+  {% for substep in step.substeps -%}
+  - {% if substep.completed|default(false) %}[x]{% else %}[ ]{% endif %} {{ substep.description }}
+  {% endfor %}
+  {%- endif %}
+{% endfor %}
+{% else -%}
+- [ ] **Step 1: Initial Analysis**
+  - [ ] Review requirements and scope
+  - [ ] Identify key stakeholders
+  - [ ] Define success criteria
+- [ ] **Step 2: Planning & Design**
+  - [ ] Create detailed plan
+  - [ ] Design solution approach
+  - [ ] Review with team
+- [ ] **Step 3: Implementation**
+  - [ ] Execute planned approach
+  - [ ] Monitor progress regularly
+  - [ ] Adjust as needed
+- [ ] **Step 4: Review & Completion**
+  - [ ] Test and validate results
+  - [ ] Document lessons learned
+  - [ ] Close task formally
+{%- endif %}
+
+### Status Overview Table
+| Step | Description | Status | Target Date |
+|------|-------------|--------|-------------|
+{% if implementation_steps -%}
+{% for step in implementation_steps -%}
+| {{ loop.index }} | {{ step.title }} | {% if step.completed|default(false) %}✅ Complete{% elif step.in_progress|default(false) %}🔄 In Progress{% else %}⏳ Pending{% endif %} | {{ step.target_date or 'TBD' }} |
+{% endfor %}
+{% else -%}
+| 1 | Initial Analysis | ⏳ Pending | TBD |
+| 2 | Planning & Design | ⏳ Pending | TBD |
+| 3 | Implementation | ⏳ Pending | TBD |
+| 4 | Review & Completion | ⏳ Pending | TBD |
+{%- endif %}
+
+## Detailed Description
+{{ detailed_description or description or 'Provide a detailed description of the task, including its purpose, scope, expected outcomes, and any relevant background information.' }}
+
+{% if acceptance_criteria -%}
+## Acceptance Criteria
+{% for criterion in acceptance_criteria -%}
+- {% if criterion.completed|default(false) %}[x]{% else %}[ ]{% endif %} {{ criterion.description if criterion is mapping else criterion }}
+{% endfor %}
+{%- endif %}
+
+{% if success_metrics -%}
+## Success Metrics
+{% for metric in success_metrics %}
+- **{{ metric.name }}**: {{ metric.target }} (Current: {{ metric.current or 'TBD' }})
+{% endfor %}
+{%- endif %}
+{%- endblock main_content %}
+
+{% block dependencies -%}
+{% if dependencies or dependent_tasks -%}
+## Dependencies
+{% if dependencies -%}
+### Required By This Task
+{% for dep in dependencies -%}
+- {{ dep }}
+{% endfor %}
+{%- endif %}
+
+{% if dependent_tasks -%}
+### Dependent On This Task
+{% for task in dependent_tasks -%}
+- {{ task }}
+{% endfor %}
+{%- endif %}
+
+{% if dependency_type -%}
+### Dependency Type
+{{ dependency_type }}
+{%- endif %}
+{%- endif %}
+{%- endblock dependencies %}
+
+{% block testing -%}
+## Testing Strategy
+{{ testing_strategy or 'Define appropriate testing and validation approach for this task.' }}
+
+{% if test_plan -%}
+### Test Plan
+{% for test in test_plan %}
+- {% if test.completed|default(false) %}[x]{% else %}[ ]{% endif %} **{{ test.name }}**: {{ test.description }}
+{% endfor %}
+{%- endif %}
+{%- endblock testing %}
+
+{% block technical_considerations -%}
+{% if technical_notes or constraints or assumptions -%}
+## Technical Considerations
+{% if technical_notes -%}
+{{ technical_notes }}
+{% endif %}
+
+{% if constraints -%}
+### Constraints
+{% for constraint in constraints %}
+- {{ constraint }}
+{% endfor %}
+{%- endif %}
+
+{% if assumptions -%}
+### Assumptions
+{% for assumption in assumptions %}
+- {{ assumption }}
+{% endfor %}
+{%- endif %}
+
+{% if database_changes -%}
+### Database Changes
+{{ database_changes }}
+
+{% if database_schema -%}
+```mermaid
+erDiagram
+    {{ database_schema }}
+```
+{%- endif %}
+{%- endif %}
+{%- endif %}
+{%- endblock technical_considerations %}
+
+{% block references -%}
+{% if references -%}
+## References
+{% for ref in references -%}
+- {{ ref }}
+{% endfor %}
+{%- endif %}
+{%- endblock references %}
+
+{% block updates -%}
+## Updates
+{% if updates -%}
+{% for update in updates -%}
+- **{{ update.date }}:** {{ update.description }}
+{% endfor %}
+{% else -%}
+- **{{ current_date }}:** Task created
+{%- endif %}
+{%- endblock updates %} 

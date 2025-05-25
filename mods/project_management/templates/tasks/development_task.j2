@@ -1,0 +1,147 @@
+{# METADATA
+title: Development Task Template
+description: Template for development tasks with implementation steps, flow diagrams, and technical specifications
+version: 1.0.0
+category: tasks
+tags: development, task, implementation, technical
+author: TaskHero AI
+created: {{ current_date }}
+modified: {{ current_date }}
+requires: base/document_base.j2
+variables: task_id, title, description, priority, status, implementation_steps, flow_diagram, acceptance_criteria
+is_base: false
+extends: base/document_base.j2
+#}
+
+{% extends "base/document_base.j2" %}
+
+{% block metadata -%}
+- **Task ID:** {{ task_id }}
+- **Created:** {{ created or current_date }}
+- **Due:** {{ due_date or '' }}
+- **Priority:** {{ priority or 'Medium' }}
+- **Status:** {{ status or 'Todo' }}
+- **Assigned to:** {{ assignee or 'Developer' }}
+- **Task Type:** {{ task_type or 'Development' }}
+- **Sequence:** {{ sequence or '' }}
+- **Tags:** {{ tags | join(', ') if tags else 'development' }}
+{%- endblock metadata %}
+
+{% block main_content -%}
+{% if flow_description or show_flow_diagram|default(true) -%}
+## Flow Diagram
+{% if flow_description -%}
+{{ flow_description }}
+{% endif %}
+
+```mermaid
+flowchart TD
+    A[Start] --> B[{{ implementation_steps[0].title if implementation_steps else 'Process 1' }}]
+    B --> C{Decision Point}
+    C -->|Yes| D[{{ implementation_steps[1].title if implementation_steps and implementation_steps|length > 1 else 'Process 2' }}]
+    C -->|No| E[Alternative Process]
+    D --> F[End]
+    E --> F
+```
+
+{% if flow_notes -%}
+{{ flow_notes }}
+{%- endif %}
+{%- endif %}
+
+## Implementation Status
+
+### Main Implementation Steps
+{% if implementation_steps -%}
+{% for step in implementation_steps -%}
+- {% if step.completed|default(false) %}[x]{% else %}[ ]{% endif %} **Step {{ loop.index }}: {{ step.title }}**
+  {% if step.substeps -%}
+  {% for substep in step.substeps -%}
+  - {% if substep.completed|default(false) %}[x]{% else %}[ ]{% endif %} {{ substep.description }}
+  {% endfor %}
+  {%- endif %}
+{% endfor %}
+{% else -%}
+- [ ] **Step 1: Initial Setup**
+  - [ ] Define requirements and scope
+  - [ ] Set up development environment
+  - [ ] Create project structure
+- [ ] **Step 2: Core Implementation**
+  - [ ] Implement main functionality
+  - [ ] Add error handling
+  - [ ] Write unit tests
+- [ ] **Step 3: Integration and Testing**
+  - [ ] Integration testing
+  - [ ] Performance testing
+  - [ ] Documentation update
+{%- endif %}
+
+### Status Overview Table
+| Step | Description | Status | Target Date |
+|------|-------------|--------|-------------|
+{% if implementation_steps -%}
+{% for step in implementation_steps -%}
+| {{ loop.index }} | {{ step.title }} | {% if step.completed|default(false) %}✅ Complete{% elif step.in_progress|default(false) %}🔄 In Progress{% else %}⏳ Pending{% endif %} | {{ step.target_date or 'TBD' }} |
+{% endfor %}
+{% else -%}
+| 1 | Initial Setup | ⏳ Pending | {{ (current_date | add_days(1)) or 'TBD' }} |
+| 2 | Core Implementation | ⏳ Pending | {{ (current_date | add_days(3)) or 'TBD' }} |
+| 3 | Integration and Testing | ⏳ Pending | {{ (current_date | add_days(5)) or 'TBD' }} |
+{%- endif %}
+
+## Detailed Description
+{{ detailed_description or description or 'Provide detailed description of the development task, including its purpose, benefits, and implementation approach.' }}
+
+{% if acceptance_criteria -%}
+## Acceptance Criteria
+{% for criterion in acceptance_criteria -%}
+- {% if criterion.completed|default(false) %}[x]{% else %}[ ]{% endif %} {{ criterion.description if criterion is mapping else criterion }}
+{% endfor %}
+{%- endif %}
+{%- endblock main_content %}
+
+{% block testing -%}
+## Testing Strategy
+{{ testing_strategy or 'Define comprehensive testing approach including unit tests, integration tests, and validation criteria.' }}
+
+{% if test_cases -%}
+### Test Cases
+{% for test_case in test_cases -%}
+- **{{ test_case.name }}**: {{ test_case.description }}
+  - Expected: {{ test_case.expected }}
+  - Status: {{ test_case.status or 'Pending' }}
+{% endfor %}
+{%- endif %}
+{%- endblock testing %}
+
+{% block technical_considerations -%}
+## Technical Considerations
+{{ technical_notes or 'Document any technical considerations, potential challenges, architectural decisions, and implementation details.' }}
+
+{% if architecture_notes -%}
+### Architecture Notes
+{{ architecture_notes }}
+{%- endif %}
+
+{% if performance_considerations -%}
+### Performance Considerations
+{{ performance_considerations }}
+{%- endif %}
+
+{% if security_considerations -%}
+### Security Considerations
+{{ security_considerations }}
+{%- endif %}
+
+{% if database_changes -%}
+### Database Changes
+{{ database_changes }}
+
+{% if database_schema -%}
+```mermaid
+erDiagram
+    {{ database_schema }}
+```
+{%- endif %}
+{%- endif %}
+{%- endblock technical_considerations %} 

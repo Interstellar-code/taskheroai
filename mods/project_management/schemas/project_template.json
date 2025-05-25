@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "properties": {
+    "project_name": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 50
+    },
+    "description": {
+      "type": "string",
+      "minLength": 20
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "team_members": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "technologies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "budget": {
+      "type": "number",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "project_name",
+    "description",
+    "start_date"
+  ],
+  "additionalProperties": true
+}
