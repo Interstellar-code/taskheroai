@@ -76,11 +76,12 @@ extends: base/document_base.j2
 {{ brief_description or '[Concise summary of what this task accomplishes and why it is needed]' }}
 
 ### 1.2. Functional Requirements
-{{ functional_requirements | default('[Specific functionality that must be implemented or changed]') }}
 {% if functional_requirements_list is defined and functional_requirements_list and functional_requirements_list|length > 0 -%}
 {% for req in functional_requirements_list -%}
 - {{ req }}
 {% endfor %}
+{% else -%}
+{{ functional_requirements | clean_python_list | default('[Specific functionality that must be implemented or changed]') }}
 {%- endif %}
 
 ### 1.3. Purpose & Benefits

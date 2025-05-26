@@ -63,5 +63,75 @@
       "content_structure": 0.9500000000000001
     },
     "recommendations": []
+  },
+  {
+    "task_id": "TASK-074",
+    "timestamp": "2025-05-26T07:35:36.984724",
+    "overall_score": 0.7975,
+    "quality_level": "good",
+    "metric_scores": {
+      "metadata_completeness": 0.7,
+      "requirements_specificity": 0.6,
+      "implementation_detail": 0.9000000000000001,
+      "technical_depth": 0.75,
+      "flow_diagram_validity": 1.0,
+      "content_structure": 1.0
+    },
+    "recommendations": [
+      "Make requirements more specific and measurable"
+    ]
+  },
+  {
+    "task_id": "TASK-075",
+    "timestamp": "2025-05-26T07:47:12.805986",
+    "overall_score": 0.845,
+    "quality_level": "excellent",
+    "metric_scores": {
+      "metadata_completeness": 0.7,
+      "requirements_specificity": 0.8,
+      "implementation_detail": 1.0,
+      "technical_depth": 0.6499999999999999,
+      "flow_diagram_validity": 1.0,
+      "content_structure": 0.9500000000000001
+    },
+    "recommendations": [
+      "Include more technical considerations and architectural details"
+    ]
+  },
+  {
+    "task_id": "TASK-076",
+    "timestamp": "2025-05-26T07:53:27.817052",
+    "overall_score": 0.775,
+    "quality_level": "good",
+    "metric_scores": {
+      "metadata_completeness": 0.7,
+      "requirements_specificity": 0.6,
+      "implementation_detail": 0.9000000000000001,
+      "technical_depth": 0.6499999999999999,
+      "flow_diagram_validity": 1.0,
+      "content_structure": 0.9500000000000001
+    },
+    "recommendations": [
+      "Make requirements more specific and measurable",
+      "Include more technical considerations and architectural details"
+    ]
+  },
+  {
+    "task_id": "TASK-077",
+    "timestamp": "2025-05-26T08:22:08.516586",
+    "overall_score": 0.8025,
+    "quality_level": "excellent",
+    "metric_scores": {
+      "metadata_completeness": 0.7,
+      "requirements_specificity": 0.6,
+      "implementation_detail": 1.0,
+      "technical_depth": 0.6499999999999999,
+      "flow_diagram_validity": 1.0,
+      "content_structure": 1.0
+    },
+    "recommendations": [
+      "Make requirements more specific and measurable",
+      "Include more technical considerations and architectural details"
+    ]
   }
 ]

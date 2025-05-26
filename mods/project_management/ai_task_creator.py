@@ -172,7 +172,12 @@ class AITaskCreator:
             # Generate task ID
             task_id = self._generate_task_id()
 
-            # Prepare basic context
+            # Enhanced metadata generation for better quality scores
+            enhanced_tags = await self._generate_enhanced_tags(title, description, task_type, tags or [])
+            enhanced_dependencies = await self._generate_enhanced_dependencies(title, description, dependencies or [])
+            enhanced_effort = await self._generate_enhanced_effort_estimate(title, description, effort_estimate)
+
+            # Prepare basic context with enhanced metadata
             context = self._prepare_base_context(
                 task_id=task_id,
                 title=title,
@@ -181,9 +186,9 @@ class AITaskCreator:
                 priority=priority,
                 assigned_to=assigned_to,
                 due_date=due_date,
-                tags=tags or [],
-                dependencies=dependencies or [],
-                effort_estimate=effort_estimate
+                tags=enhanced_tags,
+                dependencies=enhanced_dependencies,
+                effort_estimate=enhanced_effort
             )
 
             # Phase 4C: Use provided AI enhancements or generate new ones
@@ -288,6 +293,161 @@ class AITaskCreator:
             logger.error(f"Error creating enhanced task: {e}")
             return False, "", str(e)
 
+    async def _generate_enhanced_tags(self, title: str, description: str, task_type: str, existing_tags: List[str]) -> List[str]:
+        """Generate comprehensive tags for better metadata completeness."""
+        try:
+            # Start with existing tags
+            tags = list(existing_tags) if existing_tags else []
+
+            # Add task type based tags
+            if task_type.upper() == 'DEV' or task_type.lower() == 'development':
+                tags.extend(['development', 'coding'])
+            elif task_type.upper() == 'DOC' or task_type.lower() == 'documentation':
+                tags.extend(['documentation', 'writing'])
+            elif task_type.upper() == 'TEST' or task_type.lower() == 'testing':
+                tags.extend(['testing', 'quality-assurance'])
+            elif task_type.upper() == 'BUG' or task_type.lower() == 'bug fix':
+                tags.extend(['bugfix', 'maintenance'])
+
+            # Content-based tag generation
+            description_lower = (title + ' ' + description).lower()
+
+            # Technology and domain tags
+            tech_tags = {
+                'api': ['api', 'integration'],
+                'database': ['database', 'data'],
+                'ui': ['ui', 'interface'],
+                'security': ['security', 'auth'],
+                'performance': ['performance', 'optimization'],
+                'config': ['configuration', 'setup'],
+                'install': ['installation', 'initial setup', 'initial settings'],
+                'script': ['automation', 'scripting'],
+                'enhance': ['enhancement', 'improvement'],
+                'fix': ['bugfix', 'maintenance'],
+                'refactor': ['refactoring', 'code-quality'],
+                'test': ['testing', 'validation'],
+                'windows': ['windows', 'platform-specific'],
+                'linux': ['linux', 'platform-specific'],
+                'web': ['web', 'frontend'],
+                'mobile': ['mobile', 'responsive']
+            }
+
+            for keyword, tag_list in tech_tags.items():
+                if keyword in description_lower:
+                    tags.extend(tag_list)
+
+            # Priority and complexity tags
+            if any(word in description_lower for word in ['critical', 'urgent', 'important']):
+                tags.append('high-priority')
+            if any(word in description_lower for word in ['simple', 'quick', 'minor']):
+                tags.append('low-complexity')
+            if any(word in description_lower for word in ['complex', 'advanced', 'comprehensive']):
+                tags.append('high-complexity')
+
+            # Ensure minimum tag count for quality scoring (aim for 3-5 tags)
+            if len(tags) < 3:
+                # Add generic but relevant tags based on task type
+                if task_type.upper() == 'DEV':
+                    tags.extend(['implementation', 'feature'])
+                elif task_type.upper() == 'DOC':
+                    tags.extend(['guide', 'reference'])
+                elif task_type.upper() == 'TEST':
+                    tags.extend(['validation', 'verification'])
+                else:
+                    tags.extend(['task-management', 'project'])
+
+            # Remove duplicates and limit to 8 tags
+            unique_tags = list(dict.fromkeys(tags))  # Preserves order while removing duplicates
+            return unique_tags[:8]
+
+        except Exception as e:
+            logger.warning(f"Enhanced tag generation failed: {e}")
+            return existing_tags or ['task-management', 'development', 'enhancement']
+
+    async def _generate_enhanced_dependencies(self, title: str, description: str, existing_deps: List[str]) -> List[str]:
+        """Generate smart dependencies based on task content."""
+        try:
+            dependencies = list(existing_deps) if existing_deps else []
+
+            # If no dependencies provided, analyze content for potential dependencies
+            if not dependencies:
+                description_lower = (title + ' ' + description).lower()
+
+                # Look for dependency indicators
+                if any(word in description_lower for word in ['setup', 'install', 'configure']):
+                    # Setup tasks might depend on environment preparation
+                    if 'windows' in description_lower:
+                        dependencies.append('Environment setup (Windows)')
+                    elif 'linux' in description_lower:
+                        dependencies.append('Environment setup (Linux)')
+                    else:
+                        dependencies.append('Environment setup')
+
+                if any(word in description_lower for word in ['enhance', 'improve', 'extend']):
+                    # Enhancement tasks depend on existing implementation
+                    dependencies.append('Base implementation')
+
+                if any(word in description_lower for word in ['test', 'validation']):
+                    # Testing tasks depend on implementation
+                    dependencies.append('Implementation completion')
+
+                if any(word in description_lower for word in ['deploy', 'release']):
+                    # Deployment tasks have multiple dependencies
+                    dependencies.extend(['Testing completion', 'Code review approval'])
+
+            return dependencies[:3]  # Limit to 3 dependencies for clarity
+
+        except Exception as e:
+            logger.warning(f"Enhanced dependency generation failed: {e}")
+            return existing_deps or []
+
+    async def _generate_enhanced_effort_estimate(self, title: str, description: str, existing_effort: str) -> str:
+        """Generate more accurate effort estimates based on task complexity."""
+        try:
+            if existing_effort and existing_effort.lower() != 'medium':
+                return existing_effort  # Keep user-provided estimates
+
+            description_lower = (title + ' ' + description).lower()
+
+            # Analyze complexity indicators
+            complexity_score = 0
+
+            # Simple task indicators (reduce complexity)
+            simple_indicators = ['simple', 'quick', 'minor', 'small', 'basic', 'fix']
+            for indicator in simple_indicators:
+                if indicator in description_lower:
+                    complexity_score -= 1
+
+            # Complex task indicators (increase complexity)
+            complex_indicators = ['complex', 'comprehensive', 'advanced', 'multiple', 'integration', 'architecture']
+            for indicator in complex_indicators:
+                if indicator in description_lower:
+                    complexity_score += 2
+
+            # Medium complexity indicators
+            medium_indicators = ['enhance', 'improve', 'implement', 'develop', 'create']
+            for indicator in medium_indicators:
+                if indicator in description_lower:
+                    complexity_score += 1
+
+            # Length-based complexity (longer descriptions often indicate more complex tasks)
+            if len(description) > 200:
+                complexity_score += 1
+            elif len(description) < 50:
+                complexity_score -= 1
+
+            # Map complexity score to effort estimate
+            if complexity_score <= -1:
+                return 'Small'
+            elif complexity_score >= 3:
+                return 'Large'
+            else:
+                return 'Medium'
+
+        except Exception as e:
+            logger.warning(f"Enhanced effort estimation failed: {e}")
+            return existing_effort or 'Medium'
+
     def _generate_task_id(self) -> str:
         """Generate a unique task ID."""
         # Get existing task IDs to find the next number
@@ -334,7 +494,7 @@ class AITaskCreator:
             'task_id': kwargs.get('task_id'),
             'title': kwargs.get('title'),
             'description': kwargs.get('description', ''),
-            'brief_description': kwargs.get('description', '')[:200] + '...' if len(kwargs.get('description', '')) > 200 else kwargs.get('description', ''),
+            'brief_description': kwargs.get('description', ''),
             'priority': kwargs.get('priority', 'medium').title(),
             'status': 'Todo',
             'assignee': kwargs.get('assigned_to', 'Developer'),
@@ -540,9 +700,14 @@ class AITaskCreator:
                         )
 
                     # AI-generated requirements with file context
-                    enhanced_context_dict['functional_requirements_list'] = await self._ai_generate_requirements_with_context(
+                    requirements_list = await self._ai_generate_requirements_with_context(
                         enhanced_context.user_description, enhanced_context_dict, enhanced_context
                     )
+                    enhanced_context_dict['functional_requirements_list'] = requirements_list
+
+                    # Ensure functional_requirements is not in Python list format
+                    if requirements_list:
+                        enhanced_context_dict['functional_requirements'] = ""  # Clear to force template to use list
 
                     # AI-generated benefits
                     enhanced_context_dict['benefits_list'] = await self._ai_generate_benefits(
@@ -731,7 +896,7 @@ The enhanced description should start with the user's original intent and add co
                 if primary_file.configuration_items:
                     context_info += f"\nConfiguration items: {len(primary_file.configuration_items)} found"
 
-            prompt = f"""Generate specific, testable functional requirements for this task:
+            prompt = f"""Generate highly specific, measurable, and testable functional requirements for this task:
 
 Task: {title}
 Description: {user_description}
@@ -739,20 +904,23 @@ Task Type: {task_type}
 
 {context_info}
 
-Requirements should be:
-- Specific and measurable
-- Technically detailed
-- Actionable for developers
-- Testable/verifiable
+CRITICAL: Requirements must be:
+- SPECIFIC with exact criteria (use numbers, percentages, timeframes)
+- MEASURABLE with clear success criteria
+- TECHNICALLY DETAILED with implementation specifics
+- TESTABLE with verifiable outcomes
+- ACTIONABLE for developers
 
-Format as a numbered list. Each requirement should start with "The system must" or "The script must".
+IMPORTANT: Format as a numbered list with each requirement on a new line. Each requirement MUST start with "The system must" or "The script must" and include specific criteria.
 
-Example format:
-1. The system must validate user input before processing
-2. The script must create backup files before making changes
-3. The system must provide clear error messages for invalid inputs
+ENHANCED EXAMPLES:
+1. The system must validate user input within 100ms and reject inputs exceeding 255 characters
+2. The script must create timestamped backup files before making changes and verify backup integrity
+3. The system must provide specific error messages with error codes (ERR-001 to ERR-999) for each failure type
+4. The script must process files in batches of 50 items and display progress percentage every 10%
+5. The system must maintain 99.9% uptime during normal operations and log all downtime events
 
-Generate 5-8 specific requirements:"""
+Generate 6-8 highly specific requirements with measurable criteria. DO NOT use Python list format or quotes around requirements:"""
 
             response = await self.ai_provider.generate_response(
                 prompt,
@@ -851,19 +1019,45 @@ Generate 4-5 implementation phases:"""
             if enhanced_context.technology_stack:
                 context_info += f"\n\nTechnology stack: {enhanced_context.technology_stack}"
 
-            prompt = f"""Provide specific technical considerations for this {task_type} task based on code analysis.
+            prompt = f"""As a senior technical architect, provide comprehensive technical considerations for this {task_type} task:
 
 User description: {user_description}
 
 {context_info}
 
-Provide specific guidance on:
-1. Implementation approach based on existing code patterns
-2. Integration considerations with current architecture
-3. Performance implications
-4. Maintenance and testing considerations
+Provide DETAILED technical considerations with specific implementation guidance:
 
-Keep recommendations specific to the analyzed codebase."""
+1. ARCHITECTURE & DESIGN PATTERNS:
+   - Specific design patterns to implement (with rationale)
+   - Component structure and interaction patterns
+   - Data flow and state management approach
+
+2. PERFORMANCE REQUIREMENTS:
+   - Specific performance targets (response times, throughput)
+   - Memory usage constraints and optimization strategies
+   - Caching strategies and database query optimization
+
+3. SECURITY CONSIDERATIONS:
+   - Input validation and sanitization requirements
+   - Authentication and authorization mechanisms
+   - Data encryption and secure communication protocols
+
+4. ERROR HANDLING & EDGE CASES:
+   - Specific error scenarios and handling strategies
+   - Graceful degradation and fallback mechanisms
+   - Logging and monitoring requirements
+
+5. TESTING STRATEGY:
+   - Unit test coverage requirements (minimum 80%)
+   - Integration test scenarios and data sets
+   - Performance testing benchmarks
+
+6. INTEGRATION & DEPENDENCIES:
+   - External API integration patterns
+   - Database schema changes and migration strategies
+   - Third-party library compatibility requirements
+
+Provide specific, actionable technical guidance based on the codebase context."""
 
             response = await self.ai_provider.generate_response(
                 prompt,
@@ -3636,22 +3830,161 @@ Keep each consideration concise but specific to this task."""
             return {}
 
     def _parse_requirements_response(self, response: str) -> List[str]:
-        """Parse AI response into structured requirements list."""
+        """Parse AI response into structured requirements list with enhanced parsing."""
         requirements = []
+
+        # Handle case where AI returns a Python list string representation
+        if response.strip().startswith('[') and response.strip().endswith(']'):
+            try:
+                # Try to parse as Python list
+                import ast
+                parsed_list = ast.literal_eval(response.strip())
+                if isinstance(parsed_list, list):
+                    # Filter out intro text and extract actual requirements
+                    for item in parsed_list:
+                        if isinstance(item, str) and len(item) > 20:
+                            # Skip intro lines like "Here are 5-8 specific functional requirements..."
+                            if not any(skip_phrase in item.lower() for skip_phrase in [
+                                'here are', 'following are', 'below are', 'requirements for', 'specific functional',
+                                'enhanced examples', 'generate', 'format as'
+                            ]):
+                                # Clean up the requirement text
+                                clean_req = item.strip()
+                                # Remove any leading numbers or bullets
+                                clean_req = re.sub(r'^\d+\.\s*', '', clean_req)
+                                clean_req = re.sub(r'^[-*]\s*', '', clean_req)
+                                if clean_req and len(clean_req) > 20:
+                                    requirements.append(clean_req)
+
+                    if requirements:
+                        logger.info(f"Successfully parsed {len(requirements)} requirements from Python list format")
+                        return requirements[:8]
+            except (ValueError, SyntaxError) as e:
+                logger.warning(f"Failed to parse Python list format with ast.literal_eval: {e}")
+                # Try manual parsing for malformed Python lists
+                try:
+                    # Extract items using regex for malformed Python lists
+                    list_content = response.strip()[1:-1]  # Remove [ and ]
+                    # Split by ', ' but be careful with quotes
+                    items = []
+                    current_item = ""
+                    in_quotes = False
+                    quote_char = None
+                    i = 0
+
+                    while i < len(list_content):
+                        char = list_content[i]
+
+                        if char in ['"', "'"] and (i == 0 or list_content[i-1] != '\\'):
+                            if not in_quotes:
+                                in_quotes = True
+                                quote_char = char
+                            elif char == quote_char:
+                                in_quotes = False
+                                quote_char = None
+                        elif char == ',' and not in_quotes and i + 1 < len(list_content) and list_content[i + 1] == ' ':
+                            # Found item separator
+                            item = current_item.strip()
+                            if item.startswith('"') and item.endswith('"'):
+                                item = item[1:-1]
+                            elif item.startswith("'") and item.endswith("'"):
+                                item = item[1:-1]
+                            if item and len(item) > 20:
+                                items.append(item)
+                            current_item = ""
+                            i += 1  # Skip the space after comma
+                        else:
+                            current_item += char
+                        i += 1
+
+                    # Add the last item
+                    if current_item.strip():
+                        item = current_item.strip()
+                        if item.startswith('"') and item.endswith('"'):
+                            item = item[1:-1]
+                        elif item.startswith("'") and item.endswith("'"):
+                            item = item[1:-1]
+                        if item and len(item) > 20:
+                            items.append(item)
+
+                    # Filter and clean items
+                    for item in items:
+                        if not any(skip_phrase in item.lower() for skip_phrase in [
+                            'here are', 'following are', 'below are', 'requirements for', 'specific functional',
+                            'enhanced examples', 'generate', 'format as'
+                        ]):
+                            clean_req = item.strip()
+                            clean_req = re.sub(r'^\d+\.\s*', '', clean_req)
+                            clean_req = re.sub(r'^[-*]\s*', '', clean_req)
+                            if clean_req and len(clean_req) > 20:
+                                requirements.append(clean_req)
+
+                    if requirements:
+                        logger.info(f"Successfully parsed {len(requirements)} requirements from malformed Python list using manual parsing")
+                        return requirements[:8]
+
+                except Exception as manual_error:
+                    logger.warning(f"Manual parsing also failed: {manual_error}")
+                    # Fall back to line-by-line parsing
+                    pass
+
+        # Standard line-by-line parsing
         lines = response.strip().split('\n')
 
         for line in lines:
             line = line.strip()
+
+            # Skip intro/header lines
+            if any(skip_phrase in line.lower() for skip_phrase in [
+                'here are', 'following are', 'below are', 'requirements for', 'specific functional',
+                'generate', 'enhanced examples'
+            ]):
+                continue
+
             # Remove numbering and clean up
             if line and (line.startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.')) or
                         line.startswith('-') or line.startswith('*')):
                 # Remove numbering/bullets and clean
                 clean_req = re.sub(r'^\d+\.\s*', '', line)
                 clean_req = re.sub(r'^[-*]\s*', '', clean_req)
-                if clean_req and len(clean_req) > 10:
+                if clean_req and len(clean_req) > 20:  # Increased minimum length for quality
                     requirements.append(clean_req)
+            elif line.startswith('The system must') or line.startswith('The script must'):
+                # Direct requirement statements
+                if len(line) > 20:
+                    requirements.append(line)
 
         return requirements[:8]  # Limit to 8 requirements
+
+    def _clean_python_list_format(self, text: str) -> str:
+        """Clean up any Python list format that might appear in text."""
+        if not text:
+            return text
+
+        # Check if text looks like a Python list
+        if text.strip().startswith('[') and text.strip().endswith(']'):
+            try:
+                import ast
+                parsed_list = ast.literal_eval(text.strip())
+                if isinstance(parsed_list, list):
+                    # Convert to markdown bullets
+                    cleaned_items = []
+                    for item in parsed_list:
+                        if isinstance(item, str) and len(item) > 20:
+                            # Skip intro lines
+                            if not any(skip_phrase in item.lower() for skip_phrase in [
+                                'here are', 'following are', 'below are', 'requirements for', 'specific functional'
+                            ]):
+                                clean_item = item.strip()
+                                clean_item = re.sub(r'^\d+\.\s*', '', clean_item)
+                                clean_item = re.sub(r'^[-*]\s*', '', clean_item)
+                                if clean_item:
+                                    cleaned_items.append(f"- {clean_item}")
+                    return '\n'.join(cleaned_items) if cleaned_items else text
+            except (ValueError, SyntaxError):
+                pass
+
+        return text
 
     def _generate_fallback_requirements(self, description: str, context: Dict[str, Any]) -> List[str]:
         """Generate fallback requirements when AI generation fails."""

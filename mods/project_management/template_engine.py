@@ -113,6 +113,7 @@ class TemplateEngine:
             'capitalize_words': lambda x: ' '.join(word.capitalize() for word in x.split()),
             'file_extension': lambda x: Path(x).suffix if x else '',
             'file_name': lambda x: Path(x).stem if x else '',
+            'clean_python_list': self._clean_python_list_filter,
         })
 
     def _register_custom_globals(self):
@@ -256,6 +257,122 @@ class TemplateEngine:
             logger.debug(f"Could not detect variables in template {template_name}: {e}")
 
         return TemplateMetadata(**metadata)
+
+    def _clean_python_list_filter(self, text) -> str:
+        """Clean up any Python list format that might appear in text."""
+        if text is None:
+            return ""
+        if not text:
+            return text if isinstance(text, str) else ""
+
+        # Handle case where text is already a list object
+        if isinstance(text, list):
+            # Convert list directly to markdown bullets
+            cleaned_items = []
+            for item in text:
+                if isinstance(item, str) and len(item) > 20:
+                    # Skip intro lines
+                    if not any(skip_phrase in item.lower() for skip_phrase in [
+                        'here are', 'following are', 'below are', 'requirements for', 'specific functional'
+                    ]):
+                        import re
+                        clean_item = item.strip()
+                        clean_item = re.sub(r'^\d+\.\s*', '', clean_item)
+                        clean_item = re.sub(r'^[-*]\s*', '', clean_item)
+                        if clean_item:
+                            cleaned_items.append(f"- {clean_item}")
+            return '\n'.join(cleaned_items) if cleaned_items else ""
+
+        # Ensure text is a string
+        if not isinstance(text, str):
+            return str(text) if text else ""
+
+        # Check if text looks like a Python list string
+        if text.strip().startswith('[') and text.strip().endswith(']'):
+            try:
+                import ast
+                import re
+                parsed_list = ast.literal_eval(text.strip())
+                if isinstance(parsed_list, list):
+                    # Convert to markdown bullets
+                    cleaned_items = []
+                    for item in parsed_list:
+                        if isinstance(item, str) and len(item) > 20:
+                            # Skip intro lines
+                            if not any(skip_phrase in item.lower() for skip_phrase in [
+                                'here are', 'following are', 'below are', 'requirements for', 'specific functional'
+                            ]):
+                                clean_item = item.strip()
+                                clean_item = re.sub(r'^\d+\.\s*', '', clean_item)
+                                clean_item = re.sub(r'^[-*]\s*', '', clean_item)
+                                if clean_item:
+                                    cleaned_items.append(f"- {clean_item}")
+                    return '\n'.join(cleaned_items) if cleaned_items else text
+            except (ValueError, SyntaxError):
+                # Try manual parsing for malformed Python lists
+                try:
+                    import re
+                    # Extract items using manual parsing for malformed Python lists
+                    list_content = text.strip()[1:-1]  # Remove [ and ]
+                    # Split by ', ' but be careful with quotes
+                    items = []
+                    current_item = ""
+                    in_quotes = False
+                    quote_char = None
+                    i = 0
+
+                    while i < len(list_content):
+                        char = list_content[i]
+
+                        if char in ['"', "'"] and (i == 0 or list_content[i-1] != '\\'):
+                            if not in_quotes:
+                                in_quotes = True
+                                quote_char = char
+                            elif char == quote_char:
+                                in_quotes = False
+                                quote_char = None
+                        elif char == ',' and not in_quotes and i + 1 < len(list_content) and list_content[i + 1] == ' ':
+                            # Found item separator
+                            item = current_item.strip()
+                            if item.startswith('"') and item.endswith('"'):
+                                item = item[1:-1]
+                            elif item.startswith("'") and item.endswith("'"):
+                                item = item[1:-1]
+                            if item and len(item) > 20:
+                                items.append(item)
+                            current_item = ""
+                            i += 1  # Skip the space after comma
+                        else:
+                            current_item += char
+                        i += 1
+
+                    # Add the last item
+                    if current_item.strip():
+                        item = current_item.strip()
+                        if item.startswith('"') and item.endswith('"'):
+                            item = item[1:-1]
+                        elif item.startswith("'") and item.endswith("'"):
+                            item = item[1:-1]
+                        if item and len(item) > 20:
+                            items.append(item)
+
+                    # Convert to markdown bullets
+                    cleaned_items = []
+                    for item in items:
+                        if not any(skip_phrase in item.lower() for skip_phrase in [
+                            'here are', 'following are', 'below are', 'requirements for', 'specific functional'
+                        ]):
+                            clean_item = item.strip()
+                            clean_item = re.sub(r'^\d+\.\s*', '', clean_item)
+                            clean_item = re.sub(r'^[-*]\s*', '', clean_item)
+                            if clean_item:
+                                cleaned_items.append(f"- {clean_item}")
+
+                    return '\n'.join(cleaned_items) if cleaned_items else text
+                except Exception:
+                    pass
+
+        return text
 
     def render_template(self, template_name: str, context: Dict[str, Any] = None) -> str:
         """

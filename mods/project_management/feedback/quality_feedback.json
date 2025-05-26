@@ -64,5 +64,29 @@
     "quality_score": 0.7499999999999999,
     "user_satisfaction": 4,
     "timestamp": "2025-05-26T07:07:50.945678"
+  },
+  {
+    "task_id": "TASK-074",
+    "quality_score": 0.7999999999999999,
+    "user_satisfaction": 5,
+    "timestamp": "2025-05-26T07:35:36.983226"
+  },
+  {
+    "task_id": "TASK-075",
+    "quality_score": 0.7999999999999999,
+    "user_satisfaction": 4,
+    "timestamp": "2025-05-26T07:47:12.804570"
+  },
+  {
+    "task_id": "TASK-076",
+    "quality_score": 0.7999999999999999,
+    "user_satisfaction": 4,
+    "timestamp": "2025-05-26T07:53:27.815609"
+  },
+  {
+    "task_id": "TASK-077",
+    "quality_score": 0.7999999999999999,
+    "user_satisfaction": 4,
+    "timestamp": "2025-05-26T08:22:08.508014"
   }
 ]
