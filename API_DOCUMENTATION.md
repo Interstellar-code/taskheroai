@@ -2,7 +2,14 @@
 
 ## Overview
 
-The TaskHero AI HTTP API provides RESTful endpoints for managing tasks, accessing kanban board data, and integrating with external tools. The API is built using Starlette and supports CORS for web applications.
+The TaskHero AI HTTP API provides RESTful endpoints for managing tasks, accessing kanban board data, code analysis, and integrating with external tools. The API is built using Starlette and supports CORS for web applications.
+
+**Key Features:**
+- 📊 Task management and kanban board operations
+- 🤖 AI-powered code analysis and chat
+- 📁 Project indexing and file management
+- 🔗 MCP (Model Context Protocol) integration
+- 🌐 RESTful design with JSON responses
 
 ## Base URL
 
@@ -10,9 +17,30 @@ The TaskHero AI HTTP API provides RESTful endpoints for managing tasks, accessin
 http://localhost:8000
 ```
 
+## Quick Start
+
+1. **Start the HTTP API Server:**
+   ```bash
+   python start_http_server.py --port 8000
+   ```
+
+2. **Test the connection:**
+   ```bash
+   curl http://localhost:8000/api/health
+   ```
+
+3. **Initialize a project:**
+   ```bash
+   curl -X POST http://localhost:8000/api/initialize \
+     -H "Content-Type: application/json" \
+     -d '{"directory_path": "/path/to/your/project"}'
+   ```
+
 ## Authentication
 
 Currently, the API does not require authentication. This may be added in future versions.
+
+> **Security Note:** By default, the server only accepts connections from localhost (127.0.0.1). To allow connections from other hosts, set `HTTP_ALLOW_ALL_ORIGINS=TRUE` in your `.env` file.
 
 ## Response Format
 
@@ -332,9 +360,72 @@ The API supports Cross-Origin Resource Sharing (CORS) for web applications. By d
 
 The API is integrated with Model Context Protocol (MCP) servers that provide tools for Claude and other AI assistants to interact with TaskHero AI functionality.
 
-Available MCP tools:
-- `get_all_tasks()` - Get all tasks
+### Starting the MCP Server
+
+```bash
+# Start the HTTP API server first
+python start_http_server.py --port 8000
+
+# Start the MCP server (in a new terminal)
+python mcp_server.py
+```
+
+### Available MCP Tools
+
+#### Code Analysis Tools
+- `initialize_directory(directory_path)` - Initialize a directory for code analysis
+- `ask_agent(question)` - Ask the AI agent questions about the codebase
+- `start_indexing(directory_path)` - Start indexing a directory
+- `get_indexing_status()` - Get the status of the indexing process
+- `health_check()` - Check if the HTTP API server is running
+
+#### Task Management Tools
+- `get_all_tasks()` - Get all tasks organized by status
 - `create_task(title, content, priority, status)` - Create a new task
-- `get_task_details(task_id)` - Get task details
-- `update_task_status(task_id, new_status)` - Update task status
-- `get_kanban_board()` - Get kanban board data
+- `get_task_details(task_id)` - Get detailed information about a specific task
+- `update_task_status(task_id, new_status)` - Update the status of a task
+- `get_kanban_board()` - Get kanban board data with visual organization
+
+#### Utility Tools
+- `start_http_server_tool(port)` - Start the HTTP API server if not running
+- `set_api_url(url)` - Configure the API URL for the MCP server
+
+### Claude Desktop Integration
+
+To use with Claude Desktop, add this configuration to your `mcp_servers.json`:
+
+```json
+{
+  "mcpServers": {
+    "TaskHeroAI": {
+      "command": "YOUR_VENV_PATH\\Scripts\\python.exe",
+      "args": ["PATH_TO_TASKHEROAI\\mcp_server.py"]
+    }
+  }
+}
+```
+
+### Example MCP Usage
+
+```
+User: Can you help me analyze my Python project?
+
+Claude: I'll help you analyze your Python project using TaskHero AI. Let me start by checking if the server is running and then initialize your project.
+
+[Tool: health_check]
+Result: {"status": "ok", "message": "HTTP API server is running"}
+
+Great! The server is running. Now let me initialize your project directory.
+
+[Tool: initialize_directory]
+Input: {"directory_path": "/path/to/your/project"}
+Result: {"status": "ok", "message": "Directory initialized successfully"}
+
+Now I'll start indexing your project to analyze the codebase.
+
+[Tool: start_indexing]
+Input: {"directory_path": "/path/to/your/project"}
+Result: {"status": "ok", "message": "Indexing started"}
+
+The indexing has started. Once it's complete, I can help you with code analysis, task management, and answer questions about your project structure.
+```
