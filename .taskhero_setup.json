@@ -1,50 +1,19 @@
 {
-  "version": "1.0",
-  "created": "2025-05-25T21:27:08.550110",
-  "last_updated": "2025-05-25T21:36:35.996134",
   "setup_completed": {
     "configuration_completed": {
-      "completed": true,
-      "timestamp": "2025-05-25T21:27:08.550118"
-    },
-    "dependencies_installed": {
-      "completed": true,
-      "timestamp": "2025-05-25T21:27:08.562542"
-    },
-    "env_file_created": {
-      "completed": true,
-      "timestamp": "2025-05-25T21:27:08.574939"
-    },
-    "pip_upgraded": {
-      "completed": true,
-      "timestamp": "2025-05-25T21:27:08.606741"
+      "completed": true
     },
     "venv_created": {
-      "completed": true,
-      "timestamp": "2025-05-25T21:36:35.996108"
+      "completed": true
+    },
+    "pip_upgraded": {
+      "completed": true
+    },
+    "dependencies_installed": {
+      "completed": true
+    },
+    "env_file_created": {
+      "completed": true
     }
-  },
-  "configuration": {
-    "TaskStorage": {
-      "value": "C:\\laragon\\www\\taskheroai",
-      "timestamp": "2025-05-25T21:32:52.288965"
-    },
-    "RepositoryType": {
-      "value": "central",
-      "timestamp": "2025-05-25T21:32:52.360600"
-    },
-    "CodebasePath": {
-      "value": "C:\\laragon\\www\\taskheroai",
-      "timestamp": "2025-05-25T21:32:52.422866"
-    },
-    "ApiProvidersConfigured": {
-      "value": "True",
-      "timestamp": "2025-05-25T21:32:52.490435"
-    },
-    "ApiEnabled": {
-      "value": "True",
-      "timestamp": "2025-05-25T21:32:52.550900"
-    }
-  },
-  "file_timestamps": {}
+  }
 }

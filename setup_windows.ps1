@@ -302,10 +302,10 @@ function Show-ConfigurationWizard {
     Write-Info "Where would you like to store project task files?"
     Write-Host ""
     Write-ColoredLine "1️⃣  Present folder ($PWD)" $Colors.Text
-    Write-ColoredLine "2️⃣  Root folder /taskherofiles" $Colors.Text
+    Write-ColoredLine "2️⃣  TaskHero tasks folder (/theherotasks) [RECOMMENDED]" $Colors.Text
     Write-ColoredLine "3️⃣  Custom path (you will specify)" $Colors.Text
 
-    $storageChoice = Get-UserChoice "Please select storage location" @("1", "2", "3")
+    $storageChoice = Get-UserChoice "Please select storage location" @("1", "2", "3") "2"
 
     switch ($storageChoice) {
         "1" {
@@ -313,11 +313,20 @@ function Show-ConfigurationWizard {
             Write-Success "Selected: Present folder"
         }
         "2" {
-            $config.TaskStorage = Join-Path $PWD.Path "taskherofiles"
+            $config.TaskStorage = Join-Path $PWD.Path "theherotasks"
             if (-not (Test-Path $config.TaskStorage)) {
+                Write-Info "Creating TaskHero tasks directory: $($config.TaskStorage)"
                 New-Item -ItemType Directory -Path $config.TaskStorage -Force | Out-Null
+
+                # Create task status subdirectories
+                $statusDirs = @("todo", "inprogress", "testing", "devdone", "done", "backlog", "archive")
+                foreach ($dir in $statusDirs) {
+                    $statusPath = Join-Path $config.TaskStorage $dir
+                    New-Item -ItemType Directory -Path $statusPath -Force | Out-Null
+                }
+                Write-Success "Created task status subdirectories"
             }
-            Write-Success "Selected: Root folder /taskherofiles"
+            Write-Success "Selected: TaskHero tasks folder (/theherotasks)"
         }
         "3" {
             $customPath = Get-UserInput "Enter custom path for task files" -Required
@@ -325,6 +334,14 @@ function Show-ConfigurationWizard {
             if (-not (Test-Path $config.TaskStorage)) {
                 Write-Info "Creating directory: $config.TaskStorage"
                 New-Item -ItemType Directory -Path $config.TaskStorage -Force | Out-Null
+
+                # Create task status subdirectories for custom path too
+                $statusDirs = @("todo", "inprogress", "testing", "devdone", "done", "backlog", "archive")
+                foreach ($dir in $statusDirs) {
+                    $statusPath = Join-Path $config.TaskStorage $dir
+                    New-Item -ItemType Directory -Path $statusPath -Force | Out-Null
+                }
+                Write-Success "Created task status subdirectories"
             }
             Write-Success "Selected: Custom path"
         }
@@ -545,8 +562,9 @@ Show-Progress 6 7 "Running configuration wizard..."
 if ($Force -or -not (Test-SetupCompleted "configuration_completed")) {
     $config = Show-ConfigurationWizard
 
-    # Save configuration to setup file
+    # Save configuration to both setup file and app_settings.json
     try {
+        # Save to .taskhero_setup.json for setup tracking
         $setupFile = ".taskhero_setup.json"
         if (Test-Path $setupFile) {
             $setupData = Get-Content $setupFile | ConvertFrom-Json
@@ -566,6 +584,24 @@ if ($Force -or -not (Test-SetupCompleted "configuration_completed")) {
         }
 
         $setupData | ConvertTo-Json -Depth 10 | Out-File -FilePath $setupFile -Encoding UTF8
+
+        # Save to app_settings.json for application use
+        $appSettingsFile = "app_settings.json"
+        if (Test-Path $appSettingsFile) {
+            $appSettings = Get-Content $appSettingsFile | ConvertFrom-Json
+        } else {
+            $appSettings = @{}
+        }
+
+        # Map configuration keys to app settings
+        if ($config.RepositoryType) { $appSettings.repository_type = $config.RepositoryType }
+        if ($config.CodebasePath) { $appSettings.codebase_path = $config.CodebasePath }
+        if ($config.TaskStorage) { $appSettings.task_storage_path = $config.TaskStorage }
+        if ($config.ApiEnabled) { $appSettings.api_usage_enabled = $config.ApiEnabled }
+        if ($config.ApiProvidersConfigured) { $appSettings.api_providers_configured = $config.ApiProvidersConfigured }
+
+        $appSettings | ConvertTo-Json -Depth 10 | Out-File -FilePath $appSettingsFile -Encoding UTF8
+        Write-Success "Configuration saved to both .taskhero_setup.json and app_settings.json"
     } catch {
         Write-Warning "Failed to save configuration: $_"
     }

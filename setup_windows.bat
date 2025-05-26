@@ -136,6 +136,33 @@ if "%validation_type%"=="option" (
 set "%variable_name%=!user_input!"
 exit /b 0
 
+:: Function to check if a configuration exists
+:check_config_exists
+set "config_key=%1"
+if exist "app_settings.json" (
+    findstr /c:"\"%config_key%\"" app_settings.json >nul 2>&1
+    exit /b %errorlevel%
+)
+exit /b 1
+
+:: Function to save configuration to app_settings.json
+:save_config
+set "config_key=%1"
+set "config_value=%2"
+:: Create or update app_settings.json using Python if available
+python --version >nul 2>&1
+if %errorlevel% equ 0 (
+    python -c "import json,os; data=json.load(open('app_settings.json')) if os.path.exists('app_settings.json') else {}; data['%config_key%']='%config_value%'; json.dump(data,open('app_settings.json','w'),indent=2)" 2>nul
+    if !errorlevel! equ 0 exit /b 0
+)
+:: Fallback: create simple JSON structure
+if not exist "app_settings.json" (
+    echo {""%config_key%"": ""%config_value%""} > app_settings.json
+) else (
+    echo [WARNING] Could not update app_settings.json automatically. Please update manually.
+)
+exit /b 0
+
 
 
 :: Function to display section header
@@ -585,35 +612,58 @@ call :show_section "Configuration 3/5: Task Files Storage Location              
 echo   Where would you like to store project task files?
 echo.
 echo   1. Present folder (%CD%)
-echo   2. Root folder /taskherofiles
+echo   2. TaskHero tasks folder (/theherotasks) [RECOMMENDED]
 echo   3. Custom path (you will specify)
 echo ================================================================================
 
 if %FORCE_SETUP% equ 0 (
-    call :check_config_exists "task_storage_location"
+    call :check_config_exists "task_storage_path"
     if !errorlevel! equ 0 (
         echo [INFO] Task storage location already configured. Skipping...
         goto :config_api_usage
     )
 )
 
-call :get_user_input "Please select storage location (1, 2, or 3):" STORAGE_CHOICE "option"
+call :get_user_input "Please select storage location (1, 2, or 3, default 2):" STORAGE_CHOICE "option"
+if "!STORAGE_CHOICE!"=="" set STORAGE_CHOICE=2
 if "!STORAGE_CHOICE!"=="1" (
     set TASK_STORAGE=%CD%
     echo [SUCCESS] Selected: Present folder
 ) else if "!STORAGE_CHOICE!"=="2" (
-    set TASK_STORAGE=%CD%\taskherofiles
-    echo [SUCCESS] Selected: Root folder /taskherofiles
-    if not exist "!TASK_STORAGE!" mkdir "!TASK_STORAGE!"
+    set TASK_STORAGE=%CD%\theherotasks
+    echo [SUCCESS] Selected: TaskHero tasks folder (/theherotasks)
+    if not exist "!TASK_STORAGE!" (
+        echo [INFO] Creating TaskHero tasks directory: !TASK_STORAGE!
+        mkdir "!TASK_STORAGE!" 2>nul
+        :: Create task status subdirectories
+        mkdir "!TASK_STORAGE!\todo" 2>nul
+        mkdir "!TASK_STORAGE!\inprogress" 2>nul
+        mkdir "!TASK_STORAGE!\testing" 2>nul
+        mkdir "!TASK_STORAGE!\devdone" 2>nul
+        mkdir "!TASK_STORAGE!\done" 2>nul
+        mkdir "!TASK_STORAGE!\backlog" 2>nul
+        mkdir "!TASK_STORAGE!\archive" 2>nul
+        echo [SUCCESS] Created task status subdirectories
+    )
 ) else (
     call :get_user_input "Enter custom path for task files:" TASK_STORAGE "path"
     echo [SUCCESS] Selected: Custom path
     if not exist "!TASK_STORAGE!" (
         echo [INFO] Creating directory: !TASK_STORAGE!
         mkdir "!TASK_STORAGE!" 2>nul
+        :: Create task status subdirectories for custom path too
+        mkdir "!TASK_STORAGE!\todo" 2>nul
+        mkdir "!TASK_STORAGE!\inprogress" 2>nul
+        mkdir "!TASK_STORAGE!\testing" 2>nul
+        mkdir "!TASK_STORAGE!\devdone" 2>nul
+        mkdir "!TASK_STORAGE!\done" 2>nul
+        mkdir "!TASK_STORAGE!\backlog" 2>nul
+        mkdir "!TASK_STORAGE!\archive" 2>nul
+        echo [SUCCESS] Created task status subdirectories
     )
 )
-call :save_config "task_storage_location" "!TASK_STORAGE!"
+call :save_config "task_storage_path" "!TASK_STORAGE!"
+echo [INFO] Task storage path saved to app_settings.json
 
 :config_api_usage
 :: Configuration Step 4: API and MCP Functions
