@@ -1,36 +1,64 @@
-#!/bin/sh
+#!/bin/bash
 
-# Check if we're running in a terminal that supports colors
+# TaskHero AI Setup Script - Enhanced Bash Version
+# Enhanced setup wizard with configuration management
+
+# Color scheme for enhanced UI
 if [ -t 1 ]; then
     # ANSI color codes
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[0;33m'
-    BLUE='\033[0;34m'
-    CYAN='\033[0;36m'
-    NC='\033[0m' # No Color
+    PRIMARY='\033[0;36m'     # Cyan
+    SECONDARY='\033[0;33m'   # Yellow
+    SUCCESS='\033[0;32m'     # Green
+    WARNING='\033[0;33m'     # Yellow
+    ERROR='\033[0;31m'       # Red
+    INFO='\033[0;34m'        # Blue
+    TEXT='\033[0;37m'        # White
+    ACCENT='\033[0;35m'      # Magenta
+    NC='\033[0m'             # No Color
 else
     # No colors if not in a terminal
-    RED=''
-    GREEN=''
-    YELLOW=''
-    BLUE=''
-    CYAN=''
+    PRIMARY=''
+    SECONDARY=''
+    SUCCESS=''
+    WARNING=''
+    ERROR=''
+    INFO=''
+    TEXT=''
+    ACCENT=''
     NC=''
 fi
 
-printf "${CYAN}"
-echo "========================================================"
-echo " _    __          __          __   ______          __        ___    _"
-echo "| |  / /__  _____/ /_  ____ _/ /  / ____/___  ____/ /__     /   |  (_)"
-echo "| | / / _ \/ ___/ __ \/ __ \`/ /  / /   / __ \/ __  / _ \   / /| | / /"
-echo "| |/ /  __/ /  / /_/ / /_/ / /  / /___/ /_/ / /_/ /  __/  / ___ |/ /"
-echo "|___/\___/_/  /_.___/\__,_/_/   \____/\____/\__,_/\___/  /_/  |_/_/"
-echo ""
-echo "========================================================"
-echo "Linux Setup Script for TaskHero AI"
-echo "========================================================"
-printf "${NC}"
+# Global variables
+FORCE_SETUP=0
+PYTHON_AVAILABLE=1
+
+# Function to write colored text
+write_colored() {
+    local text="$1"
+    local color="$2"
+    local no_newline="$3"
+
+    if [ "$no_newline" = "true" ]; then
+        printf "${color}${text}${NC}"
+    else
+        printf "${color}${text}${NC}\n"
+    fi
+}
+
+# Function to write header
+write_header() {
+    local title="$1"
+
+    clear
+    echo ""
+    write_colored "===============================================================================" "$PRIMARY"
+    write_colored "                    TaskHero AI - Enhanced Setup Wizard                    " "$PRIMARY"
+    write_colored "===============================================================================" "$PRIMARY"
+    write_colored "  Welcome to the TaskHero AI Installation and Configuration Wizard!        " "$TEXT"
+    write_colored "  This script will guide you through the complete setup process.           " "$TEXT"
+    write_colored "===============================================================================" "$PRIMARY"
+    echo ""
+}
 
 # Check if Python is installed
 python3 --version &> /dev/null
