@@ -1,24 +1,21 @@
-# TaskHero AI - Enhanced PowerShell Setup Script
-# Requires PowerShell 5.0 or higher
+# TaskHero AI Setup Script - PowerShell Version
+# Enhanced setup wizard with configuration management
 
 param(
     [switch]$Force,
     [switch]$Help
 )
 
-# Set console encoding to UTF-8 for emoji support
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-
-# Color scheme
+# Color scheme for enhanced UI
 $Colors = @{
-    Primary = "Cyan"
+    Primary   = "Cyan"
     Secondary = "Yellow"
-    Success = "Green"
-    Warning = "Yellow"
-    Error = "Red"
-    Info = "Blue"
-    Accent = "Magenta"
-    Text = "White"
+    Success   = "Green"
+    Warning   = "Yellow"
+    Error     = "Red"
+    Info      = "Blue"
+    Text      = "White"
+    Accent    = "Magenta"
 }
 
 function Write-ColoredLine {
@@ -27,6 +24,7 @@ function Write-ColoredLine {
         [string]$Color = "White",
         [switch]$NoNewline
     )
+
     if ($NoNewline) {
         Write-Host $Text -ForegroundColor $Color -NoNewline
     } else {
@@ -39,47 +37,47 @@ function Write-Header {
 
     Clear-Host
     Write-Host ""
-    Write-ColoredLine "═══════════════════════════════════════════════════════════════════════════════" $Colors.Primary
-    Write-ColoredLine "                    🚀 TaskHero AI - Enhanced Setup Wizard                    " $Colors.Primary
-    Write-ColoredLine "═══════════════════════════════════════════════════════════════════════════════" $Colors.Primary
-    Write-ColoredLine "  Welcome to the TaskHero AI Installation and Configuration Wizard! 🎯        " $Colors.Text
-    Write-ColoredLine "  This script will guide you through the complete setup process. ⚙️           " $Colors.Text
-    Write-ColoredLine "═══════════════════════════════════════════════════════════════════════════════" $Colors.Primary
+    Write-ColoredLine "===============================================================================" $Colors.Primary
+    Write-ColoredLine "                    TaskHero AI - Enhanced Setup Wizard                    " $Colors.Primary
+    Write-ColoredLine "===============================================================================" $Colors.Primary
+    Write-ColoredLine "  Welcome to the TaskHero AI Installation and Configuration Wizard!        " $Colors.Text
+    Write-ColoredLine "  This script will guide you through the complete setup process.           " $Colors.Text
+    Write-ColoredLine "===============================================================================" $Colors.Primary
     Write-Host ""
 
     if ($Title) {
-        Write-ColoredLine "📋 Current Step: $Title" $Colors.Secondary
+        Write-ColoredLine "Current Step: $Title" $Colors.Secondary
         Write-Host ""
     }
 }
 
 function Write-SectionHeader {
-    param([string]$Title, [string]$Icon = "📦")
+    param([string]$Title, [string]$Icon = "Package")
 
     Write-Host ""
-    Write-ColoredLine "───────────────────────────────────────────────────────────────────────────────" $Colors.Secondary
+    Write-ColoredLine "-------------------------------------------------------------------------------" $Colors.Secondary
     Write-ColoredLine " $Icon $Title" $Colors.Secondary
-    Write-ColoredLine "───────────────────────────────────────────────────────────────────────────────" $Colors.Secondary
+    Write-ColoredLine "-------------------------------------------------------------------------------" $Colors.Secondary
 }
 
 function Write-Success {
     param([string]$Message)
-    Write-ColoredLine "✅ [SUCCESS] $Message" $Colors.Success
+    Write-ColoredLine "[SUCCESS] $Message" $Colors.Success
 }
 
 function Write-Info {
     param([string]$Message)
-    Write-ColoredLine "ℹ️  [INFO] $Message" $Colors.Info
+    Write-ColoredLine "[INFO] $Message" $Colors.Info
 }
 
 function Write-Warning {
     param([string]$Message)
-    Write-ColoredLine "⚠️  [WARNING] $Message" $Colors.Warning
+    Write-ColoredLine "[WARNING] $Message" $Colors.Warning
 }
 
 function Write-Error {
     param([string]$Message)
-    Write-ColoredLine "❌ [ERROR] $Message" $Colors.Error
+    Write-ColoredLine "[ERROR] $Message" $Colors.Error
 }
 
 function Show-Progress {
@@ -93,9 +91,9 @@ function Show-Progress {
     $barLength = 50
     $filledLength = [math]::Round(($percentage / 100) * $barLength)
 
-    $bar = "█" * $filledLength + "░" * ($barLength - $filledLength)
+    $bar = "#" * $filledLength + "-" * ($barLength - $filledLength)
 
-    Write-ColoredLine "📊 Progress: " $Colors.Info -NoNewline
+    Write-ColoredLine "Progress: " $Colors.Info -NoNewline
     Write-ColoredLine "[$bar] " $Colors.Primary -NoNewline
     Write-ColoredLine "$percentage% " $Colors.Success -NoNewline
     Write-ColoredLine "($Step/$Total)" $Colors.Text
@@ -111,11 +109,11 @@ function Get-UserChoice {
 
     do {
         Write-Host ""
-        Write-ColoredLine "❓ $Prompt" $Colors.Accent
+        Write-ColoredLine "$Prompt" $Colors.Accent
         if ($DefaultChoice) {
             Write-ColoredLine "   (Default: $DefaultChoice)" $Colors.Info
         }
-        Write-ColoredLine "👉 Your choice: " $Colors.Text -NoNewline
+        Write-ColoredLine "Your choice: " $Colors.Text -NoNewline
 
         $choice = Read-Host
 
@@ -140,11 +138,11 @@ function Get-UserInput {
 
     do {
         Write-Host ""
-        Write-ColoredLine "❓ $Prompt" $Colors.Accent
+        Write-ColoredLine "$Prompt" $Colors.Accent
         if ($DefaultValue) {
             Write-ColoredLine "   (Default: $DefaultValue)" $Colors.Info
         }
-        Write-ColoredLine "👉 Enter value: " $Colors.Text -NoNewline
+        Write-ColoredLine "Enter value: " $Colors.Text -NoNewline
 
         $userInput = Read-Host
 
@@ -230,7 +228,7 @@ function Set-SetupCompleted {
 }
 
 function Install-Dependencies {
-    Write-SectionHeader "Installing Python Dependencies" "📦"
+    Write-SectionHeader "Installing Python Dependencies" "Package"
 
     try {
         Write-Info "Upgrading pip..."
@@ -263,26 +261,26 @@ function Show-ConfigurationWizard {
     $config = @{}
 
     # Step 1: Repository Type
-    Write-SectionHeader "Step 1/5: Repository Type" "🏗️"
+    Write-SectionHeader "Step 1/5: Repository Type" "Config"
     Write-Info "Will this be a central repository for all different code bases,"
     Write-Info "or will it reside within an existing codebase?"
     Write-Host ""
-    Write-ColoredLine "1️⃣  Central repository (recommended for multiple projects)" $Colors.Text
-    Write-ColoredLine "2️⃣  Singular repository (embedded in existing codebase)" $Colors.Text
+    Write-ColoredLine "1  Central repository (recommended for multiple projects)" $Colors.Text
+    Write-ColoredLine "2  Singular repository (embedded in existing codebase)" $Colors.Text
 
     $repoChoice = Get-UserChoice "Please select repository type" @("1", "2")
     $config.RepositoryType = if ($repoChoice -eq "1") { "central" } else { "singular" }
     Write-Success "Selected: $(if ($repoChoice -eq '1') { 'Central repository' } else { 'Singular repository' })"
 
     # Step 2: Codebase Path
-    Write-SectionHeader "Step 2/5: Codebase Path" "📁"
+    Write-SectionHeader "Step 2/5: Codebase Path" "Folder"
     Write-Info "Please specify the path of the codebase that TaskHero will index."
     Write-Info "Current directory: $PWD"
     Write-Host ""
     Write-ColoredLine "Examples:" $Colors.Info
-    Write-ColoredLine "  • C:\Projects\MyProject" $Colors.Text
-    Write-ColoredLine "  • .\MyProject (relative path)" $Colors.Text
-    Write-ColoredLine "  • $PWD (current directory)" $Colors.Text
+    Write-ColoredLine "  C:\Projects\MyProject" $Colors.Text
+    Write-ColoredLine "  .\MyProject (relative path)" $Colors.Text
+    Write-ColoredLine "  $PWD (current directory)" $Colors.Text
 
     $codebasePath = Get-UserInput "Enter the codebase path" $PWD.Path -Required
 
@@ -298,12 +296,12 @@ function Show-ConfigurationWizard {
     Write-Success "Codebase path set to: $codebasePath"
 
     # Step 3: Task Files Storage
-    Write-SectionHeader "Step 3/5: Task Files Storage Location" "📂"
+    Write-SectionHeader "Step 3/5: Task Files Storage Location" "Storage"
     Write-Info "Where would you like to store project task files?"
     Write-Host ""
-    Write-ColoredLine "1️⃣  Present folder ($PWD)" $Colors.Text
-    Write-ColoredLine "2️⃣  TaskHero tasks folder (/theherotasks) [RECOMMENDED]" $Colors.Text
-    Write-ColoredLine "3️⃣  Custom path (you will specify)" $Colors.Text
+    Write-ColoredLine "1  Present folder ($PWD)" $Colors.Text
+    Write-ColoredLine "2  TaskHero tasks folder (/theherotasks) [RECOMMENDED]" $Colors.Text
+    Write-ColoredLine "3  Custom path (you will specify)" $Colors.Text
 
     $storageChoice = Get-UserChoice "Please select storage location" @("1", "2", "3") "2"
 
@@ -348,12 +346,12 @@ function Show-ConfigurationWizard {
     }
 
     # Step 4: API and MCP Functions
-    Write-SectionHeader "Step 4/5: API and MCP Functions" "🤖"
+    Write-SectionHeader "Step 4/5: API and MCP Functions" "API"
     Write-Info "Will TaskHero API and MCP functions be used?"
     Write-Info "This enables advanced AI features and integrations."
     Write-Host ""
-    Write-ColoredLine "Y️⃣  Yes, enable API and MCP functions" $Colors.Text
-    Write-ColoredLine "N️⃣  No, use basic functionality only" $Colors.Text
+    Write-ColoredLine "Y  Yes, enable API and MCP functions" $Colors.Text
+    Write-ColoredLine "N  No, use basic functionality only" $Colors.Text
 
     $apiEnabled = Get-UserChoice "Enable API and MCP functions?" @("Y", "N")
     $config.ApiEnabled = ($apiEnabled -eq "Y")
@@ -362,16 +360,16 @@ function Show-ConfigurationWizard {
         Write-Success "API and MCP functions will be enabled"
 
         # Step 5: API Provider Configuration
-        Write-SectionHeader "Step 5/5: API Provider Configuration" "🔑"
+        Write-SectionHeader "Step 5/5: API Provider Configuration" "Key"
         Write-Info "Configure your preferred AI providers and API keys."
         Write-Info "You can configure multiple providers or skip for now."
         Write-Host ""
         Write-ColoredLine "Available providers:" $Colors.Info
-        Write-ColoredLine "  • 🤖 OpenAI (GPT models)" $Colors.Text
-        Write-ColoredLine "  • 🧠 Anthropic (Claude models)" $Colors.Text
-        Write-ColoredLine "  • 🚀 DeepSeek (DeepSeek models)" $Colors.Text
-        Write-ColoredLine "  • 🌐 OpenRouter (Multiple models)" $Colors.Text
-        Write-ColoredLine "  • 🏠 Ollama (Local models)" $Colors.Text
+        Write-ColoredLine "  OpenAI (GPT models)" $Colors.Text
+        Write-ColoredLine "  Anthropic (Claude models)" $Colors.Text
+        Write-ColoredLine "  DeepSeek (DeepSeek models)" $Colors.Text
+        Write-ColoredLine "  OpenRouter (Multiple models)" $Colors.Text
+        Write-ColoredLine "  Ollama (Local models)" $Colors.Text
 
         Write-Host ""
         Write-Info "API configuration can be done manually by editing the .env file."
@@ -409,9 +407,9 @@ if ($Help) {
     Write-Info "TaskHero AI Setup Script - PowerShell Version"
     Write-Host ""
     Write-ColoredLine "Usage:" $Colors.Secondary
-    Write-ColoredLine "  .\setup_windows.ps1           # Normal setup" $Colors.Text
-    Write-ColoredLine "  .\setup_windows.ps1 -Force    # Force reinstall everything" $Colors.Text
-    Write-ColoredLine "  .\setup_windows.ps1 -Help     # Show this help" $Colors.Text
+    Write-ColoredLine "  .\setup_windows_fixed.ps1           # Normal setup" $Colors.Text
+    Write-ColoredLine "  .\setup_windows_fixed.ps1 -Force    # Force reinstall everything" $Colors.Text
+    Write-ColoredLine "  .\setup_windows_fixed.ps1 -Help     # Show this help" $Colors.Text
     Write-Host ""
     exit 0
 }
@@ -420,16 +418,16 @@ if ($Help) {
 Write-Header
 
 if ($Force) {
-    Write-Info "🔄 Force setup mode enabled - all steps will be executed."
+    Write-Info "Force setup mode enabled - all steps will be executed."
 } else {
-    Write-Info "🚀 This wizard will install packages and configure your TaskHero AI setup."
-    Write-Info "📋 Previously completed steps will be automatically skipped."
+    Write-Info "This wizard will install packages and configure your TaskHero AI setup."
+    Write-Info "Previously completed steps will be automatically skipped."
 }
 
 Write-Host ""
 
 # Step 1: Check Python
-Write-SectionHeader "Step 1: Python Installation Check" "🐍"
+Write-SectionHeader "Step 1: Python Installation Check" "Python"
 Show-Progress 1 7 "Checking Python installation..."
 
 if (-not (Test-PythonInstallation)) {
@@ -441,7 +439,7 @@ if (-not (Test-PythonInstallation)) {
 }
 
 # Step 2: Virtual Environment
-Write-SectionHeader "Step 2: Virtual Environment Setup" "📦"
+Write-SectionHeader "Step 2: Virtual Environment Setup" "VEnv"
 Show-Progress 2 7 "Setting up virtual environment..."
 
 if ($Force -or -not (Test-SetupCompleted "venv_created")) {
@@ -466,7 +464,7 @@ if ($Force -or -not (Test-SetupCompleted "venv_created")) {
 }
 
 # Step 3: Activate Virtual Environment
-Write-SectionHeader "Step 3: Activating Virtual Environment" "⚡"
+Write-SectionHeader "Step 3: Activating Virtual Environment" "Activate"
 Show-Progress 3 7 "Activating virtual environment..."
 
 try {
@@ -479,7 +477,7 @@ try {
 }
 
 # Step 4: Install Dependencies
-Write-SectionHeader "Step 4: Installing Dependencies" "📦"
+Write-SectionHeader "Step 4: Installing Dependencies" "Install"
 Show-Progress 4 7 "Installing Python packages..."
 
 if ($Force -or -not (Test-SetupCompleted "dependencies_installed")) {
@@ -494,7 +492,7 @@ if ($Force -or -not (Test-SetupCompleted "dependencies_installed")) {
 }
 
 # Step 5: Environment Configuration
-Write-SectionHeader "Step 5: Environment Configuration" "⚙️"
+Write-SectionHeader "Step 5: Environment Configuration" "Config"
 Show-Progress 5 7 "Setting up environment variables..."
 
 if ($Force -or -not (Test-SetupCompleted "env_file_created")) {
@@ -534,9 +532,6 @@ ENABLE_MARKDOWN_RENDERING=TRUE
 SHOW_THINKING_BLOCKS=FALSE
 ENABLE_STREAMING_MODE=FALSE
 CHAT_LOGS=FALSE
-MEMORY_ENABLED=TRUE
-MAX_MEMORY_ITEMS=10
-COMMANDS_YOLO=FALSE
 
 # HTTP API Server Settings
 HTTP_ALLOW_ALL_ORIGINS=FALSE
@@ -556,7 +551,7 @@ MCP_HTTP_PORT=8000
 }
 
 # Step 6: Configuration Wizard
-Write-SectionHeader "Step 6: Interactive Configuration Wizard" "🧙‍♂️"
+Write-SectionHeader "Step 6: Interactive Configuration Wizard" "Wizard"
 Show-Progress 6 7 "Running configuration wizard..."
 
 if ($Force -or -not (Test-SetupCompleted "configuration_completed")) {
@@ -613,30 +608,30 @@ if ($Force -or -not (Test-SetupCompleted "configuration_completed")) {
 }
 
 # Step 7: Completion
-Write-SectionHeader "Step 7: Setup Complete!" "🎉"
+Write-SectionHeader "Step 7: Setup Complete!" "Complete"
 Show-Progress 7 7 "Finalizing setup..."
 
 Write-Host ""
-Write-ColoredLine "═══════════════════════════════════════════════════════════════════════════════" $Colors.Success
-Write-ColoredLine "                        🎉 TaskHero AI Setup Complete! 🎉                       " $Colors.Success
-Write-ColoredLine "═══════════════════════════════════════════════════════════════════════════════" $Colors.Success
+Write-ColoredLine "===============================================================================" $Colors.Success
+Write-ColoredLine "                        TaskHero AI Setup Complete!                       " $Colors.Success
+Write-ColoredLine "===============================================================================" $Colors.Success
 Write-Host ""
 Write-Success "Installation and configuration completed successfully!"
 Write-Host ""
-Write-ColoredLine "🚀 To start the application, run:" $Colors.Info
+Write-ColoredLine "To start the application, run:" $Colors.Info
 Write-ColoredLine "   venv\Scripts\Activate.ps1" $Colors.Text
 Write-ColoredLine "   python app.py" $Colors.Text
 Write-Host ""
-Write-ColoredLine "📁 Setup status has been saved to .taskhero_setup.json" $Colors.Info
-Write-ColoredLine "🔄 To force re-run all steps, use: .\setup_windows.ps1 -Force" $Colors.Info
-Write-ColoredLine "📖 For more information, see the README.md file" $Colors.Info
+Write-ColoredLine "Setup status has been saved to .taskhero_setup.json" $Colors.Info
+Write-ColoredLine "To force re-run all steps, use: .\setup_windows_fixed.ps1 -Force" $Colors.Info
+Write-ColoredLine "For more information, see the README.md file" $Colors.Info
 Write-Host ""
 
 # Auto-start TaskHero AI
 Write-Host ""
-Write-ColoredLine "═══════════════════════════════════════════════════════════════════════════════" $Colors.Primary
-Write-ColoredLine "                          🚀 Starting TaskHero AI... 🚀                        " $Colors.Primary
-Write-ColoredLine "═══════════════════════════════════════════════════════════════════════════════" $Colors.Primary
+Write-ColoredLine "===============================================================================" $Colors.Primary
+Write-ColoredLine "                          Starting TaskHero AI...                        " $Colors.Primary
+Write-ColoredLine "===============================================================================" $Colors.Primary
 Write-Host ""
 
 try {
@@ -647,9 +642,9 @@ try {
 }
 
 Write-Host ""
-Write-ColoredLine "═══════════════════════════════════════════════════════════════════════════════" $Colors.Accent
-Write-ColoredLine "                     🙏 Thank you for using TaskHero AI! 🙏                     " $Colors.Accent
-Write-ColoredLine "                        Setup completed successfully. ✨                         " $Colors.Accent
-Write-ColoredLine "═══════════════════════════════════════════════════════════════════════════════" $Colors.Accent
+Write-ColoredLine "===============================================================================" $Colors.Accent
+Write-ColoredLine "                     Thank you for using TaskHero AI!                     " $Colors.Accent
+Write-ColoredLine "                        Setup completed successfully.                         " $Colors.Accent
+Write-ColoredLine "===============================================================================" $Colors.Accent
 
 Read-Host "Press Enter to exit"

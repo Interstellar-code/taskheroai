@@ -3,10 +3,10 @@
   "created": "2025-05-25T21:27:08.550110",
   "last_updated": "2025-05-26T14:33:10.823020",
   "repository_type": "central",
-  "codebase_path": "1",
-  "task_storage_path": "2",
-  "api_usage_enabled": "true",
-  "api_providers_configured": "true",
+  "codebase_path": "C:\\laragon\\www\\taskheroai",
+  "task_storage_path": "C:\\laragon\\www\\taskheroai\\theherotasks",
+  "api_usage_enabled": true,
+  "api_providers_configured": true,
   "last_directory": "C:\\laragon\\www\\taskheroai",
   "recent_projects": [
     {
