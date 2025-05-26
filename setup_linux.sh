@@ -124,7 +124,7 @@ fi
 # Upgrade pip
 echo ""
 printf "${YELLOW}[STEP 3] Upgrading pip...${NC}\n"
-python -m pip install --upgrade pip
+venv/bin/python -m pip install --upgrade pip
 if [ $? -ne 0 ]; then
     printf "${YELLOW}[WARNING] Failed to upgrade pip, but continuing with installation.${NC}\n"
 fi
@@ -132,12 +132,52 @@ fi
 # Install dependencies
 echo ""
 printf "${YELLOW}[STEP 4] Installing dependencies...${NC}\n"
-pip install -r requirements.txt
+printf "${BLUE}[INFO] Installing dependencies using virtual environment Python...${NC}\n"
+printf "${BLUE}[INFO] This may take several minutes depending on your internet connection...${NC}\n"
+
+# Use virtual environment Python and pip explicitly
+venv/bin/python -m pip install -r requirements.txt --no-cache-dir
 if [ $? -ne 0 ]; then
     printf "${RED}[ERROR] Failed to install dependencies.${NC}\n"
+    echo "Please check your internet connection and try again."
+    echo "You can also try running: venv/bin/python -m pip install -r requirements.txt"
     exit 1
 fi
-printf "${GREEN}[SUCCESS] Dependencies installed.${NC}\n"
+
+printf "${GREEN}[SUCCESS] Dependencies installed successfully.${NC}\n"
+
+# Verify key dependencies
+echo ""
+printf "${BLUE}[INFO] Verifying key dependencies...${NC}\n"
+
+venv/bin/python -c "import colorama; print('colorama: OK')" >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+    printf "${GREEN}[SUCCESS] colorama verified${NC}\n"
+else
+    printf "${RED}[ERROR] colorama verification failed${NC}\n"
+    echo "Dependencies may not have installed correctly"
+    exit 1
+fi
+
+venv/bin/python -c "import requests; print('requests: OK')" >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+    printf "${GREEN}[SUCCESS] requests verified${NC}\n"
+else
+    printf "${RED}[ERROR] requests verification failed${NC}\n"
+    echo "Dependencies may not have installed correctly"
+    exit 1
+fi
+
+venv/bin/python -c "import rich; print('rich: OK')" >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+    printf "${GREEN}[SUCCESS] rich verified${NC}\n"
+else
+    printf "${RED}[ERROR] rich verification failed${NC}\n"
+    echo "Dependencies may not have installed correctly"
+    exit 1
+fi
+
+printf "${GREEN}[SUCCESS] All key dependencies verified successfully.${NC}\n"
 
 # Check if Ollama is installed
 echo ""
@@ -296,5 +336,22 @@ read -p "Would you like to run TaskHero AI now? (y/n): " RUN_APP
 if [ "$RUN_APP" = "y" ] || [ "$RUN_APP" = "Y" ]; then
     echo ""
     echo "Starting TaskHero AI..."
-    python app.py
+
+    # Use virtual environment Python to start the app
+    if [ -f "venv/bin/python" ]; then
+        printf "${BLUE}[INFO] Starting TaskHero AI with virtual environment Python...${NC}\n"
+
+        # Test if dependencies are available before starting
+        venv/bin/python -c "import colorama" >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            printf "${GREEN}[SUCCESS] Dependencies verified - starting application...${NC}\n"
+            venv/bin/python app.py
+        else
+            printf "${RED}[ERROR] Dependencies not found in virtual environment!${NC}\n"
+            echo "Please run the setup script again."
+        fi
+    else
+        printf "${RED}[ERROR] Virtual environment Python not found!${NC}\n"
+        echo "Please run the setup script again."
+    fi
 fi

@@ -226,67 +226,7 @@ function Set-SetupCompleted {
     }
 }
 
-function Install-Dependencies {
-    Write-Info "Installing Python Dependencies..."
-
-    try {
-        # Ensure we're using the virtual environment Python with full path
-        $pythonExe = Join-Path $PWD "venv\Scripts\python.exe"
-        Write-Info "Using Python executable: $pythonExe"
-
-        if (-not (Test-Path $pythonExe)) {
-            Write-Error "Virtual environment Python not found at: $pythonExe"
-            return $false
-        }
-
-        # Verify this is the virtual environment Python
-        $pythonPath = & $pythonExe -c "import sys; print(sys.executable)" 2>&1
-        Write-Info "Python executable path: $pythonPath"
-
-        if (-not ($pythonPath -like "*venv*")) {
-            Write-Warning "Python may not be from virtual environment: $pythonPath"
-        }
-
-        Write-Info "Upgrading pip in virtual environment..."
-        & $pythonExe -m pip install --upgrade pip
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Pip upgrade failed, but continuing..."
-        } else {
-            Write-Success "Pip upgraded successfully"
-        }
-
-        if (Test-Path "requirements.txt") {
-            Write-Info "Installing dependencies from requirements.txt..."
-            Write-Info "This may take a few minutes..."
-            & $pythonExe -m pip install -r requirements.txt
-
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "Dependencies installed successfully"
-
-                # Verify a key dependency was installed
-                $coloramaTest = & $pythonExe -c "import colorama; print('colorama installed successfully')" 2>&1
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Success "Dependency verification passed - colorama is available"
-                } else {
-                    Write-Warning "Dependency verification failed - colorama not found"
-                    Write-Info "Test result: $coloramaTest"
-                }
-
-                return $true
-            } else {
-                Write-Error "Failed to install dependencies"
-                return $false
-            }
-        } else {
-            Write-Warning "requirements.txt not found"
-            return $false
-        }
-    } catch {
-        Write-Error "Error during dependency installation: $_"
-        return $false
-    }
-}
+# Install-Dependencies function removed - dependency installation is now inline in Step 4
 
 function Show-ConfigurationWizard {
     Write-Header "Configuration Wizard"
@@ -565,14 +505,106 @@ Write-SectionHeader "Step 4: Installing Dependencies" "Install"
 Show-Progress 4 7 "Installing Python packages..."
 
 if ($Force -or -not (Test-SetupCompleted "dependencies_installed")) {
-    if (-not (Install-Dependencies)) {
-        Write-Error "Failed to install dependencies"
+    Write-Info "Installing Python dependencies..."
+
+    # Use the virtual environment Python directly
+    $pythonExe = Join-Path $PWD "venv\Scripts\python.exe"
+    Write-Info "Using Python: $pythonExe"
+
+    if (-not (Test-Path $pythonExe)) {
+        Write-Error "Virtual environment Python not found at: $pythonExe"
+        Write-Error "Virtual environment setup failed. Please run with -Force to recreate."
         Read-Host "Press Enter to exit"
         exit 1
     }
-    Set-SetupCompleted "dependencies_installed" | Out-Null
+
+    # Verify we have requirements.txt
+    if (-not (Test-Path "requirements.txt")) {
+        Write-Error "requirements.txt not found in current directory"
+        Write-Error "Please ensure you're running this script from the TaskHero AI root directory"
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
+
+    Write-Info "Upgrading pip..."
+    try {
+        & $pythonExe -m pip install --upgrade pip
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Pip upgrade failed, but continuing..."
+        } else {
+            Write-Success "Pip upgraded successfully"
+        }
+    } catch {
+        Write-Warning "Pip upgrade encountered an error: $_"
+    }
+
+    Write-Info "Installing dependencies from requirements.txt..."
+    Write-Info "This may take several minutes depending on your internet connection..."
+
+    try {
+        # Install with verbose output and no cache to avoid issues
+        & $pythonExe -m pip install -r requirements.txt --no-cache-dir --verbose
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Dependencies installed successfully"
+
+            # Verify key dependencies
+            Write-Info "Verifying key dependencies..."
+            $keyDeps = @("colorama", "requests", "rich", "python-dotenv")
+            $allGood = $true
+
+            foreach ($dep in $keyDeps) {
+                $testCmd = if ($dep -eq "python-dotenv") { "dotenv" } else { $dep }
+                $testResult = & $pythonExe -c "import $testCmd; print('${dep}: OK')" 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "✓ $dep"
+                } else {
+                    Write-Error "✗ $dep - $testResult"
+                    $allGood = $false
+                }
+            }
+
+            if ($allGood) {
+                Write-Success "All key dependencies verified successfully"
+                Set-SetupCompleted "dependencies_installed" | Out-Null
+            } else {
+                Write-Error "Some dependencies failed verification"
+                Write-Info "Please check the error messages above and try running with -Force"
+                Read-Host "Press Enter to exit"
+                exit 1
+            }
+        } else {
+            Write-Error "Failed to install dependencies (exit code: $LASTEXITCODE)"
+            Write-Info "Please check your internet connection and try again"
+            Write-Info "You can also try running: $pythonExe -m pip install -r requirements.txt"
+            Read-Host "Press Enter to exit"
+            exit 1
+        }
+    } catch {
+        Write-Error "Error during dependency installation: $_"
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
 } else {
     Write-Success "Dependencies already installed - skipping"
+
+    # Still verify they're actually there
+    $pythonExe = Join-Path $PWD "venv\Scripts\python.exe"
+    if (Test-Path $pythonExe) {
+        $coloramaTest = & $pythonExe -c "import colorama; print('verified')" 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Dependencies marked as installed but verification failed"
+            Write-Info "Re-installing dependencies..."
+            & $pythonExe -m pip install -r requirements.txt --no-cache-dir
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "Dependencies re-installed successfully"
+            } else {
+                Write-Error "Failed to re-install dependencies"
+                Read-Host "Press Enter to exit"
+                exit 1
+            }
+        }
+    }
 }
 
 # Step 5: Environment Configuration

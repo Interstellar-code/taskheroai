@@ -70,7 +70,7 @@ check_python() {
         local version=$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
         local major=$(echo $version | cut -d. -f1)
         local minor=$(echo $version | cut -d. -f2)
-        
+
         if [ "$major" -eq 3 ] && [ "$minor" -ge 8 ]; then
             return 0
         elif [ "$major" -gt 3 ]; then
@@ -84,7 +84,7 @@ check_python() {
 install_git() {
     print_colored $YELLOW "Git is required but not installed."
     echo ""
-    
+
     if [[ "$OSTYPE" == "darwin"* ]]; then
         print_colored $BLUE "On macOS, you can install Git using:"
         print_colored $WHITE "  brew install git"
@@ -95,10 +95,10 @@ install_git() {
         print_colored $WHITE "  CentOS/RHEL: sudo yum install git"
         print_colored $WHITE "  Fedora: sudo dnf install git"
     fi
-    
+
     echo ""
     read -p "Press Enter after installing Git to continue, or Ctrl+C to exit..."
-    
+
     if ! check_git; then
         print_colored $RED "Git is still not available. Please install Git and run this script again."
         exit 1
@@ -109,7 +109,7 @@ install_git() {
 install_python() {
     print_colored $YELLOW "Python 3.8+ is required but not installed or not the correct version."
     echo ""
-    
+
     if [[ "$OSTYPE" == "darwin"* ]]; then
         print_colored $BLUE "On macOS, you can install Python using:"
         print_colored $WHITE "  brew install python3"
@@ -120,10 +120,10 @@ install_python() {
         print_colored $WHITE "  CentOS/RHEL: sudo yum install python3 python3-pip"
         print_colored $WHITE "  Fedora: sudo dnf install python3 python3-pip"
     fi
-    
+
     echo ""
     read -p "Press Enter after installing Python 3.8+ to continue, or Ctrl+C to exit..."
-    
+
     if ! check_python; then
         print_colored $RED "Python 3.8+ is still not available. Please install Python and run this script again."
         exit 1
@@ -217,7 +217,7 @@ print_section_header "Step 2: Repository Setup" "📥"
 if [ -d "$PROJECT_PATH" ]; then
     print_colored $BLUE "Updating existing repository..."
     cd "$PROJECT_PATH" || exit 1
-    
+
     if git fetch origin && git pull origin master; then
         print_colored $GREEN "✓ Repository updated successfully"
     else
@@ -226,7 +226,7 @@ if [ -d "$PROJECT_PATH" ]; then
 else
     print_colored $BLUE "Cloning TaskHero AI repository..."
     cd "$TARGET_DIR" || exit 1
-    
+
     if git clone "$REPO_URL"; then
         print_colored $GREEN "✓ Repository cloned successfully"
         cd "$PROJECT_PATH" || exit 1
@@ -243,11 +243,17 @@ SETUP_SCRIPT="setup_linux.sh"
 if [ -f "$SETUP_SCRIPT" ]; then
     print_colored $BLUE "Running main setup script..."
     chmod +x "$SETUP_SCRIPT"
-    
-    if ./"$SETUP_SCRIPT"; then
+
+    # Run the setup script and capture its exit code
+    ./"$SETUP_SCRIPT"
+    SETUP_EXIT_CODE=$?
+
+    if [ $SETUP_EXIT_CODE -eq 0 ]; then
         print_colored $GREEN "✓ TaskHero AI setup completed successfully!"
     else
-        print_colored $YELLOW "⚠ Setup completed with some warnings"
+        print_colored $RED "✗ Setup failed with exit code: $SETUP_EXIT_CODE"
+        print_colored $BLUE "Please check the error messages above and try again."
+        exit 1
     fi
 else
     print_colored $RED "✗ Setup script not found in the repository"

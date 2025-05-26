@@ -347,12 +347,60 @@ if %FORCE_SETUP% equ 0 (
     )
 )
 
-pip install -r requirements.txt
+echo [INFO] Installing dependencies using virtual environment Python...
+echo [INFO] This may take several minutes depending on your internet connection...
+
+:: Use the virtual environment Python and pip explicitly
+venv\Scripts\python.exe -m pip install --upgrade pip
+if %errorlevel% neq 0 (
+    echo [WARNING] Pip upgrade failed, but continuing...
+)
+
+:: Install dependencies with no cache to avoid issues
+venv\Scripts\python.exe -m pip install -r requirements.txt --no-cache-dir
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to install dependencies.
+    echo [INFO] Please check your internet connection and try again.
+    echo [INFO] You can also try running: venv\Scripts\python.exe -m pip install -r requirements.txt
+    pause
     exit /b 1
 )
-echo [SUCCESS] Dependencies installed.
+
+echo [SUCCESS] Dependencies installed successfully.
+
+:: Verify key dependencies
+echo [INFO] Verifying key dependencies...
+venv\Scripts\python.exe -c "import colorama; print('colorama: OK')" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [SUCCESS] colorama verified
+) else (
+    echo [ERROR] colorama verification failed
+    echo [INFO] Dependencies may not have installed correctly
+    pause
+    exit /b 1
+)
+
+venv\Scripts\python.exe -c "import requests; print('requests: OK')" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [SUCCESS] requests verified
+) else (
+    echo [ERROR] requests verification failed
+    echo [INFO] Dependencies may not have installed correctly
+    pause
+    exit /b 1
+)
+
+venv\Scripts\python.exe -c "import rich; print('rich: OK')" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [SUCCESS] rich verified
+) else (
+    echo [ERROR] rich verification failed
+    echo [INFO] Dependencies may not have installed correctly
+    pause
+    exit /b 1
+)
+
+echo [SUCCESS] All key dependencies verified successfully.
 call :mark_setup_completed "dependencies_installed"
 
 :skip_dependency_install
@@ -787,7 +835,26 @@ if %PYTHON_AVAILABLE% equ 1 (
     echo   Setup complete! Starting TaskHero AI automatically...
     echo ================================================================================
     echo.
-    python app.py
+
+    :: Use virtual environment Python to start the app
+    if exist "venv\Scripts\python.exe" (
+        echo [INFO] Starting TaskHero AI with virtual environment Python...
+
+        :: Test if dependencies are available before starting
+        venv\Scripts\python.exe -c "import colorama" >nul 2>&1
+        if %errorlevel% equ 0 (
+            echo [SUCCESS] Dependencies verified - starting application...
+            venv\Scripts\python.exe app.py
+        ) else (
+            echo [ERROR] Dependencies not found in virtual environment!
+            echo [INFO] Please run the setup script again with --force flag.
+            pause
+        )
+    ) else (
+        echo [ERROR] Virtual environment Python not found!
+        echo [INFO] Please run the setup script again with --force flag.
+        pause
+    )
 ) else (
     echo.
     echo ================================================================================
