@@ -176,11 +176,10 @@ function Test-PythonInstallation {
 }
 
 function Test-VirtualEnvironment {
-    if (Test-Path "venv\Scripts\activate.ps1") {
-        Write-Success "Virtual environment found"
+    # Check for the actual Python executable, not just the activation script
+    if (Test-Path "venv\Scripts\python.exe") {
         return $true
     } else {
-        Write-Info "Virtual environment not found"
         return $false
     }
 }
@@ -228,15 +227,26 @@ function Set-SetupCompleted {
 }
 
 function Install-Dependencies {
-    Write-SectionHeader "Installing Python Dependencies" "Package"
+    Write-Info "Installing Python Dependencies..."
 
     try {
-        Write-Info "Upgrading pip..."
-        & python -m pip install --upgrade pip
+        # Ensure we're using the virtual environment Python
+        $pythonExe = "venv\Scripts\python.exe"
+        if (-not (Test-Path $pythonExe)) {
+            Write-Error "Virtual environment Python not found at: $pythonExe"
+            return $false
+        }
+
+        Write-Info "Upgrading pip in virtual environment..."
+        & $pythonExe -m pip install --upgrade pip
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Pip upgrade failed, but continuing..."
+        }
 
         if (Test-Path "requirements.txt") {
             Write-Info "Installing dependencies from requirements.txt..."
-            & python -m pip install -r requirements.txt
+            & $pythonExe -m pip install -r requirements.txt
 
             if ($LASTEXITCODE -eq 0) {
                 Write-Success "Dependencies installed successfully"
@@ -442,8 +452,17 @@ if (-not (Test-PythonInstallation)) {
 Write-SectionHeader "Step 2: Virtual Environment Setup" "VEnv"
 Show-Progress 2 7 "Setting up virtual environment..."
 
-if ($Force -or -not (Test-SetupCompleted "venv_created")) {
-    if (-not (Test-VirtualEnvironment)) {
+# Always check if virtual environment actually exists in current directory
+$venvExists = Test-VirtualEnvironment
+$setupCompleted = Test-SetupCompleted "venv_created"
+
+# Debug information for troubleshooting
+Write-Info "Virtual environment exists in current directory: $venvExists"
+Write-Info "Setup completion status: $setupCompleted"
+Write-Info "Current directory: $PWD"
+
+if ($Force -or -not $venvExists) {
+    if (-not $venvExists) {
         Write-Info "Creating virtual environment..."
         & python -m venv venv
 
@@ -460,18 +479,60 @@ if ($Force -or -not (Test-SetupCompleted "venv_created")) {
         Set-SetupCompleted "venv_created" | Out-Null
     }
 } else {
-    Write-Success "Virtual environment setup already completed - skipping"
+    if ($setupCompleted -and $venvExists) {
+        Write-Success "Virtual environment setup already completed - skipping"
+    } else {
+        # Setup was marked complete but venv doesn't exist - recreate it
+        Write-Warning "Virtual environment marked as complete but not found in current directory"
+        Write-Info "This can happen when running setup in different repository directories"
+        Write-Info "Recreating virtual environment for this repository..."
+        & python -m venv venv
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Virtual environment created successfully"
+            Set-SetupCompleted "venv_created" | Out-Null
+        } else {
+            Write-Error "Failed to create virtual environment"
+            Read-Host "Press Enter to exit"
+            exit 1
+        }
+    }
 }
 
 # Step 3: Activate Virtual Environment
 Write-SectionHeader "Step 3: Activating Virtual Environment" "Activate"
 Show-Progress 3 7 "Activating virtual environment..."
 
+# Check if virtual environment exists
+$venvPython = "venv\Scripts\python.exe"
+Write-Info "Checking for virtual environment Python at: $venvPython"
+
+if (-not (Test-Path $venvPython)) {
+    Write-Error "Virtual environment Python not found at: $venvPython"
+    Write-Info "This indicates the virtual environment was not created properly"
+    Write-Info "Please run the script with -Force to recreate the virtual environment"
+    Read-Host "Press Enter to exit"
+    exit 1
+} else {
+    Write-Success "Virtual environment Python found"
+}
+
+# Set environment variables to use the virtual environment
+$env:VIRTUAL_ENV = Join-Path $PWD "venv"
+$env:PATH = "$env:VIRTUAL_ENV\Scripts;$env:PATH"
+
+# Verify activation by checking Python path
 try {
-    & "venv\Scripts\Activate.ps1"
-    Write-Success "Virtual environment activated"
+    $pythonPath = & python -c "import sys; print(sys.executable)" 2>&1
+    if ($pythonPath -like "*venv*") {
+        Write-Success "Virtual environment activated successfully"
+        Write-Info "Using Python: $pythonPath"
+    } else {
+        Write-Warning "Virtual environment may not be properly activated"
+        Write-Info "Python path: $pythonPath"
+    }
 } catch {
-    Write-Error "Failed to activate virtual environment: $_"
+    Write-Error "Failed to verify virtual environment activation: $_"
     Read-Host "Press Enter to exit"
     exit 1
 }
@@ -635,7 +696,15 @@ Write-ColoredLine "=============================================================
 Write-Host ""
 
 try {
-    & python app.py
+    # Use the virtual environment Python to start the app
+    $pythonExe = "venv\Scripts\python.exe"
+    if (Test-Path $pythonExe) {
+        Write-Info "Starting TaskHero AI with virtual environment Python..."
+        & $pythonExe app.py
+    } else {
+        Write-Warning "Virtual environment Python not found, trying system Python..."
+        & python app.py
+    }
 } catch {
     Write-Error "Failed to start TaskHero AI: $_"
     Read-Host "Press Enter to exit"

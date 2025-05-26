@@ -262,14 +262,22 @@ if %FORCE_SETUP% equ 0 (
 
 if exist venv (
     echo [INFO] Virtual environment directory exists. Checking if it's valid...
-    call venv\Scripts\activate >nul 2>&1
-    if !errorlevel! equ 0 (
-        call deactivate >nul 2>&1
-        echo [INFO] Valid virtual environment found. Skipping creation.
-        call :mark_setup_completed "venv_created"
-        goto :skip_venv_creation
+    echo [INFO] Current directory: %CD%
+    echo [INFO] Checking for: %CD%\venv\Scripts\python.exe
+
+    if exist "venv\Scripts\python.exe" (
+        call venv\Scripts\activate >nul 2>&1
+        if !errorlevel! equ 0 (
+            call deactivate >nul 2>&1
+            echo [SUCCESS] Valid virtual environment found. Skipping creation.
+            call :mark_setup_completed "venv_created"
+            goto :skip_venv_creation
+        ) else (
+            echo [WARNING] Virtual environment directory exists but activation failed. Recreating...
+            rmdir /s /q venv
+        )
     ) else (
-        echo [WARNING] Invalid virtual environment found. Recreating...
+        echo [WARNING] Virtual environment directory exists but Python executable not found. Recreating...
         rmdir /s /q venv
     )
 )

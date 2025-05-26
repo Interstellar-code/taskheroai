@@ -2,7 +2,7 @@
   "project_name": "TaskHeroAI Project",
   "default_task_template": "task-template.md",
   "task_id_prefix": "TASK",
-  "task_id_counter": 18,
+  "task_id_counter": 80,
   "statuses": {
     "todo": "To Do",
     "inprogress": "In Progress",

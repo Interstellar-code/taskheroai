@@ -48,6 +48,9 @@ class CLIManager(BaseManager):
         self.recent_projects = []
         self.project_info = {}
 
+        # Git integration (TASK-080)
+        self.git_manager = None
+
     def _perform_initialization(self) -> None:
         """Initialize the CLI manager."""
         # Initialize indexer components if we have a last directory
@@ -82,6 +85,13 @@ class CLIManager(BaseManager):
         # Initialize project management components (TASK-005)
         self._initialize_project_management()
 
+        # Initialize Git integration (TASK-080)
+        self._initialize_git_integration()
+
+        # Pass Git manager to UI manager if available
+        if self.ui_manager and self.git_manager:
+            self.ui_manager.git_manager = self.git_manager
+
         self.logger.info("CLI Manager initialized")
         self.update_status("cli_ready", True)
 
@@ -114,6 +124,33 @@ class CLIManager(BaseManager):
             self.logger.warning(f"Project management components not available: {e}")
             # This is not critical, so we continue without PM features
 
+    def _initialize_git_integration(self) -> None:
+        """Initialize Git integration components."""
+        try:
+            from ..git import GitManager
+
+            # Initialize Git manager with settings manager
+            self.git_manager = GitManager(self.settings_manager)
+            self.git_manager.initialize()
+
+            # Perform startup version check if enabled
+            if self.git_manager.is_initialized:
+                git_settings = self.git_manager._get_git_settings()
+                if git_settings.get("auto_check_enabled", True):
+                    try:
+                        # Perform background version check
+                        update_result = self.git_manager.check_for_updates(force_check=False)
+                        if update_result.get("success") and update_result.get("update_available"):
+                            self.logger.info("Update available - will be shown in main menu")
+                    except Exception as e:
+                        self.logger.debug(f"Startup version check failed: {e}")
+
+            self.logger.info("Git integration initialized")
+
+        except Exception as e:
+            self.logger.warning(f"Git integration not available: {e}")
+            # This is not critical, so we continue without Git features
+
     def run_main_loop(self) -> None:
         """Run the main application loop."""
         if not self.is_initialized:
@@ -126,7 +163,16 @@ class CLIManager(BaseManager):
             while self.running:
                 # Update menu state
                 if self.ui_manager:
-                    self.ui_manager.set_application_state(self.indexer, self.index_outdated)
+                    # Get update information if Git manager is available
+                    update_info = None
+                    if self.git_manager:
+                        try:
+                            status = self.git_manager.get_update_status()
+                            update_info = status.get("last_check")
+                        except Exception as e:
+                            self.logger.debug(f"Error getting update status: {e}")
+
+                    self.ui_manager.set_application_state(self.indexer, self.index_outdated, update_info)
                     self.ui_manager.display_main_menu()
 
                     choice = self.ui_manager.get_user_choice()
@@ -2384,7 +2430,7 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
 
             # Create AI settings manager and UI
             ai_settings_manager = AISettingsManager()
-            ai_settings_ui = AISettingsUI(ai_settings_manager)
+            ai_settings_ui = AISettingsUI(ai_settings_manager, self.git_manager)
 
             # Initialize
             ai_settings_ui.initialize()

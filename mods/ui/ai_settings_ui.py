@@ -15,15 +15,17 @@ from ..settings import AISettingsManager
 class AISettingsUI(BaseManager):
     """User interface for AI settings management."""
 
-    def __init__(self, ai_settings_manager: Optional[AISettingsManager] = None):
+    def __init__(self, ai_settings_manager: Optional[AISettingsManager] = None, git_manager=None):
         """
         Initialize the AI Settings UI.
 
         Args:
             ai_settings_manager: AI settings manager instance
+            git_manager: Git manager instance for update settings
         """
         super().__init__("AISettingsUI")
         self.ai_settings_manager = ai_settings_manager or AISettingsManager()
+        self.git_manager = git_manager
 
     def _perform_initialization(self) -> None:
         """Initialize the AI Settings UI."""
@@ -86,6 +88,11 @@ class AISettingsUI(BaseManager):
         print(f"10. {Style.BRIGHT}🔄 Reset to Defaults{Style.RESET_ALL}")
         print(f"11. {Style.BRIGHT}💾 Export/Import Settings{Style.RESET_ALL}")
 
+        # Git & Updates Section
+        print(Fore.CYAN + "-" * 70 + Style.RESET_ALL)
+        print(Fore.CYAN + Style.BRIGHT + "🔄 Git & Updates" + Style.RESET_ALL)
+        print(f"15. {Style.BRIGHT}🔄 Git & Updates Configuration{Style.RESET_ALL} {Fore.CYAN}(Auto-update settings){Style.RESET_ALL}")
+
         print(Fore.CYAN + "-" * 70 + Style.RESET_ALL)
         print(f"0. {Style.BRIGHT}🔙 Back to Main Menu{Style.RESET_ALL}")
 
@@ -127,10 +134,12 @@ class AISettingsUI(BaseManager):
                     await self.reset_provider_defaults()
                 elif choice == "11":
                     await self.handle_export_import()
+                elif choice == "15":
+                    await self.handle_git_settings()
                 elif choice == "0":
                     break
                 else:
-                    print(f"{Fore.RED}Invalid choice. Please enter 1-11 or 0 to go back.{Style.RESET_ALL}")
+                    print(f"{Fore.RED}Invalid choice. Please enter 1-11, 15, or 0 to go back.{Style.RESET_ALL}")
                     input(f"{Fore.YELLOW}Press Enter to continue...{Style.RESET_ALL}")
 
             except KeyboardInterrupt:
@@ -817,5 +826,30 @@ class AISettingsUI(BaseManager):
         else:
             print(f"{Fore.YELLOW}Assignment cancelled.{Style.RESET_ALL}")
             return False
+
+    async def handle_git_settings(self) -> None:
+        """Handle Git & Updates settings."""
+        if not self.git_manager:
+            print(f"\n{Fore.RED}Git manager not available. Git integration is not enabled.{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+            return
+
+        try:
+            # Import and create Git Settings UI
+            from .git_settings_ui import GitSettingsUI
+
+            git_settings_ui = GitSettingsUI(self.git_manager)
+            git_settings_ui.initialize()
+
+            # Run the Git settings menu
+            await git_settings_ui.handle_git_settings_menu()
+
+        except ImportError as e:
+            print(f"\n{Fore.RED}Git settings UI not available: {e}{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+        except Exception as e:
+            self.logger.error(f"Error in Git settings: {e}")
+            print(f"\n{Fore.RED}Error accessing Git settings: {e}{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
 
         input(f"\n{Fore.YELLOW}Press Enter to continue...{Style.RESET_ALL}")

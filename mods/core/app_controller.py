@@ -82,6 +82,7 @@ class ApplicationController(BaseManager):
     def _initialize_ui(self) -> None:
         """Initialize UI managers."""
         self.logger.info("Initializing UI managers...")
+        # Note: Git manager will be passed from CLI manager after it's initialized
         self.ui_manager = MenuManager(self.settings_manager)
         self.ui_manager.initialize()
         self.display_manager = DisplayManager(self.settings_manager)
