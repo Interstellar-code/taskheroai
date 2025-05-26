@@ -11,13 +11,15 @@ import json
 import logging
 import re
 import time
+import asyncio
 from typing import Dict, List, Optional, Any, Tuple
 
 from colorama import Fore, Style
 
 from ..core import BaseComponent
-from ..llms import generate_response, get_current_provider
+from ..llms import get_current_provider
 from ..code.tools import CodebaseTools
+from .providers.provider_factory import ProviderFactory
 
 
 class AgentMode(BaseComponent):
@@ -41,7 +43,7 @@ During the Information Gathering stage, you should:
 - Consider alternative approaches if initial tools don't yield useful results
 - Prioritize depth of understanding over breadth when appropriate
 - Always perform case-insensitive searches by default to ensure you find all relevant results
-- Combine tools when necessary for comprehensive analysis (e.g., use semantic_search followed by cross_reference)
+- Combine tools when necessary for comprehensive analysis (e.g., use embed_search followed by read_file)
 - When searching for text, consider all case variations (lowercase and uppercase) to yield better results
 
 You will be provided with the current directory structure. Use this to inform your tool usage, especially for file paths.
@@ -56,13 +58,11 @@ Available tools are organized by category for easier reference:
     - Best for concept-based queries and finding relevant code snippets
     - Example: embed_search("user authentication") or embed_search("database connection", 10)
 
-2.  semantic_search(query: str, max_results: int = 5, search_mode: str = "comprehensive") - Perform a semantic search with enhanced understanding of code concepts.
-    - query: The search query in natural language
-    - max_results: Maximum number of results to return (default: 5)
-    - search_mode: Search mode - "comprehensive", "function", "class", "comment" (default: "comprehensive")
-    - Returns: List of semantically relevant results with file paths, context, and relevance explanations
-    - Best for understanding code concepts and finding related code across the codebase
-    - Example: semantic_search("authentication flow", 5, "comprehensive")
+2.  directory_tree(max_depth: int = None) - Get directory structure and file listing.
+    - max_depth: Optional maximum depth to display (default: None for full tree)
+    - Returns: Dictionary with tree structure, file count, and directory count
+    - Best for understanding project structure and finding files
+    - Example: directory_tree() or directory_tree(2)
 
 3.  grep(search_pattern: str, file_pattern: str = None) - Search the codebase using regex patterns.
     - search_pattern: The regex pattern to search for
@@ -81,13 +81,12 @@ Available tools are organized by category for easier reference:
     - Returns: List of matches with file paths, line numbers, and context
     - Example: regex_advanced_search("auth.*token", "*.py", case_sensitive=False, whole_word=True)
 
-5.  file_type_search(search_pattern: str, file_extensions: List[str], case_sensitive: bool = False) - Search for a pattern in specific file types.
-    - search_pattern: The pattern to search for
-    - file_extensions: List of file extensions to search in (e.g., [".py", ".js"])
-    - case_sensitive: Whether the search is case sensitive (default: False)
-    - Returns: List of matches with file paths, line numbers, and language information
-    - Best for searching across specific file types or languages
-    - Example: file_type_search("function", [".js", ".ts"], case_sensitive=False)
+5.  find_functions(pattern: str, file_pattern: str = None) - Find function definitions matching a pattern.
+    - pattern: The pattern to search for in function names
+    - file_pattern: Optional filter for specific file types
+    - Returns: List of function definitions with file paths, line numbers, and signatures
+    - Best for finding specific functions or function patterns
+    - Example: find_functions("process_data") or find_functions("auth", "*.py")
 
 # FILE TOOLS
 
@@ -136,6 +135,8 @@ Your thought process for each step should be enclosed in <thinking>...</thinking
         self.directory_tree_cache = None
         self.max_retries = 3
         self.retry_delay_base = 1.0  # Base delay for exponential backoff
+        self.provider_factory = ProviderFactory()
+        self.current_provider = None
 
         if self.tools and self.tools.similarity_search:
             if hasattr(self.indexer, "similarity_search") and self.tools.similarity_search is self.indexer.similarity_search:
@@ -150,6 +151,22 @@ Your thought process for each step should be enclosed in <thinking>...</thinking
         self.logger.info("Agent Mode initialized with full functionality")
         if not self.tools:
             self.logger.warning("Agent Mode initialized without tools - indexer may be missing")
+
+    async def _get_or_create_provider(self):
+        """Get or create the AI provider instance."""
+        if self.current_provider is None:
+            try:
+                # Get the best available provider
+                provider_type = await self.provider_factory.get_best_available_provider()
+                if provider_type:
+                    self.current_provider = await self.provider_factory.get_or_create_provider(provider_type)
+                    self.logger.info(f"Agent mode using provider: {provider_type}")
+                else:
+                    raise Exception("No working AI providers available")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize AI provider: {e}")
+                raise
+        return self.current_provider
 
     def add_to_history(self, role: str, content: str) -> None:
         """Add a message to the chat history.
@@ -167,8 +184,14 @@ Your thought process for each step should be enclosed in <thinking>...</thinking
             Tuple[str, str]: Provider name and model name
         """
         try:
-            provider, model = get_current_provider()
-            return provider or "Unknown", model or "Unknown"
+            if self.current_provider:
+                provider_name = self.current_provider.name
+                model_name = getattr(self.current_provider, 'model', 'Unknown')
+                return provider_name, model_name
+            else:
+                # Fallback to old method
+                provider, model = get_current_provider()
+                return provider or "Unknown", model or "Unknown"
         except Exception as e:
             self.logger.warning(f"Failed to get provider info: {e}")
             return "Unknown", "Unknown"
@@ -239,26 +262,27 @@ Your thought process for each step should be enclosed in <thinking>...</thinking
         # Attempt to process with retry logic
         for attempt in range(1, self.max_retries + 1):
             try:
-                # Prepare messages for the AI
-                messages = [
-                    {"role": "system", "content": self.SYSTEM_PROMPT},
-                    {"role": "user", "content": f"User query: {query}"}
-                ]
+                # Get or create the AI provider
+                provider = await self._get_or_create_provider()
 
-                # Generate response using the configured provider
-                response = generate_response(
-                    messages=messages,
-                    parse_thinking=False,
-                    use_memory=False,
-                    add_to_memory=False
+                # Prepare the prompt
+                full_prompt = f"{self.SYSTEM_PROMPT}\n\nUser query: {query}"
+
+                # Generate response using the new provider system
+                response = await provider.generate_response(
+                    prompt=full_prompt,
+                    max_tokens=4000,
+                    temperature=0.7
                 )
 
-                # Handle the response (simplified for now - full tool execution would be added here)
-                if isinstance(response, tuple):
-                    # If response is a tuple (with thinking tokens), get the actual response
-                    actual_response = response[2] if len(response) > 2 else response[0]
-                else:
-                    actual_response = response
+                # The new provider system returns a string directly
+                actual_response = response
+
+                # Check if the response contains tool calls and execute them
+                if self._contains_tool_call(actual_response):
+                    # Execute tools and get updated response
+                    final_response = await self._process_tool_calls(actual_response, query)
+                    actual_response = final_response
 
                 # Add response to history
                 self.add_to_history("assistant", actual_response)
@@ -288,3 +312,199 @@ Your thought process for each step should be enclosed in <thinking>...</thinking
                     else:
                         print(f"{Fore.RED}❌ Agent encountered an error: {e}{Style.RESET_ALL}")
                     break
+
+    def _contains_tool_call(self, response: str) -> bool:
+        """Check if the response contains a tool call request."""
+        return "<tool_call_request>" in response and "</tool_call_request>" in response
+
+    def _extract_tool_call(self, response: str) -> Optional[Dict[str, Any]]:
+        """Extract tool call from response."""
+        import re
+        pattern = r'<tool_call_request>\s*(\{.*?\})\s*</tool_call_request>'
+        match = re.search(pattern, response, re.DOTALL)
+        if match:
+            try:
+                tool_call = json.loads(match.group(1))
+                return tool_call
+            except json.JSONDecodeError as e:
+                self.logger.error(f"Failed to parse tool call JSON: {e}")
+                return None
+        return None
+
+    async def _process_tool_calls(self, response: str, original_query: str) -> str:
+        """Process tool calls in the response and return updated response."""
+        if not self.tools:
+            return response
+
+        max_iterations = 5
+        current_response = response
+
+        for iteration in range(max_iterations):
+            tool_call = self._extract_tool_call(current_response)
+            if not tool_call:
+                break
+
+            # Execute the tool
+            tool_result = self._execute_tool_call(tool_call)
+
+            # Get next action from AI
+            next_response = await self._get_next_action(original_query, tool_call, tool_result, current_response)
+
+            # Check if AI wants to continue or is done
+            if "<task_complete>true</task_complete>" in next_response:
+                # Extract final answer
+                final_answer = self._extract_final_answer(next_response)
+                return final_answer if final_answer else next_response
+
+            current_response = next_response
+
+        return current_response
+
+    def _execute_tool_call(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a single tool call."""
+        if not self.tools:
+            return {"error": "No tools available"}
+
+        tool_name = tool_call.get('name')
+        parameters = tool_call.get('parameters', {})
+
+        # Display tool execution
+        print(f"\n{Fore.YELLOW}🔧 Executing: {tool_name}({parameters}){Style.RESET_ALL}")
+
+        try:
+            # Map tool calls to actual tool methods
+            if tool_name == 'semantic_search':
+                query = parameters.get('query', '')
+                max_results = parameters.get('max_results', 10)
+                search_mode = parameters.get('search_mode', 'comprehensive')
+                # semantic_search doesn't exist, use embed_search instead
+                return self.tools.embed_search(query, max_results)
+            elif tool_name == 'embed_search':
+                query = parameters.get('query', '')
+                max_results = parameters.get('max_results', 10)
+                return self.tools.embed_search(query, max_results)
+            elif tool_name == 'grep':
+                search_pattern = parameters.get('search_pattern', '')
+                file_pattern = parameters.get('file_pattern')
+                return self.tools.grep(search_pattern, file_pattern)
+            elif tool_name == 'regex_advanced_search':
+                search_pattern = parameters.get('search_pattern', '')
+                file_pattern = parameters.get('file_pattern')
+                case_sensitive = parameters.get('case_sensitive', False)
+                whole_word = parameters.get('whole_word', False)
+                include_context = parameters.get('include_context', True)
+                context_lines = parameters.get('context_lines', 2)
+                max_results = parameters.get('max_results', 100)
+                return self.tools.regex_advanced_search(search_pattern, file_pattern, case_sensitive, whole_word, include_context, context_lines, max_results)
+            elif tool_name == 'read_file':
+                path = parameters.get('path', '')
+                line_start = parameters.get('line_start')
+                line_end = parameters.get('line_end')
+                return self.tools.read_file(path, line_start, line_end)
+            elif tool_name == 'file_stats':
+                path = parameters.get('path', '')
+                return self.tools.file_stats(path)
+            elif tool_name == 'directory_tree':
+                max_depth = parameters.get('max_depth')
+                return self.tools.directory_tree(max_depth)
+            elif tool_name == 'find_functions':
+                pattern = parameters.get('pattern', '')
+                file_pattern = parameters.get('file_pattern')
+                return self.tools.find_functions(pattern, file_pattern)
+            elif tool_name == 'find_classes':
+                pattern = parameters.get('pattern', '')
+                file_pattern = parameters.get('file_pattern')
+                return self.tools.find_classes(pattern, file_pattern)
+            elif tool_name == 'code_analysis':
+                path = parameters.get('path', '')
+                return self.tools.code_analysis(path)
+            elif tool_name == 'get_project_description':
+                return self.tools.get_project_description()
+            elif tool_name == 'get_file_description':
+                path = parameters.get('path', '')
+                return self.tools.get_file_description(path)
+            elif tool_name == 'get_file_metadata':
+                path = parameters.get('path', '')
+                return self.tools.get_file_metadata(path)
+            elif tool_name == 'get_functions':
+                file_path = parameters.get('file_path', '')
+                return self.tools.get_functions(file_path)
+            elif tool_name == 'get_classes':
+                file_path = parameters.get('file_path', '')
+                return self.tools.get_classes(file_path)
+            elif tool_name == 'get_variables':
+                file_path = parameters.get('file_path', '')
+                return self.tools.get_variables(file_path)
+            elif tool_name == 'get_imports':
+                file_path = parameters.get('file_path', '')
+                return self.tools.get_imports(file_path)
+            elif tool_name == 'explain_code':
+                path = parameters.get('path', '')
+                line_start = parameters.get('line_start')
+                line_end = parameters.get('line_end')
+                return self.tools.explain_code(path, line_start, line_end)
+            # Handle non-existent tools that AI might try to use
+            elif tool_name == 'list_files':
+                # Convert to directory_tree
+                path = parameters.get('path', '.')
+                recursive = parameters.get('recursive', True)
+                max_depth = None if recursive else 1
+                return self.tools.directory_tree(max_depth)
+            elif tool_name == 'list_directory':
+                # Convert to directory_tree
+                path = parameters.get('path', '.')
+                return self.tools.directory_tree(max_depth=1)
+            elif tool_name == 'file_search':
+                # Convert to embed_search
+                query = parameters.get('query', '')
+                max_results = parameters.get('max_results', 10)
+                return self.tools.embed_search(query, max_results)
+            else:
+                return {"error": f"Unknown tool: {tool_name}. Available tools: embed_search, grep, regex_advanced_search, read_file, file_stats, directory_tree, find_functions, find_classes, code_analysis, get_project_description, get_file_description, get_file_metadata, get_functions, get_classes, get_variables, get_imports, explain_code"}
+
+        except Exception as e:
+            self.logger.error(f"Error executing tool {tool_name}: {e}")
+            return {"error": f"Tool execution failed: {str(e)}"}
+
+    async def _get_next_action(self, original_query: str, tool_call: Dict[str, Any], tool_result: Dict[str, Any], previous_response: str) -> str:
+        """Get the next action from the AI after tool execution."""
+        try:
+            provider = await self._get_or_create_provider()
+
+            prompt = f"""Based on the tool execution result, determine your next action.
+
+Original Query: {original_query}
+
+Previous Response: {previous_response}
+
+Tool Call: {json.dumps(tool_call)}
+
+Tool Result: {json.dumps(tool_result, indent=2)}
+
+If you have enough information to answer the user's query, respond with <task_complete>true</task_complete> followed by your final answer.
+
+If you need more information, provide another <tool_call_request> with the appropriate tool and parameters.
+
+Your response:"""
+
+            response = await provider.generate_response(
+                prompt=prompt,
+                max_tokens=4000,
+                temperature=0.7
+            )
+
+            return response
+
+        except Exception as e:
+            self.logger.error(f"Error getting next action: {e}")
+            return f"<task_complete>true</task_complete>\n\nI encountered an error while processing the tool result: {e}"
+
+    def _extract_final_answer(self, response: str) -> Optional[str]:
+        """Extract the final answer from a response."""
+        import re
+        # Look for content after <task_complete>true</task_complete>
+        pattern = r'<task_complete>true</task_complete>\s*(.*)'
+        match = re.search(pattern, response, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        return None
