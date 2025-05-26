@@ -230,11 +230,21 @@ function Install-Dependencies {
     Write-Info "Installing Python Dependencies..."
 
     try {
-        # Ensure we're using the virtual environment Python
-        $pythonExe = "venv\Scripts\python.exe"
+        # Ensure we're using the virtual environment Python with full path
+        $pythonExe = Join-Path $PWD "venv\Scripts\python.exe"
+        Write-Info "Using Python executable: $pythonExe"
+
         if (-not (Test-Path $pythonExe)) {
             Write-Error "Virtual environment Python not found at: $pythonExe"
             return $false
+        }
+
+        # Verify this is the virtual environment Python
+        $pythonPath = & $pythonExe -c "import sys; print(sys.executable)" 2>&1
+        Write-Info "Python executable path: $pythonPath"
+
+        if (-not ($pythonPath -like "*venv*")) {
+            Write-Warning "Python may not be from virtual environment: $pythonPath"
         }
 
         Write-Info "Upgrading pip in virtual environment..."
@@ -242,14 +252,27 @@ function Install-Dependencies {
 
         if ($LASTEXITCODE -ne 0) {
             Write-Warning "Pip upgrade failed, but continuing..."
+        } else {
+            Write-Success "Pip upgraded successfully"
         }
 
         if (Test-Path "requirements.txt") {
             Write-Info "Installing dependencies from requirements.txt..."
+            Write-Info "This may take a few minutes..."
             & $pythonExe -m pip install -r requirements.txt
 
             if ($LASTEXITCODE -eq 0) {
                 Write-Success "Dependencies installed successfully"
+
+                # Verify a key dependency was installed
+                $coloramaTest = & $pythonExe -c "import colorama; print('colorama installed successfully')" 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Dependency verification passed - colorama is available"
+                } else {
+                    Write-Warning "Dependency verification failed - colorama not found"
+                    Write-Info "Test result: $coloramaTest"
+                }
+
                 return $true
             } else {
                 Write-Error "Failed to install dependencies"
@@ -697,13 +720,39 @@ Write-Host ""
 
 try {
     # Use the virtual environment Python to start the app
-    $pythonExe = "venv\Scripts\python.exe"
+    $pythonExe = Join-Path $PWD "venv\Scripts\python.exe"
+    Write-Info "Current directory: $PWD"
+    Write-Info "Looking for Python at: $pythonExe"
+
     if (Test-Path $pythonExe) {
-        Write-Info "Starting TaskHero AI with virtual environment Python..."
-        & $pythonExe app.py
+        Write-Success "Virtual environment Python found!"
+
+        # Set environment variables to ensure virtual environment is used
+        $env:VIRTUAL_ENV = Join-Path $PWD "venv"
+        $env:PATH = "$env:VIRTUAL_ENV\Scripts;$env:PATH"
+
+        # Verify the Python path before starting
+        $actualPython = & $pythonExe -c "import sys; print(sys.executable)" 2>&1
+        Write-Info "Using Python: $actualPython"
+
+        # Test if colorama is available
+        $coloramaTest = & $pythonExe -c "import colorama; print('colorama available')" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Dependencies verified - colorama is available"
+            Write-Info "Starting TaskHero AI with virtual environment Python..."
+            & $pythonExe app.py
+        } else {
+            Write-Error "Dependencies not found in virtual environment!"
+            Write-Info "Colorama test result: $coloramaTest"
+            Write-Info "This suggests the virtual environment wasn't activated during dependency installation."
+            Write-Info "Please run the setup script again with -Force flag."
+            Read-Host "Press Enter to exit"
+        }
     } else {
-        Write-Warning "Virtual environment Python not found, trying system Python..."
-        & python app.py
+        Write-Error "Virtual environment Python not found at: $pythonExe"
+        Write-Info "This suggests the virtual environment wasn't created properly."
+        Write-Info "Please run the setup script again with -Force flag."
+        Read-Host "Press Enter to exit"
     }
 } catch {
     Write-Error "Failed to start TaskHero AI: $_"
