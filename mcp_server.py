@@ -35,11 +35,11 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler()],
 )
-logger = logging.getLogger("VerbalCodeAI.MCP")
+logger = logging.getLogger("TaskHeroAI.MCP")
 
 mcp = FastMCP(
-    "VerbalCodeAI",
-    description="VerbalCodeAI MCP Server - Interact with your codebase through Claude",
+    "TaskHeroAI",
+    description="TaskHero AI MCP Server - Interact with your codebase through Claude",
     dependencies=["requests", "python-dotenv"],
 )
 
@@ -323,6 +323,143 @@ def get_indexing_status() -> Dict[str, str]:
         return {
             "status": "error",
             "message": f"Error getting indexing status: {str(e)}",
+        }
+
+
+# Task Management Tools
+
+@mcp.tool()
+def get_all_tasks() -> Dict[str, Any]:
+    """Get all tasks organized by status.
+
+    Returns:
+        Dict[str, Any]: All tasks organized by status.
+    """
+    if not is_http_server_running():
+        return {
+            "status": "error",
+            "message": f"HTTP API server is not running at {api_url}. Use start_http_server() to start it.",
+        }
+
+    try:
+        response = requests.get(f"{api_url}/api/tasks")
+        return response.json()
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error getting tasks: {str(e)}",
+        }
+
+
+@mcp.tool()
+def create_task(title: str, content: str = "", priority: str = "medium", status: str = "todo") -> Dict[str, Any]:
+    """Create a new task.
+
+    Args:
+        title (str): Task title.
+        content (str): Task content/description.
+        priority (str): Task priority (low, medium, high, critical).
+        status (str): Task status (backlog, todo, inprogress, testing, devdone, done).
+
+    Returns:
+        Dict[str, Any]: Created task details.
+    """
+    if not is_http_server_running():
+        return {
+            "status": "error",
+            "message": f"HTTP API server is not running at {api_url}. Use start_http_server() to start it.",
+        }
+
+    try:
+        response = requests.post(f"{api_url}/api/tasks", json={
+            "title": title,
+            "content": content,
+            "priority": priority,
+            "status": status
+        })
+        return response.json()
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error creating task: {str(e)}",
+        }
+
+
+@mcp.tool()
+def get_task_details(task_id: str) -> Dict[str, Any]:
+    """Get details for a specific task.
+
+    Args:
+        task_id (str): Task ID to retrieve.
+
+    Returns:
+        Dict[str, Any]: Task details.
+    """
+    if not is_http_server_running():
+        return {
+            "status": "error",
+            "message": f"HTTP API server is not running at {api_url}. Use start_http_server() to start it.",
+        }
+
+    try:
+        response = requests.get(f"{api_url}/api/tasks/{task_id}")
+        return response.json()
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error getting task details: {str(e)}",
+        }
+
+
+@mcp.tool()
+def update_task_status(task_id: str, new_status: str) -> Dict[str, Any]:
+    """Update the status of a task.
+
+    Args:
+        task_id (str): Task ID to update.
+        new_status (str): New status (backlog, todo, inprogress, testing, devdone, done).
+
+    Returns:
+        Dict[str, Any]: Updated task details.
+    """
+    if not is_http_server_running():
+        return {
+            "status": "error",
+            "message": f"HTTP API server is not running at {api_url}. Use start_http_server() to start it.",
+        }
+
+    try:
+        response = requests.put(f"{api_url}/api/tasks/{task_id}/status", json={
+            "status": new_status
+        })
+        return response.json()
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error updating task status: {str(e)}",
+        }
+
+
+@mcp.tool()
+def get_kanban_board() -> Dict[str, Any]:
+    """Get kanban board data with tasks organized by columns.
+
+    Returns:
+        Dict[str, Any]: Kanban board data.
+    """
+    if not is_http_server_running():
+        return {
+            "status": "error",
+            "message": f"HTTP API server is not running at {api_url}. Use start_http_server() to start it.",
+        }
+
+    try:
+        response = requests.get(f"{api_url}/api/kanban")
+        return response.json()
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error getting kanban board: {str(e)}",
         }
 
 

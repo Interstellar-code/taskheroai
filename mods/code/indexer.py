@@ -31,7 +31,7 @@ from .directory import (
 )
 from .embed import CodeEmbedding, SimilaritySearch
 
-logger = logging.getLogger("VerbalCodeAI.Indexer")
+logger = logging.getLogger("TaskHeroAI.Indexer")
 logger.info("[INDEXER] LOGGER WORKING")
 
 
@@ -198,6 +198,8 @@ class FileIndexer:
         ".bash",
         ".zsh",
         ".fish",
+        ".bat",
+        ".cmd",
         ".ps1",
         ".psm1",
         ".elm",
@@ -1398,7 +1400,7 @@ END OF FILE:
         """
         import time
         from colorama import Fore, Style
-        
+
         logger.debug(f"Getting outdated files for {self.root_path}")
         outdated: List[str] = []
 
@@ -1428,18 +1430,18 @@ END OF FILE:
 
             checked_count = 0
             last_progress_time = time.time()
-            
+
             def check_entry(entry: DirectoryEntry):
                 nonlocal checked_count, last_progress_time
-                
+
                 checked_count += 1
                 current_time = time.time()
-                
+
                 # Show progress every 100 files or every 2 seconds
                 if checked_count % 100 == 0 or (current_time - last_progress_time) >= 2.0:
                     print(f"\r{Fore.CYAN}📊 Checked {checked_count} items, found {len(outdated)} outdated{Style.RESET_ALL}", end="", flush=True)
                     last_progress_time = current_time
-                
+
                 try:
                     should_update: bool = self._should_update_file(entry)
                     if should_update:
@@ -1453,7 +1455,7 @@ END OF FILE:
 
             logger.debug(f"Checking for outdated files")
             check_entry(root_entry)
-            
+
             print(f"\r{Fore.GREEN}✅ Scan complete - checked {checked_count} items, found {len(outdated)} files to update{Style.RESET_ALL}")
             logger.info(f"Found {len(outdated)} outdated files")
 
@@ -1477,7 +1479,7 @@ END OF FILE:
         """
         import time
         from colorama import Fore, Style
-        
+
         logger.debug(f"Getting all indexable files for {self.root_path}")
         indexable_files: List[str] = []
 
@@ -1494,15 +1496,15 @@ END OF FILE:
 
             def collect_files(entry: DirectoryEntry):
                 nonlocal checked_count, last_progress_time
-                
+
                 checked_count += 1
                 current_time = time.time()
-                
+
                 # Show progress every 100 files or every 2 seconds
                 if checked_count % 100 == 0 or (current_time - last_progress_time) >= 2.0:
                     print(f"\r{Fore.CYAN}📊 Checked {checked_count} items, found {len(indexable_files)} indexable{Style.RESET_ALL}", end="", flush=True)
                     last_progress_time = current_time
-                
+
                 try:
                     if self._should_index_file(entry):
                         indexable_files.append(entry.path)
@@ -1513,7 +1515,7 @@ END OF FILE:
                     collect_files(child)
 
             collect_files(root_entry)
-            
+
             print(f"\r{Fore.GREEN}✅ Scan complete - checked {checked_count} items, found {len(indexable_files)} files to index{Style.RESET_ALL}")
             logger.info(f"Found {len(indexable_files)} indexable files")
 

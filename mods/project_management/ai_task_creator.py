@@ -960,7 +960,7 @@ Keep recommendations specific to the analyzed codebase."""
 
     def _collect_embeddings_context(self, description: str, context: Dict[str, Any]) -> List[ContextChunk]:
         """
-        Collect relevant context using semantic search.
+        Collect relevant context using enhanced semantic search with intelligent query processing.
 
         Args:
             description: Task description to search for
@@ -970,18 +970,45 @@ Keep recommendations specific to the analyzed codebase."""
             List of relevant context chunks
         """
         try:
-            # Create search query from description and task type
             task_type = context.get('task_type', 'Development')
-            search_query = f"{description} {task_type}"
 
-            # Perform semantic search
-            search_result = self.semantic_search.search(
-                query=search_query,
-                max_results=10,
-                file_types=None  # Search all file types
-            )
+            # Phase 2: Enhanced query construction with multiple strategies
+            search_queries = self._construct_intelligent_search_queries(description, task_type)
 
-            logger.info(f"Semantic search found {len(search_result.chunks)} relevant chunks in {search_result.search_time:.3f}s")
+            # Use multi-query search for comprehensive results
+            if hasattr(self.semantic_search, 'search_multi_query'):
+                # Use the new multi-query search capability
+                primary_query = search_queries[0]
+                search_result = self.semantic_search.search_multi_query(
+                    query=primary_query,
+                    max_results=12,  # Slightly increased for better coverage
+                    file_types=None
+                )
+                logger.info(f"Multi-query semantic search found {len(search_result.chunks)} relevant chunks in {search_result.search_time:.3f}s")
+            else:
+                # Fallback to enhanced single query search
+                all_chunks = []
+                chunk_ids = set()
+
+                for query in search_queries[:3]:  # Use top 3 queries
+                    search_result = self.semantic_search.search(
+                        query=query,
+                        max_results=8,
+                        file_types=None
+                    )
+
+                    # Deduplicate chunks
+                    for chunk in search_result.chunks:
+                        chunk_id = f"{chunk.file_path}:{chunk.start_line}:{chunk.end_line}"
+                        if chunk_id not in chunk_ids:
+                            chunk_ids.add(chunk_id)
+                            all_chunks.append(chunk)
+
+                # Sort by relevance and limit results
+                all_chunks.sort(key=lambda x: x.relevance_score, reverse=True)
+                search_result.chunks = all_chunks[:10]
+
+                logger.info(f"Enhanced semantic search found {len(search_result.chunks)} relevant chunks from {len(search_queries)} queries")
 
             return search_result.chunks
 
@@ -989,9 +1016,171 @@ Keep recommendations specific to the analyzed codebase."""
             logger.error(f"Error collecting semantic context: {e}")
             return []
 
+    def _construct_intelligent_search_queries(self, description: str, task_type: str) -> List[str]:
+        """
+        Construct multiple intelligent search queries for comprehensive context retrieval.
+
+        Args:
+            description: Task description
+            task_type: Type of task
+
+        Returns:
+            List of optimized search queries
+        """
+        queries = []
+
+        # Query 1: Enhanced primary query with task type integration
+        primary_query = self._create_enhanced_primary_query(description, task_type)
+        queries.append(primary_query)
+
+        # Query 2: Technical implementation focused query
+        if task_type.lower() in ['development', 'bug fix', 'enhancement']:
+            tech_query = self._create_technical_query(description, task_type)
+            if tech_query:
+                queries.append(tech_query)
+
+        # Query 3: Configuration and setup focused query
+        if any(keyword in description.lower() for keyword in ['setup', 'install', 'configure', 'deploy', 'build']):
+            config_query = self._create_configuration_query(description)
+            if config_query:
+                queries.append(config_query)
+
+        # Query 4: Domain-specific query based on detected patterns
+        domain_query = self._create_domain_specific_query(description, task_type)
+        if domain_query:
+            queries.append(domain_query)
+
+        # Query 5: Simplified core terms query
+        core_query = self._create_core_terms_query(description)
+        if core_query:
+            queries.append(core_query)
+
+        logger.debug(f"Constructed {len(queries)} intelligent search queries for: '{description}'")
+        return queries
+
+    def _create_enhanced_primary_query(self, description: str, task_type: str) -> str:
+        """Create enhanced primary search query."""
+        # Extract key terms and enhance with task type context
+        key_terms = self._extract_enhanced_search_terms(description, task_type)
+
+        # Combine with task type for context
+        task_context = self._get_task_type_context_terms(task_type)
+
+        enhanced_terms = key_terms + task_context
+        return ' '.join(enhanced_terms[:8])  # Limit to 8 terms for focus
+
+    def _create_technical_query(self, description: str, task_type: str) -> str:
+        """Create technical implementation focused query."""
+        technical_terms = []
+        desc_lower = description.lower()
+
+        # Extract technical action words
+        technical_actions = ['implement', 'develop', 'create', 'build', 'enhance', 'optimize', 'refactor', 'fix']
+        for action in technical_actions:
+            if action in desc_lower:
+                technical_terms.append(action)
+
+        # Add technical context based on description patterns
+        if any(term in desc_lower for term in ['api', 'endpoint', 'service']):
+            technical_terms.extend(['api', 'endpoint', 'service', 'interface'])
+        if any(term in desc_lower for term in ['database', 'data', 'storage']):
+            technical_terms.extend(['database', 'data', 'storage', 'persistence'])
+        if any(term in desc_lower for term in ['auth', 'login', 'security']):
+            technical_terms.extend(['authentication', 'authorization', 'security'])
+        if any(term in desc_lower for term in ['ui', 'interface', 'frontend']):
+            technical_terms.extend(['interface', 'frontend', 'ui', 'component'])
+
+        # Add programming language context
+        technical_terms.extend(['python', 'javascript', 'implementation', 'code'])
+
+        if technical_terms:
+            return ' '.join(list(set(technical_terms))[:6])
+        return None
+
+    def _create_configuration_query(self, description: str) -> str:
+        """Create configuration and setup focused query."""
+        config_terms = []
+        desc_lower = description.lower()
+
+        # Extract configuration-related terms
+        if 'setup' in desc_lower:
+            config_terms.extend(['setup', 'installation', 'configuration', 'initialize'])
+        if 'install' in desc_lower:
+            config_terms.extend(['install', 'installation', 'setup', 'dependencies'])
+        if 'configure' in desc_lower:
+            config_terms.extend(['configure', 'configuration', 'settings', 'parameters'])
+        if 'deploy' in desc_lower:
+            config_terms.extend(['deploy', 'deployment', 'release', 'distribution'])
+        if 'build' in desc_lower:
+            config_terms.extend(['build', 'compilation', 'package', 'bundle'])
+
+        # Add file type context
+        config_terms.extend(['config', 'json', 'yaml', 'script', 'batch'])
+
+        if config_terms:
+            return ' '.join(list(set(config_terms))[:6])
+        return None
+
+    def _create_domain_specific_query(self, description: str, task_type: str) -> str:
+        """Create domain-specific query based on detected patterns."""
+        desc_lower = description.lower()
+        domain_terms = []
+
+        # Web development domain
+        if any(term in desc_lower for term in ['web', 'http', 'server', 'client', 'browser']):
+            domain_terms.extend(['web', 'http', 'server', 'client', 'request', 'response'])
+
+        # Testing domain
+        elif any(term in desc_lower for term in ['test', 'testing', 'spec', 'validation']):
+            domain_terms.extend(['test', 'testing', 'validation', 'verification', 'spec', 'unittest'])
+
+        # Documentation domain
+        elif any(term in desc_lower for term in ['document', 'docs', 'guide', 'manual']):
+            domain_terms.extend(['documentation', 'guide', 'manual', 'reference', 'readme'])
+
+        # DevOps domain
+        elif any(term in desc_lower for term in ['docker', 'container', 'ci', 'cd', 'pipeline']):
+            domain_terms.extend(['docker', 'container', 'deployment', 'pipeline', 'automation'])
+
+        if domain_terms:
+            return ' '.join(domain_terms[:5])
+        return None
+
+    def _create_core_terms_query(self, description: str) -> str:
+        """Create simplified query with core terms only."""
+        # Extract meaningful terms (longer than 3 characters, not common words)
+        words = description.lower().split()
+        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'this', 'that', 'these', 'those', 'will', 'should', 'would', 'could'}
+
+        core_terms = [word for word in words if len(word) > 3 and word not in stop_words]
+
+        if len(core_terms) >= 2:
+            return ' '.join(core_terms[:4])
+        return None
+
+    def _get_task_type_context_terms(self, task_type: str) -> List[str]:
+        """Get context terms based on task type."""
+        task_type_lower = task_type.lower()
+
+        context_map = {
+            'development': ['development', 'implementation', 'code', 'programming'],
+            'bug fix': ['fix', 'debug', 'error', 'issue', 'problem'],
+            'enhancement': ['enhance', 'improve', 'optimize', 'upgrade'],
+            'documentation': ['documentation', 'guide', 'manual', 'reference'],
+            'testing': ['test', 'testing', 'validation', 'verification'],
+            'design': ['design', 'ui', 'interface', 'layout'],
+            'research': ['research', 'analysis', 'investigation', 'study']
+        }
+
+        for task_key, terms in context_map.items():
+            if task_key in task_type_lower:
+                return terms[:2]  # Return top 2 context terms
+
+        return ['development', 'implementation']  # Default context
+
     def _optimize_context_for_ai(self, relevant_context: List[ContextChunk]) -> List[Dict[str, Any]]:
         """
-        Optimize context chunks for AI processing by filtering and formatting.
+        Phase 3: Advanced context optimization with dynamic thresholds and intelligent balancing.
 
         Args:
             relevant_context: List of context chunks from semantic search
@@ -1000,95 +1189,647 @@ Keep recommendations specific to the analyzed codebase."""
             Optimized context list for AI processing
         """
         try:
-            # Filter by relevance threshold
-            filtered_context = [
-                chunk for chunk in relevant_context
-                if chunk.relevance_score >= self.ai_config['context_selection_threshold']
-            ]
+            if not relevant_context:
+                return []
 
-            # Sort by relevance score
-            filtered_context.sort(key=lambda x: x.relevance_score, reverse=True)
+            # Phase 3: Dynamic relevance threshold calculation
+            dynamic_threshold = self._calculate_dynamic_relevance_threshold(relevant_context)
 
-            # Limit context to prevent token overflow
-            max_chunks = 10
-            optimized_context = []
-            total_tokens = 0
+            # Phase 3: Advanced context filtering with quality assessment
+            filtered_context = self._apply_advanced_context_filtering(relevant_context, dynamic_threshold)
 
-            for chunk in filtered_context[:max_chunks]:
-                # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
-                chunk_tokens = len(chunk.text) // 4
+            # Phase 3: Intelligent context balancing
+            balanced_context = self._apply_intelligent_context_balancing(filtered_context)
 
-                if total_tokens + chunk_tokens > self.ai_config['max_context_tokens']:
-                    break
+            # Phase 3: Advanced token management with smart truncation
+            optimized_context = self._apply_advanced_token_management(balanced_context)
 
-                optimized_context.append({
-                    'file_name': chunk.file_name,
-                    'file_type': chunk.file_type,
-                    'content': chunk.text[:1000],  # Limit chunk size
-                    'relevance_score': chunk.relevance_score,
-                    'line_start': getattr(chunk, 'line_start', None),
-                    'line_end': getattr(chunk, 'line_end', None)
-                })
+            # Phase 3: Context quality validation
+            quality_score = self._validate_context_quality(optimized_context)
 
-                total_tokens += chunk_tokens
-
-            logger.info(f"Optimized context: {len(optimized_context)} chunks, ~{total_tokens} tokens")
+            logger.info(f"Phase 3 context optimization: {len(optimized_context)} chunks, quality: {quality_score:.2f}")
             return optimized_context
 
         except Exception as e:
-            logger.error(f"Error optimizing context for AI: {e}")
+            logger.error(f"Error in Phase 3 context optimization: {e}")
             return []
 
+    def _calculate_dynamic_relevance_threshold(self, context_chunks: List[ContextChunk]) -> float:
+        """
+        Calculate dynamic relevance threshold based on context quality distribution.
+
+        Args:
+            context_chunks: List of context chunks
+
+        Returns:
+            Dynamic relevance threshold
+        """
+        if not context_chunks:
+            return self.ai_config['context_selection_threshold']
+
+        # Calculate relevance score statistics
+        scores = [chunk.relevance_score for chunk in context_chunks]
+        scores.sort(reverse=True)
+
+        # Calculate percentiles
+        total_chunks = len(scores)
+        if total_chunks < 3:
+            return min(scores) if scores else 0.5
+
+        # Use adaptive threshold based on score distribution
+        p75 = scores[int(total_chunks * 0.25)]  # 75th percentile
+        p50 = scores[int(total_chunks * 0.5)]   # 50th percentile (median)
+        p25 = scores[int(total_chunks * 0.75)]  # 25th percentile
+
+        # Calculate score variance to determine threshold strategy
+        score_variance = sum((score - p50) ** 2 for score in scores) / total_chunks
+
+        # Adaptive threshold logic
+        if score_variance > 0.1:  # High variance - be more selective
+            threshold = max(p75, 0.7)
+        elif score_variance > 0.05:  # Medium variance - balanced approach
+            threshold = max(p50, 0.6)
+        else:  # Low variance - be more inclusive
+            threshold = max(p25, 0.4)
+
+        # Ensure minimum quality
+        threshold = max(threshold, 0.3)
+
+        logger.debug(f"Dynamic threshold: {threshold:.3f} (variance: {score_variance:.3f})")
+        return threshold
+
+    def _apply_advanced_context_filtering(self, context_chunks: List[ContextChunk], threshold: float) -> List[ContextChunk]:
+        """
+        Apply advanced context filtering with quality assessment.
+
+        Args:
+            context_chunks: List of context chunks
+            threshold: Dynamic relevance threshold
+
+        Returns:
+            Filtered context chunks
+        """
+        filtered_chunks = []
+
+        for chunk in context_chunks:
+            # Basic relevance threshold
+            if chunk.relevance_score < threshold:
+                continue
+
+            # Content quality assessment
+            quality_score = self._assess_chunk_quality(chunk)
+            if quality_score < 0.5:
+                continue
+
+            # Duplicate content detection
+            if self._is_duplicate_content(chunk, filtered_chunks):
+                continue
+
+            # Update chunk with quality score
+            chunk.quality_score = quality_score
+            filtered_chunks.append(chunk)
+
+        logger.debug(f"Advanced filtering: {len(context_chunks)} -> {len(filtered_chunks)} chunks")
+        return filtered_chunks
+
+    def _assess_chunk_quality(self, chunk: ContextChunk) -> float:
+        """
+        Assess the quality of a context chunk.
+
+        Args:
+            chunk: Context chunk to assess
+
+        Returns:
+            Quality score (0.0 to 1.0)
+        """
+        score = 0.0
+        text = chunk.text.strip()
+
+        # Length assessment
+        if 50 <= len(text) <= 2000:
+            score += 0.3
+        elif 20 <= len(text) < 50:
+            score += 0.1
+        elif len(text) > 2000:
+            score += 0.2
+
+        # Content richness assessment
+        lines = text.split('\n')
+        non_empty_lines = [line for line in lines if line.strip()]
+
+        if len(non_empty_lines) >= 3:
+            score += 0.2
+
+        # Technical content indicators
+        technical_indicators = [
+            'def ', 'class ', 'function', 'import ', 'from ', 'config',
+            'setup', 'install', 'deploy', 'api', 'database', 'auth'
+        ]
+
+        technical_count = sum(1 for indicator in technical_indicators if indicator in text.lower())
+        score += min(technical_count * 0.1, 0.3)
+
+        # Code structure indicators
+        if any(indicator in text for indicator in ['(', ')', '{', '}', '[', ']']):
+            score += 0.1
+
+        # Documentation quality indicators
+        if chunk.file_type in ['documentation', 'markdown']:
+            if any(indicator in text.lower() for indicator in ['example', 'usage', 'how to', 'guide']):
+                score += 0.1
+
+        return min(score, 1.0)
+
+    def _is_duplicate_content(self, chunk: ContextChunk, existing_chunks: List[ContextChunk]) -> bool:
+        """
+        Check if chunk content is duplicate or very similar to existing chunks.
+
+        Args:
+            chunk: Chunk to check
+            existing_chunks: List of already selected chunks
+
+        Returns:
+            True if duplicate content detected
+        """
+        chunk_text = chunk.text.strip().lower()
+
+        for existing in existing_chunks:
+            existing_text = existing.text.strip().lower()
+
+            # Exact duplicate check
+            if chunk_text == existing_text:
+                return True
+
+            # High similarity check (simple approach)
+            if len(chunk_text) > 100 and len(existing_text) > 100:
+                # Check for substantial overlap
+                chunk_words = set(chunk_text.split())
+                existing_words = set(existing_text.split())
+
+                if len(chunk_words) > 0 and len(existing_words) > 0:
+                    overlap = len(chunk_words & existing_words)
+                    similarity = overlap / min(len(chunk_words), len(existing_words))
+
+                    if similarity > 0.8:  # 80% word overlap
+                        return True
+
+        return False
+
+    def _apply_intelligent_context_balancing(self, filtered_chunks: List[ContextChunk]) -> List[ContextChunk]:
+        """
+        Apply intelligent context balancing to ensure optimal file type distribution.
+
+        Args:
+            filtered_chunks: Filtered context chunks
+
+        Returns:
+            Balanced context chunks
+        """
+        if not filtered_chunks:
+            return []
+
+        # Sort by relevance score first
+        filtered_chunks.sort(key=lambda x: x.relevance_score, reverse=True)
+
+        # Analyze current distribution
+        file_type_distribution = {}
+        for chunk in filtered_chunks:
+            file_type_distribution[chunk.file_type] = file_type_distribution.get(chunk.file_type, 0) + 1
+
+        # Define optimal distribution targets (can be adjusted based on query intent)
+        optimal_distribution = {
+            'python': 0.3,
+            'javascript': 0.2,
+            'config': 0.15,
+            'script': 0.1,
+            'documentation': 0.15,
+            'markdown': 0.1
+        }
+
+        # Calculate target counts
+        total_target_chunks = min(len(filtered_chunks), 12)  # Target 12 chunks max
+        target_counts = {}
+        for file_type, ratio in optimal_distribution.items():
+            target_counts[file_type] = int(total_target_chunks * ratio)
+
+        # Select chunks according to balanced distribution
+        balanced_chunks = []
+        type_counts = {}
+
+        # First pass: ensure minimum representation of each important type
+        for chunk in filtered_chunks:
+            file_type = chunk.file_type
+            current_count = type_counts.get(file_type, 0)
+            target_count = target_counts.get(file_type, 1)
+
+            if current_count < target_count:
+                balanced_chunks.append(chunk)
+                type_counts[file_type] = current_count + 1
+
+                if len(balanced_chunks) >= total_target_chunks:
+                    break
+
+        # Second pass: fill remaining slots with highest relevance chunks
+        remaining_slots = total_target_chunks - len(balanced_chunks)
+        if remaining_slots > 0:
+            used_chunk_ids = {id(chunk) for chunk in balanced_chunks}
+            remaining_chunks = [chunk for chunk in filtered_chunks if id(chunk) not in used_chunk_ids]
+
+            balanced_chunks.extend(remaining_chunks[:remaining_slots])
+
+        # Final sort by relevance
+        balanced_chunks.sort(key=lambda x: x.relevance_score, reverse=True)
+
+        logger.debug(f"Context balancing: {len(filtered_chunks)} -> {len(balanced_chunks)} chunks")
+        return balanced_chunks
+
+    def _apply_advanced_token_management(self, balanced_chunks: List[ContextChunk]) -> List[Dict[str, Any]]:
+        """
+        Apply advanced token management with smart truncation and optimization.
+
+        Args:
+            balanced_chunks: Balanced context chunks
+
+        Returns:
+            Token-optimized context list
+        """
+        if not balanced_chunks:
+            return []
+
+        max_context_tokens = self.ai_config['max_context_tokens']
+        optimized_context = []
+        total_tokens = 0
+
+        # Reserve tokens for essential metadata
+        metadata_tokens = 200  # Reserve for file names, types, etc.
+        available_tokens = max_context_tokens - metadata_tokens
+
+        for chunk in balanced_chunks:
+            # Calculate chunk tokens with improved estimation
+            chunk_tokens = self._estimate_chunk_tokens(chunk)
+
+            if total_tokens + chunk_tokens <= available_tokens:
+                # Chunk fits completely
+                optimized_chunk = self._format_chunk_for_ai(chunk, truncate=False)
+                optimized_context.append(optimized_chunk)
+                total_tokens += chunk_tokens
+            else:
+                # Try smart truncation
+                remaining_tokens = available_tokens - total_tokens
+                if remaining_tokens > 100:  # Minimum viable chunk size
+                    truncated_chunk = self._smart_truncate_chunk(chunk, remaining_tokens)
+                    if truncated_chunk:
+                        optimized_context.append(truncated_chunk)
+                        total_tokens += remaining_tokens
+                break
+
+        # Add context summary for AI understanding
+        context_summary = self._generate_context_summary(optimized_context)
+
+        logger.info(f"Token management: {len(optimized_context)} chunks, ~{total_tokens} tokens")
+        return optimized_context
+
+    def _estimate_chunk_tokens(self, chunk: ContextChunk) -> int:
+        """
+        Improved token estimation for context chunks.
+
+        Args:
+            chunk: Context chunk
+
+        Returns:
+            Estimated token count
+        """
+        # More accurate token estimation
+        text = chunk.text
+
+        # Base estimation: ~4 characters per token for English text
+        base_tokens = len(text) // 4
+
+        # Adjust for code vs text
+        if chunk.file_type in ['python', 'javascript', 'config']:
+            # Code tends to have more tokens per character due to symbols
+            base_tokens = int(base_tokens * 1.2)
+        elif chunk.file_type in ['documentation', 'markdown']:
+            # Natural language is more efficient
+            base_tokens = int(base_tokens * 0.9)
+
+        # Add metadata tokens
+        metadata_tokens = 20  # For file name, type, line numbers
+
+        return base_tokens + metadata_tokens
+
+    def _format_chunk_for_ai(self, chunk: ContextChunk, truncate: bool = False) -> Dict[str, Any]:
+        """
+        Format chunk for AI processing with enhanced metadata.
+
+        Args:
+            chunk: Context chunk
+            truncate: Whether to truncate content
+
+        Returns:
+            Formatted chunk dictionary
+        """
+        content = chunk.text
+        if truncate and len(content) > 1500:
+            content = content[:1500] + "...(truncated)"
+
+        return {
+            'file_name': chunk.file_name,
+            'file_type': chunk.file_type,
+            'content': content,
+            'relevance_score': chunk.relevance_score,
+            'quality_score': getattr(chunk, 'quality_score', 0.0),
+            'line_range': f"{chunk.start_line}-{chunk.end_line}",
+            'chunk_type': chunk.chunk_type,
+            'confidence': chunk.confidence
+        }
+
+    def _smart_truncate_chunk(self, chunk: ContextChunk, max_tokens: int) -> Optional[Dict[str, Any]]:
+        """
+        Smart truncation that preserves important content.
+
+        Args:
+            chunk: Context chunk to truncate
+            max_tokens: Maximum tokens available
+
+        Returns:
+            Truncated chunk or None if not viable
+        """
+        if max_tokens < 50:  # Not enough space for meaningful content
+            return None
+
+        # Calculate max characters (rough estimation)
+        max_chars = max_tokens * 3  # Conservative estimate
+
+        text = chunk.text
+        if len(text) <= max_chars:
+            return self._format_chunk_for_ai(chunk, truncate=False)
+
+        # Smart truncation strategies
+        lines = text.split('\n')
+
+        # Strategy 1: Keep complete lines that fit
+        truncated_lines = []
+        char_count = 0
+
+        for line in lines:
+            if char_count + len(line) + 1 <= max_chars - 20:  # Reserve for truncation marker
+                truncated_lines.append(line)
+                char_count += len(line) + 1
+            else:
+                break
+
+        if truncated_lines:
+            truncated_text = '\n'.join(truncated_lines) + "\n...(truncated)"
+
+            # Create truncated chunk
+            truncated_chunk = ContextChunk(
+                text=truncated_text,
+                file_path=chunk.file_path,
+                chunk_type=chunk.chunk_type,
+                start_line=chunk.start_line,
+                end_line=chunk.start_line + len(truncated_lines),
+                confidence=chunk.confidence * 0.8,  # Reduce confidence for truncated content
+                file_name=chunk.file_name,
+                file_type=chunk.file_type
+            )
+            truncated_chunk.relevance_score = chunk.relevance_score
+
+            return self._format_chunk_for_ai(truncated_chunk, truncate=False)
+
+        return None
+
+    def _generate_context_summary(self, optimized_context: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Generate a summary of the optimized context for AI understanding.
+
+        Args:
+            optimized_context: List of optimized context chunks
+
+        Returns:
+            Context summary
+        """
+        if not optimized_context:
+            return {}
+
+        file_types = {}
+        total_relevance = 0.0
+        files_included = set()
+
+        for chunk in optimized_context:
+            file_type = chunk['file_type']
+            file_types[file_type] = file_types.get(file_type, 0) + 1
+            total_relevance += chunk['relevance_score']
+            files_included.add(chunk['file_name'])
+
+        return {
+            'total_chunks': len(optimized_context),
+            'file_types_distribution': file_types,
+            'average_relevance': total_relevance / len(optimized_context),
+            'files_included': list(files_included),
+            'context_quality': 'high' if total_relevance / len(optimized_context) > 0.7 else 'medium'
+        }
+
+    def _validate_context_quality(self, optimized_context: List[Dict[str, Any]]) -> float:
+        """
+        Validate the quality of the optimized context.
+
+        Args:
+            optimized_context: Optimized context chunks
+
+        Returns:
+            Quality score (0.0 to 1.0)
+        """
+        if not optimized_context:
+            return 0.0
+
+        # Calculate quality metrics
+        total_relevance = sum(chunk['relevance_score'] for chunk in optimized_context)
+        avg_relevance = total_relevance / len(optimized_context)
+
+        # File type diversity score
+        file_types = set(chunk['file_type'] for chunk in optimized_context)
+        diversity_score = min(len(file_types) / 5.0, 1.0)  # Normalize to max 5 types
+
+        # Content quality score
+        quality_scores = [chunk.get('quality_score', 0.5) for chunk in optimized_context]
+        avg_quality = sum(quality_scores) / len(quality_scores)
+
+        # Combined quality score
+        quality_score = (avg_relevance * 0.5) + (diversity_score * 0.3) + (avg_quality * 0.2)
+
+        return min(quality_score, 1.0)
+
     def _extract_search_terms(self, description: str, task_type: str) -> List[str]:
-        """Extract search terms from description and task type."""
-        # Basic keyword extraction (could be enhanced with NLP)
+        """Extract search terms from description and task type (legacy method)."""
+        # This method is kept for backward compatibility
+        # New intelligent query processing uses _extract_enhanced_search_terms
+        return self._extract_enhanced_search_terms(description, task_type)
+
+    def _extract_enhanced_search_terms(self, description: str, task_type: str) -> List[str]:
+        """Enhanced search term extraction with intelligent processing."""
         import re
 
         # Clean and tokenize description
         words = re.findall(r'\b\w+\b', description.lower())
 
-        # Filter out common words
-        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those'}
-
-        # Extract meaningful terms
-        meaningful_words = [word for word in words if len(word) > 3 and word not in stop_words]
-
-        # Add task type specific terms
-        task_terms = {
-            'development': ['implement', 'create', 'build', 'develop', 'code', 'function', 'class', 'method'],
-            'bug': ['fix', 'error', 'bug', 'issue', 'problem', 'debug', 'resolve'],
-            'test': ['test', 'testing', 'unit', 'integration', 'coverage', 'assert', 'verify'],
-            'documentation': ['document', 'docs', 'readme', 'guide', 'manual', 'api', 'reference'],
-            'design': ['design', 'ui', 'ux', 'interface', 'layout', 'component', 'style'],
-            'research': ['research', 'analyze', 'investigate', 'study', 'explore', 'evaluate']
+        # Enhanced stop words list
+        stop_words = {
+            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+            'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did',
+            'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this', 'that',
+            'these', 'those', 'we', 'need', 'want', 'like', 'make', 'get', 'use', 'also', 'now',
+            'then', 'here', 'there', 'when', 'where', 'how', 'what', 'why', 'who', 'which'
         }
 
-        if task_type in task_terms:
-            meaningful_words.extend(task_terms[task_type])
+        # Extract meaningful terms with enhanced filtering
+        meaningful_words = []
+        for word in words:
+            if (len(word) > 3 and
+                word not in stop_words and
+                not word.isdigit() and
+                not word.startswith('http')):
+                meaningful_words.append(word)
 
-        # Return unique terms, prioritizing longer ones
+        # Enhanced task type specific terms with technical focus
+        enhanced_task_terms = {
+            'development': [
+                'implement', 'develop', 'code', 'build', 'create', 'program',
+                'function', 'class', 'method', 'module', 'component', 'library',
+                'algorithm', 'logic', 'structure', 'architecture'
+            ],
+            'bug fix': [
+                'fix', 'debug', 'resolve', 'repair', 'troubleshoot', 'patch',
+                'error', 'bug', 'issue', 'problem', 'exception', 'failure',
+                'crash', 'malfunction', 'defect'
+            ],
+            'enhancement': [
+                'enhance', 'improve', 'optimize', 'upgrade', 'refactor', 'modernize',
+                'performance', 'efficiency', 'speed', 'quality', 'usability'
+            ],
+            'testing': [
+                'test', 'testing', 'validation', 'verification', 'spec', 'unittest',
+                'integration', 'coverage', 'assert', 'verify', 'check', 'quality'
+            ],
+            'documentation': [
+                'document', 'documentation', 'guide', 'manual', 'readme', 'reference',
+                'tutorial', 'example', 'explanation', 'description'
+            ],
+            'design': [
+                'design', 'interface', 'layout', 'component', 'style', 'theme',
+                'ui', 'ux', 'frontend', 'visual', 'appearance'
+            ],
+            'research': [
+                'research', 'analyze', 'investigate', 'study', 'explore', 'evaluate',
+                'assessment', 'analysis', 'examination', 'review'
+            ]
+        }
+
+        # Add task-specific terms
+        task_type_lower = task_type.lower()
+        for task_key, terms in enhanced_task_terms.items():
+            if task_key in task_type_lower:
+                meaningful_words.extend(terms[:5])  # Add top 5 task-specific terms
+                break
+
+        # Add technical domain terms based on description content
+        self._add_technical_domain_terms(meaningful_words, description)
+
+        # Remove duplicates and prioritize by relevance
         unique_terms = list(set(meaningful_words))
-        unique_terms.sort(key=len, reverse=True)
 
-        return unique_terms[:10]  # Top 10 search terms
+        # Sort by technical relevance and length
+        unique_terms.sort(key=lambda x: (self._calculate_term_relevance(x, description, task_type), len(x)), reverse=True)
+
+        return unique_terms[:12]  # Increased to 12 for better coverage
+
+    def _add_technical_domain_terms(self, terms: List[str], description: str):
+        """Add technical domain-specific terms based on description content."""
+        desc_lower = description.lower()
+
+        # Web development terms
+        if any(keyword in desc_lower for keyword in ['web', 'http', 'server', 'client', 'browser', 'frontend', 'backend']):
+            terms.extend(['web', 'http', 'server', 'client', 'request', 'response', 'endpoint'])
+
+        # Database terms
+        if any(keyword in desc_lower for keyword in ['database', 'data', 'storage', 'query', 'sql']):
+            terms.extend(['database', 'data', 'storage', 'query', 'persistence', 'model'])
+
+        # Authentication terms
+        if any(keyword in desc_lower for keyword in ['auth', 'login', 'security', 'access', 'permission']):
+            terms.extend(['authentication', 'authorization', 'security', 'access', 'permission'])
+
+        # API terms
+        if any(keyword in desc_lower for keyword in ['api', 'endpoint', 'service', 'rest']):
+            terms.extend(['api', 'endpoint', 'service', 'interface', 'rest'])
+
+        # Configuration terms
+        if any(keyword in desc_lower for keyword in ['config', 'setup', 'install', 'deploy']):
+            terms.extend(['configuration', 'setup', 'installation', 'deployment'])
+
+        # Testing terms
+        if any(keyword in desc_lower for keyword in ['test', 'spec', 'unit', 'integration']):
+            terms.extend(['testing', 'validation', 'verification', 'spec'])
+
+    def _calculate_term_relevance(self, term: str, description: str, task_type: str) -> float:
+        """Calculate relevance score for a search term."""
+        score = 0.0
+        desc_lower = description.lower()
+        task_lower = task_type.lower()
+
+        # Exact match in description
+        if term in desc_lower:
+            score += 1.0
+
+        # Partial match bonus
+        if any(term in word for word in desc_lower.split()):
+            score += 0.5
+
+        # Technical term bonus
+        technical_terms = {
+            'implement', 'develop', 'code', 'build', 'create', 'setup', 'install',
+            'configure', 'deploy', 'api', 'database', 'auth', 'test', 'fix'
+        }
+        if term in technical_terms:
+            score += 0.8
+
+        # Task type alignment bonus
+        if term in task_lower:
+            score += 0.6
+
+        # Length bonus for specific terms
+        if len(term) > 6:
+            score += 0.3
+
+        return score
 
     def _calculate_relevance(self, embedding_data: Dict[str, Any], search_terms: List[str], task_type: str) -> float:
-        """Calculate relevance score for an embedding file."""
+        """Calculate relevance score for an embedding file with Phase 4 exact match prioritization."""
         try:
             score = 0.0
 
             # Get file path and content
             file_path = embedding_data.get('path', '').lower()
             chunks = embedding_data.get('chunks', [])
+            file_name = file_path.split('/')[-1] if '/' in file_path else file_path
 
-            # File path relevance
+            # Extract original case file name for exact matching
+            original_file_path = embedding_data.get('path', '')
+            original_file_name = original_file_path.split('/')[-1] if '/' in original_file_path else original_file_path
+
+            # Determine file type using enhanced classification
+            file_type = self._determine_enhanced_file_type(file_name)
+
+            # PHASE 4: Exact Match Prioritization
+            exact_match_boost = self._calculate_exact_match_boost(
+                original_file_name, file_name, file_path, search_terms, task_type
+            )
+            score += exact_match_boost
+
+            # File path relevance (reduced weight due to exact match prioritization)
             for term in search_terms:
                 if term in file_path:
-                    score += 0.2
-
-            # Task type relevance
-            if task_type in file_path:
-                score += 0.3
+                    score += 0.1  # Reduced from 0.15 to make room for exact matches
 
             # Content relevance
             content_text = ""
@@ -1100,24 +1841,229 @@ Keep recommendations specific to the analyzed codebase."""
 
             content_text = content_text.lower()
 
-            # Search term matches in content
+            # Search term matches in content (maintained weight)
             for term in search_terms:
                 if term in content_text:
-                    score += 0.1
+                    score += 0.15
 
-            # Bonus for task-related files
-            if any(keyword in file_path for keyword in ['task', 'project', 'management', 'planning']):
-                score += 0.2
+            # Enhanced file type scoring based on task type
+            score += self._calculate_file_type_relevance(file_type, task_type, search_terms)
 
-            # Bonus for code files if development task
-            if task_type == 'development' and any(ext in file_path for ext in ['.py', '.js', '.ts', '.java', '.cpp']):
-                score += 0.1
+            # Context diversity bonus (encourage variety)
+            if file_type in ['config', 'script', 'setup']:
+                score += 0.1  # Boost for often-overlooked but important files
+
+            # PHASE 4: Root directory boost for setup-related queries
+            root_boost = self._calculate_root_directory_boost(file_path, search_terms, task_type)
+            score += root_boost
+
+            # Phase 4 Debug Logging (can be removed in production)
+            if exact_match_boost > 0.5 or root_boost > 0.2:
+                logger.debug(f"Phase 4 High Relevance: {original_file_name} - "
+                           f"Exact: {exact_match_boost:.3f}, Root: {root_boost:.3f}, "
+                           f"Total: {score:.3f}")
 
             return min(score, 1.0)  # Cap at 1.0
 
         except Exception as e:
             logger.warning(f"Error calculating relevance: {e}")
             return 0.0
+
+    def _determine_enhanced_file_type(self, file_name: str) -> str:
+        """Enhanced file type determination aligned with semantic search."""
+        file_name_lower = file_name.lower()
+
+        # Python files
+        if file_name_lower.endswith(('.py', '.pyx', '.pyi')):
+            return 'python'
+        # JavaScript/TypeScript files
+        elif file_name_lower.endswith(('.js', '.ts', '.jsx', '.tsx', '.mjs')):
+            return 'javascript'
+        # Configuration files
+        elif file_name_lower.endswith(('.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf')):
+            return 'config'
+        # Script files
+        elif file_name_lower.endswith(('.bat', '.cmd', '.sh', '.ps1', '.bash')):
+            return 'script'
+        # Setup files
+        elif any(keyword in file_name_lower for keyword in ['setup', 'install', 'deploy']):
+            return 'setup'
+        # Test files
+        elif any(keyword in file_name_lower for keyword in ['test', 'spec', 'unittest']):
+            return 'test'
+        # Task files
+        elif 'task' in file_name_lower and file_name_lower.endswith('.md'):
+            return 'task'
+        # Documentation
+        elif file_name_lower.endswith(('.md', '.txt', '.rst')) or any(keyword in file_name_lower for keyword in ['doc', 'readme', 'guide']):
+            return 'documentation'
+        else:
+            return 'other'
+
+    def _calculate_file_type_relevance(self, file_type: str, task_type: str, search_terms: List[str]) -> float:
+        """Calculate file type relevance with Phase 4 enhanced scoring."""
+        relevance = 0.0
+        task_type_lower = task_type.lower()
+        search_terms_str = ' '.join(search_terms).lower()
+
+        # Define file type groups
+        code_files = ['python', 'javascript']
+        config_files = ['config', 'setup', 'script']
+
+        if task_type_lower == 'development':
+            if file_type in code_files:
+                relevance += 0.2   # Slightly reduced to make room for exact matches
+            elif file_type in config_files:
+                relevance += 0.25  # Increased: config/setup files are crucial for development
+            elif file_type == 'test':
+                relevance += 0.15  # Boost for test files
+            elif file_type == 'task':
+                relevance += 0.05  # Reduced: task docs less important than actual code
+            elif file_type == 'documentation':
+                relevance += 0.08  # Still valuable for context
+
+        elif task_type_lower in ['bug', 'bug fix']:
+            if file_type in code_files:
+                relevance += 0.3   # High relevance for bug fixes
+            elif file_type == 'test':
+                relevance += 0.25  # Tests are crucial for bug fixes
+            elif file_type == 'task':
+                relevance += 0.1   # Reduced from 0.15
+
+        elif task_type_lower in ['documentation', 'doc']:
+            if file_type == 'documentation':
+                relevance += 0.3
+            elif file_type == 'task':
+                relevance += 0.2
+            elif file_type in code_files:
+                relevance += 0.15  # Code context is still valuable
+
+        else:  # General tasks
+            if file_type == 'task':
+                relevance += 0.15  # Reduced from 0.2
+            elif file_type in code_files:
+                relevance += 0.15
+            elif file_type in config_files:
+                relevance += 0.2   # Increased: config files often more relevant than task docs
+
+        # Enhanced keyword-based bonuses with Phase 4 improvements
+        if 'setup' in search_terms_str or 'install' in search_terms_str:
+            if file_type in ['setup', 'config', 'script']:
+                relevance += 0.2   # Increased from 0.15
+
+        # Windows/Linux specific bonuses
+        if 'windows' in search_terms_str and file_type == 'script':
+            relevance += 0.15
+        if 'linux' in search_terms_str and file_type == 'script':
+            relevance += 0.15
+
+        # PowerShell specific bonus
+        if 'powershell' in search_terms_str or 'ps1' in search_terms_str:
+            if file_type == 'script':
+                relevance += 0.2
+
+        return relevance
+
+    def _calculate_exact_match_boost(self, original_file_name: str, file_name: str, file_path: str,
+                                   search_terms: List[str], task_type: str) -> float:
+        """Phase 4: Calculate massive relevance boost for exact filename matches."""
+        boost = 0.0
+        search_terms_str = ' '.join(search_terms).lower()
+        file_name_lower = file_name.lower()
+
+        # Exact filename matches get massive boost
+        for term in search_terms:
+            term_lower = term.lower()
+
+            # Perfect filename match (e.g., "setup_windows.bat" for "setup windows")
+            if term_lower in file_name_lower:
+                # Check if it's a compound match (multiple terms in filename)
+                term_parts = term_lower.split('_')
+                if len(term_parts) > 1:
+                    matches = sum(1 for part in term_parts if part in file_name_lower)
+                    if matches == len(term_parts):
+                        boost += 0.8  # Massive boost for perfect compound matches
+                    elif matches > len(term_parts) / 2:
+                        boost += 0.6  # High boost for partial compound matches
+                else:
+                    boost += 0.5  # High boost for single term matches
+
+        # Special handling for setup-related queries
+        if any(setup_term in search_terms_str for setup_term in ['setup', 'install', 'configure']):
+            setup_files = ['setup_windows.bat', 'setup_windows.ps1', 'setup_linux.sh', 'setup.py', 'install.bat']
+            if any(setup_file in file_name_lower for setup_file in setup_files):
+                boost += 0.9  # Maximum boost for setup files in setup queries
+
+        # File extension prioritization based on query context
+        extension_boost = self._calculate_extension_priority_boost(file_name_lower, search_terms_str, task_type)
+        boost += extension_boost
+
+        # Exact case-sensitive filename matches (even higher priority)
+        for term in search_terms:
+            if term in original_file_name:  # Case-sensitive match
+                boost += 0.3
+
+        return min(boost, 0.95)  # Cap to leave room for other factors
+
+    def _calculate_extension_priority_boost(self, file_name: str, search_terms_str: str, task_type: str) -> float:
+        """Calculate boost based on file extension relevance to query context."""
+        boost = 0.0
+
+        # Script-related queries should prioritize script files
+        if any(script_term in search_terms_str for script_term in ['script', 'setup', 'install', 'run', 'launch']):
+            if file_name.endswith(('.bat', '.cmd', '.ps1', '.sh', '.bash')):
+                boost += 0.4  # High boost for script files in script queries
+            elif file_name.endswith('.py') and any(py_term in search_terms_str for py_term in ['setup', 'install']):
+                boost += 0.3  # Boost for Python setup files
+
+        # Configuration queries should prioritize config files
+        if any(config_term in search_terms_str for config_term in ['config', 'settings', 'env', 'environment']):
+            if file_name.endswith(('.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.env')):
+                boost += 0.4
+
+        # Development queries should prioritize code files
+        if task_type.lower() == 'development' or any(dev_term in search_terms_str for dev_term in ['code', 'implement', 'develop']):
+            if file_name.endswith(('.py', '.js', '.ts', '.jsx', '.tsx')):
+                boost += 0.2
+
+        # Windows-specific queries should prioritize Windows files
+        if 'windows' in search_terms_str:
+            if file_name.endswith(('.bat', '.cmd', '.ps1')):
+                boost += 0.5  # Very high boost for Windows scripts in Windows queries
+
+        # Linux-specific queries should prioritize Linux files
+        if 'linux' in search_terms_str:
+            if file_name.endswith(('.sh', '.bash')):
+                boost += 0.5  # Very high boost for Linux scripts in Linux queries
+
+        return boost
+
+    def _calculate_root_directory_boost(self, file_path: str, search_terms: List[str], task_type: str) -> float:
+        """Calculate boost for files in root directory for setup-related queries."""
+        boost = 0.0
+        search_terms_str = ' '.join(search_terms).lower()
+
+        # Check if file is in root directory (no subdirectories)
+        is_root_file = '/' not in file_path.strip('/')
+
+        if is_root_file:
+            # Setup-related queries get boost for root files
+            if any(setup_term in search_terms_str for setup_term in ['setup', 'install', 'configure', 'run', 'launch']):
+                boost += 0.3  # Significant boost for root setup files
+
+            # Main application files get boost
+            main_files = ['app.py', 'main.py', 'index.py', 'run.py', 'start.py']
+            file_name = file_path.split('/')[-1] if '/' in file_path else file_path
+            if file_name.lower() in main_files:
+                boost += 0.25  # Boost for main application files
+
+            # Configuration files in root get boost
+            if any(config_term in search_terms_str for config_term in ['config', 'env', 'settings']):
+                config_files = ['.env', '.env.example', 'config.json', 'settings.json']
+                if file_name.lower() in config_files:
+                    boost += 0.3
+
+        return boost
 
     def _extract_content_preview(self, embedding_data: Dict[str, Any]) -> str:
         """Extract a preview of the content from embedding data."""

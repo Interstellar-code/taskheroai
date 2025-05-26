@@ -1,4 +1,4 @@
-"""Tools module for Agent Mode in VerbalCodeAI.
+"""Tools module for Agent Mode in TaskHero AI.
 
 This module provides a set of tools that can be used by the AI agent to interact
 with the codebase, including:
@@ -53,7 +53,7 @@ from .instructions import instructions_manager
 from .memory import memory_manager
 from .terminal import terminal_manager
 
-logger = logging.getLogger("VerbalCodeAI.Tools")
+logger = logging.getLogger("TaskHeroAI.Tools")
 
 load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env", override=True)
 
@@ -706,7 +706,7 @@ class CodebaseTools:
                 }
 
             context_parts = []
-            
+
             if include_project_info and self.indexer:
                 try:
                     project_info = self.get_project_description()

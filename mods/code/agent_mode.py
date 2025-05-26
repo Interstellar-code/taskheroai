@@ -1,4 +1,4 @@
-"""Agent Mode module for VerbalCodeAI.
+"""Agent Mode module for TaskHero AI.
 
 This module provides an AI agent that can use multiple tools to interact with
 the codebase, including searching, reading files, and analyzing code structure.
@@ -16,11 +16,11 @@ from colorama import Fore, Style
 from ..llms import generate_response
 from .tools import CodebaseTools
 
-logger = logging.getLogger("VerbalCodeAI.AgentMode")
+logger = logging.getLogger("TaskHeroAI.AgentMode")
 
 
 class AgentMode:
-    """Agent Mode for VerbalCodeAI.
+    """Agent Mode for TaskHero AI.
 
     This class implements an AI agent that can use multiple tools to interact
     with the codebase. It maintains chat history and provides visual feedback

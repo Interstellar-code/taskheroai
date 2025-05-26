@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from dotenv import load_dotenv
 
-logger = logging.getLogger("VerbalCodeAI.Code.DirectoryParser")
+logger = logging.getLogger("TaskHeroAI.Code.DirectoryParser")
 logger.info("[DIRECTORY PARSER] LOGGER WORKING")
 
 load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env", override=True)
