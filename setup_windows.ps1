@@ -555,7 +555,7 @@ if ($Force -or -not (Test-SetupCompleted "dependencies_installed")) {
 
             foreach ($dep in $keyDeps) {
                 $testCmd = if ($dep -eq "python-dotenv") { "dotenv" } else { $dep }
-                $testResult = & $pythonExe -c "import $testCmd; print('${dep}: OK')" 2>&1
+                $testResult = & $pythonExe -c "import $testCmd; print('$dep' + ': OK')" 2>&1
                 if ($LASTEXITCODE -eq 0) {
                     Write-Success "✓ $dep"
                 } else {
