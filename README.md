@@ -9,17 +9,21 @@
 Ever felt lost in a complex codebase? Wish you had a smart assistant to help you navigate, understand code, and manage your projects right in your terminal? TaskHero AI is here to help! This powerful AI-powered tool acts as your personal code companion and project management assistant, leveraging advanced embedding techniques and Large Language Model (LLM) integration. It offers intelligent code analysis, comprehensive task management, helps you search and understand your project, and provides assistance directly within your command-line interface, making your development workflow smoother and more efficient.
 
 ```yaml
- _____         _    _   _                    _____
-|_   _|       | |  | | | |                  |  _  |
-  | | __ _ ___| | _| |_| | ___ _ __ ___       | |_| |
-  | |/ _` / __| |/ /  _  |/ _ \ '__/ _ \      |  _  |
-  | | (_| \__ \   <| | | |  __/ | | (_) |     | | | |
-  \_/\__,_|___/_|\_\_| |_/\___|_|  \___/      \_| |_/
+ _______         _    _    _                  ___    _____
+|__   __|       | |  | |  | |                / _ \  |_   _|
+   | | __ _ ___| | _| |__| | ___ _ __ ___   | |_| |   | |
+   | |/ _` / __| |/ /  __  |/ _ \ '__/ _ \  |  _  |   | |
+   | | (_| \__ \   <| |  | |  __/ | | (_) | | | | |  _| |_
+   |_|\__,_|___/_|\_\_|  |_|\___|_|  \___/  |_| |_| |_____|
                        [AI Assistant for Code & Projects]
+    > AI Assistant for Project Management & Code
+    > Analyzing your codebase... [DONE]
+    > Initializing AI engine... [DONE]
+    > Ready to help with your questions!
 ```
 
 <div align="center">
-  <img src="Showcase/Main Menu Showcase.PNG" alt="TaskHero AI Main Menu" style="max-width: 800px; max-height: 400px; width: 100%; height: auto;"/>
+  <img src="Showcase/User_menu.png" alt="TaskHero AI Main Menu" style="max-width: 800px; max-height: 400px; width: 100%; height: auto;"/>
 </div>
 
 <details>
@@ -442,13 +446,7 @@ DeepSeek specializes in coding and technical tasks:
 
 Below are some screenshots of TaskHero AI in action:
 
-<div align="center">
-  <img src="Showcase/Agent Mode New commands.PNG" alt="Agent Mode New commands" style="width: 350px; max-width: 100%; height: auto; margin: 10px;"/>
-  <img src="Showcase/Agent Showcase.png" alt="Agent Showcase" style="width: 350px; max-width: 100%; height: auto; margin: 10px;"/>
-  <img src="Showcase/First Implementation Chat With Ai.png" alt="First Implementation Chat With Ai" style="width: 350px; max-width: 100%; height: auto; margin: 10px;"/>
-  <img src="Showcase/Second Agent.PNG" alt="Second Agent" style="width: 350px; max-width: 100%; height: auto; margin: 10px;"/>
-  <img src="Showcase/Second Implementation Chat With Ai.PNG" alt="Second Implementation Chat With Ai" style="width: 350px; max-width: 100%; height: auto; margin: 10px;"/>
-</div>
+*to be updated *
 
 ## Project Structure
 
@@ -563,6 +561,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Anthropic](https://anthropic.com/) for Claude models
 - [DeepSeek](https://deepseek.com/) for specialized coding models
 - All the open-source libraries that make this project possible
+- Forked from Verbalcode AI (https://github.com/vibheksoni/VerbalCodeAi/tree/master)
 
 ---
 
