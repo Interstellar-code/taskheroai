@@ -504,7 +504,14 @@ class TaskManager:
 
                 task_storage_path = settings.get('task_storage_path')
                 if task_storage_path:
-                    return Path(task_storage_path)
+                    # Handle cross-platform paths (Windows paths in Linux environment)
+                    if os.path.isabs(task_storage_path) or (':\\' in task_storage_path) or (':/' in task_storage_path) or task_storage_path.startswith('/') or len(task_storage_path.split('\\')) > 1:
+                        # If it's an absolute path (Unix or Windows), use just the directory name
+                        if '\\' in task_storage_path:
+                            task_storage_path = task_storage_path.split('\\')[-1]
+                        else:
+                            task_storage_path = os.path.basename(task_storage_path)
+                    return self.project_root / task_storage_path
         except Exception as e:
             logger.warning(f"Could not load task storage path from app_settings.json: {e}")
 
@@ -534,20 +541,28 @@ class TaskManager:
 
     def _generate_task_id(self) -> str:
         """Generate a unique task ID."""
-        # Get existing task IDs to determine next sequence number
-        all_tasks = self.get_all_tasks()
-        max_sequence = 0
+        # Try to get next task number from settings first
+        next_sequence = self._get_next_task_number_from_settings()
 
-        for status_tasks in all_tasks.values():
-            for task in status_tasks:
-                # Extract sequence number from task ID (e.g., TASK-001 -> 1)
-                match = re.search(r'TASK-(\d+)', task.task_id)
-                if match:
-                    sequence = int(match.group(1))
-                    max_sequence = max(max_sequence, sequence)
+        if next_sequence is None:
+            # Fallback to scanning existing tasks
+            all_tasks = self.get_all_tasks()
+            max_sequence = 0
 
-        # Generate next task ID
-        next_sequence = max_sequence + 1
+            for status_tasks in all_tasks.values():
+                for task in status_tasks:
+                    # Extract sequence number from task ID (e.g., TASK-001 -> 1)
+                    match = re.search(r'TASK-(\d+)', task.task_id)
+                    if match:
+                        sequence = int(match.group(1))
+                        max_sequence = max(max_sequence, sequence)
+
+            # Generate next task ID
+            next_sequence = max_sequence + 1
+
+        # Update settings with the next number
+        self._update_next_task_number_in_settings(next_sequence + 1)
+
         return f"TASK-{next_sequence:03d}"
 
     # CREATE Operations
@@ -965,6 +980,123 @@ class TaskManager:
                     errors.append(f"Invalid date format for {field}: {task_data[field]} (expected YYYY-MM-DD)")
 
         return len(errors) == 0, errors
+
+    def _get_next_task_number_from_settings(self) -> Optional[int]:
+        """Get the next task number from app settings."""
+        try:
+            settings_path = Path("app_settings.json")
+            if settings_path.exists():
+                with open(settings_path, 'r', encoding='utf-8') as f:
+                    settings = json.load(f)
+                # Check both locations for backward compatibility
+                if 'project_management' in settings and 'next_task_number' in settings['project_management']:
+                    return settings['project_management']['next_task_number']
+                return settings.get('next_task_number')
+        except Exception as e:
+            print(f"Warning: Could not read next task number from settings: {e}")
+        return None
+
+    def _update_next_task_number_in_settings(self, next_number: int) -> None:
+        """Update the next task number in app settings."""
+        try:
+            settings_path = Path("app_settings.json")
+            settings = {}
+
+            # Load existing settings
+            if settings_path.exists():
+                with open(settings_path, 'r', encoding='utf-8') as f:
+                    settings = json.load(f)
+
+            # Ensure project_management section exists
+            if 'project_management' not in settings:
+                settings['project_management'] = {}
+
+            # Update next task number in project_management section
+            settings['project_management']['next_task_number'] = next_number
+
+            # Update last_updated timestamp
+            settings['last_updated'] = datetime.now().isoformat()
+
+            # Save settings
+            with open(settings_path, 'w', encoding='utf-8') as f:
+                json.dump(settings, f, indent=2)
+
+        except Exception as e:
+            print(f"Warning: Could not update next task number in settings: {e}")
+
+    def refresh_task_scan(self) -> Dict[str, Any]:
+        """Refresh task scan - discover existing tasks and update settings."""
+        result = {
+            'success': False,
+            'tasks_found': 0,
+            'tasks_processed': 0,
+            'status_counts': {},
+            'issues': [],
+            'next_task_number': None
+        }
+
+        try:
+            # Scan all task directories
+            all_tasks = self.get_all_tasks()
+
+            # Count tasks by status
+            status_counts = {}
+            total_tasks = 0
+            max_sequence = 0
+
+            for status, tasks in all_tasks.items():
+                count = len(tasks)
+                status_counts[status] = count
+                total_tasks += count
+
+                # Track highest task number
+                for task in tasks:
+                    match = re.search(r'TASK-(\d+)', task.task_id)
+                    if match:
+                        sequence = int(match.group(1))
+                        max_sequence = max(max_sequence, sequence)
+
+            # Update next task number
+            next_task_number = max_sequence + 1
+            self._update_next_task_number_in_settings(next_task_number)
+
+            # Validate task directories exist
+            missing_dirs = []
+            for status in TaskStatus:
+                status_dir = self.planning_dir / status.value
+                if not status_dir.exists():
+                    missing_dirs.append(status.value)
+                    try:
+                        status_dir.mkdir(parents=True, exist_ok=True)
+                    except Exception as e:
+                        result['issues'].append(f"Could not create directory {status.value}: {e}")
+
+            if missing_dirs:
+                result['issues'].append(f"Created missing directories: {', '.join(missing_dirs)}")
+
+            # Check for orphaned task files
+            orphaned_files = []
+            for status_dir in self.planning_dir.iterdir():
+                if status_dir.is_dir() and status_dir.name not in [s.value for s in TaskStatus]:
+                    orphaned_files.append(status_dir.name)
+
+            if orphaned_files:
+                result['issues'].append(f"Found unknown directories: {', '.join(orphaned_files)}")
+
+            # Set results
+            result.update({
+                'success': True,
+                'tasks_found': total_tasks,
+                'tasks_processed': total_tasks,
+                'status_counts': status_counts,
+                'next_task_number': next_task_number
+            })
+
+        except Exception as e:
+            result['error'] = str(e)
+            result['issues'].append(f"Scan failed: {e}")
+
+        return result
 
 
 # Legacy compatibility wrapper for existing Task class usage
