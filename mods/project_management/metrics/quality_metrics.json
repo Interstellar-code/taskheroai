@@ -133,5 +133,40 @@
       "Make requirements more specific and measurable",
       "Include more technical considerations and architectural details"
     ]
+  },
+  {
+    "task_id": "TASK-078",
+    "timestamp": "2025-05-26T12:10:13.381501",
+    "overall_score": 0.77125,
+    "quality_level": "good",
+    "metric_scores": {
+      "metadata_completeness": 0.575,
+      "requirements_specificity": 0.6,
+      "implementation_detail": 0.9000000000000001,
+      "technical_depth": 0.75,
+      "flow_diagram_validity": 1.0,
+      "content_structure": 0.9500000000000001
+    },
+    "recommendations": [
+      "Add missing metadata fields (tags, dependencies, effort estimates)",
+      "Make requirements more specific and measurable"
+    ]
+  },
+  {
+    "task_id": "TASK-079",
+    "timestamp": "2025-05-26T12:27:43.148702",
+    "overall_score": 0.82125,
+    "quality_level": "excellent",
+    "metric_scores": {
+      "metadata_completeness": 0.575,
+      "requirements_specificity": 0.8,
+      "implementation_detail": 0.9000000000000001,
+      "technical_depth": 0.75,
+      "flow_diagram_validity": 1.0,
+      "content_structure": 0.9500000000000001
+    },
+    "recommendations": [
+      "Add missing metadata fields (tags, dependencies, effort estimates)"
+    ]
   }
 ]

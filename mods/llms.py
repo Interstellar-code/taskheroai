@@ -67,9 +67,9 @@ AI_EMBEDDING_API_KEY: str = os.getenv("AI_EMBEDDING_API_KEY")
 AI_DESCRIPTION_API_KEY: str = os.getenv("AI_DESCRIPTION_API_KEY")
 AI_AGENT_BUDDY_API_KEY: str = os.getenv("AI_AGENT_BUDDY_API_KEY")
 
-CHAT_MODEL: str = os.getenv("CHAT_MODEL")
-EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL")
-DESCRIPTION_MODEL: str = os.getenv("DESCRIPTION_MODEL")
+CHAT_MODEL: str = os.getenv("AI_CHAT_MODEL") or os.getenv("CHAT_MODEL")
+EMBEDDING_MODEL: str = os.getenv("AI_EMBEDDING_MODEL") or os.getenv("EMBEDDING_MODEL")
+DESCRIPTION_MODEL: str = os.getenv("AI_DESCRIPTION_MODEL") or os.getenv("DESCRIPTION_MODEL")
 AI_AGENT_BUDDY_MODEL: str = os.getenv("AI_AGENT_BUDDY_MODEL")
 
 CHAT_MODEL_TEMPERATURE: float = float(os.getenv("CHAT_MODEL_TEMPERATURE", "0.7"))
@@ -978,6 +978,10 @@ def generate_response(
                     )
                 else:
                     raise
+        elif chat_provider.lower() == "deepseek":
+            response = _generate_response_deepseek(
+                messages, system_prompt, temperature, max_tokens, chat_api_key, chat_model
+            )
         else:
             response = _generate_response_ollama(
                 messages, system_prompt, temperature, max_tokens, chat_model
@@ -1574,6 +1578,96 @@ def _generate_response_ollama(
         raise
 
 
+@track_performance("deepseek")
+def _generate_response_deepseek(
+    messages: List[Dict[str, str]],
+    system_prompt: Optional[str] = None,
+    temperature: float = CHAT_MODEL_TEMPERATURE,
+    max_tokens: Optional[int] = CHAT_MODEL_MAX_TOKENS,
+    api_key: Optional[str] = None,
+    model_name: Optional[str] = None,
+) -> str:
+    """Generate a response using DeepSeek API.
+
+    Args:
+        messages (List[Dict[str, str]]): Validated message list.
+        system_prompt (Optional[str], optional): System prompt. Defaults to None.
+        temperature (float, optional): Temperature. Defaults to CHAT_MODEL_TEMPERATURE.
+        max_tokens (Optional[int], optional): Max tokens. Defaults to CHAT_MODEL_MAX_TOKENS.
+        api_key (Optional[str], optional): Override the API key. Defaults to None (use environment variable).
+        model_name (Optional[str], optional): Override the model name. Defaults to None (use environment variable).
+
+    Returns:
+        str: Generated response.
+
+    Raises:
+        ValueError: If API key is not set.
+        Exception: If API call fails.
+    """
+    # Get DeepSeek API key from environment
+    deepseek_api_key = api_key or os.getenv("DEEPSEEK_API_KEY") or AI_CHAT_API_KEY
+    chat_model = model_name or CHAT_MODEL
+
+    if not deepseek_api_key or deepseek_api_key.lower() == "none":
+        raise ValueError("API key not set for DeepSeek provider")
+
+    if not chat_model:
+        raise ValueError("Model not set. Either set AI_CHAT_MODEL environment variable or provide model parameter.")
+
+    try:
+        formatted_messages = []
+
+        if system_prompt:
+            formatted_messages.append({"role": "system", "content": system_prompt})
+
+        for msg in messages:
+            formatted_messages.append({"role": msg["role"], "content": msg["content"]})
+
+        payload = {
+            "model": chat_model,
+            "messages": formatted_messages,
+            "temperature": temperature,
+            "top_p": CHAT_MODEL_TOP_P,
+        }
+
+        if max_tokens:
+            payload["max_tokens"] = max_tokens
+
+        headers = {
+            "Authorization": f"Bearer {deepseek_api_key}",
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(
+            "https://api.deepseek.com/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+
+        if response.status_code != 200:
+            error_message = f"DeepSeek API error: {response.status_code} - {response.text}"
+            logger.error(error_message)
+            raise Exception(error_message)
+
+        response_data = response.json()
+
+        if "choices" not in response_data or len(response_data["choices"]) == 0:
+            error_message = "DeepSeek API returned no choices"
+            logger.error(error_message)
+            raise Exception(error_message)
+
+        message_content = response_data["choices"][0]["message"]["content"]
+        return message_content
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error when calling DeepSeek API: {str(e)}", exc_info=True)
+        raise Exception(f"Network error when calling DeepSeek API: {str(e)}")
+    except Exception as e:
+        logger.error(f"DeepSeek API error with model {chat_model}: {str(e)}", exc_info=True)
+        raise Exception(f"DeepSeek API error with model {chat_model}: {str(e)}")
+
+
 async def generate_response_stream(
     messages: List[Dict[str, str]],
     system_prompt: Optional[str] = None,
@@ -2053,7 +2147,7 @@ def generate_description(
 
     response = None
     primary_error = None
-    
+
     try:
         # Try primary provider first
         if AI_DESCRIPTION_PROVIDER == "google":
@@ -2070,30 +2164,30 @@ def generate_description(
         else:  # Default to ollama
             logger.info(f"Generating description using Ollama with model: {DESCRIPTION_MODEL}")
             response = _generate_description_ollama(prompt, temperature, max_tokens)
-            
+
     except Exception as e:
         primary_error = e
         error_msg = f"Error generating description with primary provider '{AI_DESCRIPTION_PROVIDER}': {str(e)}"
         logger.warning(error_msg)
-        
+
         # Try fallback providers if primary fails
         fallback_providers = []
-        
+
         # Define fallback order based on what's likely to work
         if AI_DESCRIPTION_PROVIDER != "openai" and AI_EMBEDDING_API_KEY and AI_EMBEDDING_API_KEY.lower() != 'none':
             fallback_providers.append(("openai", "Using OpenAI as fallback (same API key as embeddings)"))
-        
+
         if AI_DESCRIPTION_PROVIDER != "openrouter" and AI_DESCRIPTION_API_KEY and AI_DESCRIPTION_API_KEY.lower() != 'none':
             fallback_providers.append(("openrouter", "Using OpenRouter as fallback"))
-            
+
         if AI_DESCRIPTION_PROVIDER != "groq" and AI_DESCRIPTION_API_KEY and AI_DESCRIPTION_API_KEY.lower() != 'none':
             fallback_providers.append(("groq", "Using Groq as fallback"))
-            
+
         # Try fallback providers
         for fallback_provider, reason in fallback_providers:
             try:
                 logger.info(f"Attempting fallback: {reason}")
-                
+
                 if fallback_provider == "openai":
                     # Use OpenAI with the embedding API key if available
                     temp_api_key = AI_EMBEDDING_API_KEY if AI_EMBEDDING_PROVIDER == "openai" else AI_DESCRIPTION_API_KEY
@@ -2115,11 +2209,11 @@ def generate_description(
                     response = _generate_description_groq(prompt, temperature, max_tokens)
                     logger.info("Successfully generated description using Groq fallback")
                     break
-                    
+
             except Exception as fallback_error:
                 logger.warning(f"Fallback provider {fallback_provider} also failed: {str(fallback_error)}")
                 continue
-        
+
         # If all providers failed, raise the original error with helpful message
         if response is None:
             if AI_DESCRIPTION_PROVIDER == "ollama":
@@ -2137,9 +2231,9 @@ def generate_description(
                     helpful_msg = f"Ollama error: {str(primary_error)}"
             else:
                 helpful_msg = f"All description providers failed. Primary error: {str(primary_error)}"
-            
+
             raise Exception(helpful_msg)
-    
+
     if CHAT_LOGS_ENABLED and project_path:
         log_chat(prompt, response, project_path)
     return response

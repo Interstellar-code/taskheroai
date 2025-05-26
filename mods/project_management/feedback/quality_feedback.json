@@ -88,5 +88,17 @@
     "quality_score": 0.7999999999999999,
     "user_satisfaction": 4,
     "timestamp": "2025-05-26T08:22:08.508014"
+  },
+  {
+    "task_id": "TASK-078",
+    "quality_score": 0.7999999999999999,
+    "user_satisfaction": 4,
+    "timestamp": "2025-05-26T12:10:13.380105"
+  },
+  {
+    "task_id": "TASK-079",
+    "quality_score": 0.7999999999999999,
+    "user_satisfaction": 4,
+    "timestamp": "2025-05-26T12:27:43.147365"
   }
 ]

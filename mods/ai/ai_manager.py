@@ -287,19 +287,7 @@ class AIManager(BaseManager):
                     self._show_project_files()
                     continue
 
-                # Get provider info for display
-                provider_info = None
-                if self.chat_handler and self.chat_handler.current_provider:
-                    provider_info = self.chat_handler.get_current_provider_info()
-
-                # Process the query with agent
-                if provider_info:
-                    provider_name = provider_info['provider']
-                    model_name = provider_info['model']
-                    print(f"{Fore.CYAN}🤖 Agent ({provider_name}:{model_name}): {Style.RESET_ALL}Processing with advanced tools...")
-                else:
-                    print(f"{Fore.CYAN}🤖 Agent: {Style.RESET_ALL}Processing with advanced tools...")
-
+                # Process the query with agent (provider info is handled internally by AgentMode)
                 try:
                     await self.agent_mode_instance.process_query(user_input)
                 except Exception as e:

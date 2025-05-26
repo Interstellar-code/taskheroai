@@ -661,8 +661,17 @@ class AITaskCreator:
                 description, task_type, specific_files=None
             )
 
-            # Step 2: Collect relevant context from embeddings (existing functionality)
-            relevant_context = self._collect_embeddings_context(description, context)
+            # Step 2: Collect relevant context from embeddings (PHASE 5B: include title and tags)
+            title = context.get('title', '')
+            combined_text = f"{title} {description}" if title else description
+
+            # PHASE 5B: Include tags for enhanced context discovery
+            tags = context.get('tags', [])
+            if tags:
+                tags_text = ' '.join(tags)
+                combined_text = f"{combined_text} {tags_text}"
+
+            relevant_context = self._collect_embeddings_context(combined_text, context)
 
             # Step 3: Filter and optimize context for AI processing
             optimized_context = self._optimize_context_for_ai(relevant_context)
@@ -1861,11 +1870,39 @@ Provide specific, actionable technical guidance based on the codebase context.""
         return self._extract_enhanced_search_terms(description, task_type)
 
     def _extract_enhanced_search_terms(self, description: str, task_type: str) -> List[str]:
-        """Enhanced search term extraction with intelligent processing."""
+        """Enhanced search term extraction with file path preservation and intelligent processing."""
         import re
 
-        # Clean and tokenize description
-        words = re.findall(r'\b\w+\b', description.lower())
+        # PHASE 5: File Path Preservation - Extract file paths before tokenization
+        file_paths = self._extract_file_paths_from_description(description)
+
+        # Extract filenames and compound terms from file paths
+        path_terms = []
+        for file_path in file_paths:
+            # Add complete filename
+            filename = file_path.split('/')[-1] if '/' in file_path else file_path
+            if filename:
+                path_terms.append(filename)
+
+                # Add filename without extension for broader matching
+                name_without_ext = filename.split('.')[0] if '.' in filename else filename
+                if name_without_ext and name_without_ext != filename:
+                    path_terms.append(name_without_ext)
+
+                # Add compound terms (e.g., "agent_mode" from "agent_mode.py")
+                if '_' in name_without_ext:
+                    path_terms.extend(name_without_ext.split('_'))
+                elif '-' in name_without_ext:
+                    path_terms.extend(name_without_ext.split('-'))
+
+            # Add directory components
+            path_parts = file_path.split('/')
+            for part in path_parts[:-1]:  # Exclude filename
+                if part and len(part) > 1:  # Reduced from 2 to include "ai"
+                    path_terms.append(part)
+
+        # Enhanced tokenization that preserves compound terms
+        words = self._enhanced_tokenization(description)
 
         # Enhanced stop words list
         stop_words = {
@@ -1878,11 +1915,17 @@ Provide specific, actionable technical guidance based on the codebase context.""
 
         # Extract meaningful terms with enhanced filtering
         meaningful_words = []
+
+        # Add file path terms first (highest priority)
+        meaningful_words.extend(path_terms)
+
+        # Add regular words
         for word in words:
             if (len(word) > 3 and
                 word not in stop_words and
                 not word.isdigit() and
-                not word.startswith('http')):
+                not word.startswith('http') and
+                word not in meaningful_words):  # Avoid duplicates
                 meaningful_words.append(word)
 
         # Enhanced task type specific terms with technical focus
@@ -1935,7 +1978,106 @@ Provide specific, actionable technical guidance based on the codebase context.""
         # Sort by technical relevance and length
         unique_terms.sort(key=lambda x: (self._calculate_term_relevance(x, description, task_type), len(x)), reverse=True)
 
-        return unique_terms[:12]  # Increased to 12 for better coverage
+        # PHASE 5: Enhanced logging for debugging
+        logger.debug(f"Phase 5 Search Terms Extraction:")
+        logger.debug(f"  File paths found: {file_paths}")
+        logger.debug(f"  Path terms extracted: {path_terms}")
+        logger.debug(f"  Final search terms: {unique_terms[:15]}")
+
+        return unique_terms[:15]  # Increased to 15 for better coverage with file paths
+
+    def _extract_file_paths_from_description(self, description: str) -> List[str]:
+        """Extract file paths from task description using enhanced regex patterns."""
+        import re
+
+        file_paths = []
+
+        # Pattern 1: Standard file paths (e.g., "mods/ai/agent_mode.py", "src/components/Button.tsx")
+        path_pattern = r'(?:^|\s)([a-zA-Z_][a-zA-Z0-9_/\\.-]*\.[a-zA-Z0-9]+)(?:\s|$|[,;:])'
+        matches = re.findall(path_pattern, description)
+        file_paths.extend(matches)
+
+        # Pattern 2: Quoted file paths (e.g., "mods/ai/agent_mode.py", 'src/utils.js')
+        quoted_pattern = r'["\']([a-zA-Z_][a-zA-Z0-9_/\\.-]*\.[a-zA-Z0-9]+)["\']'
+        quoted_matches = re.findall(quoted_pattern, description)
+        file_paths.extend(quoted_matches)
+
+        # Pattern 3: Directory paths with files mentioned separately (e.g., "mods/ai/" + "agent_mode.py")
+        # Look for directory patterns followed by filenames
+        dir_pattern = r'([a-zA-Z_][a-zA-Z0-9_/\\-]*/)(?:\s*[-\s]*\s*([a-zA-Z_][a-zA-Z0-9_.-]*\.[a-zA-Z0-9]+))?'
+        dir_matches = re.findall(dir_pattern, description)
+        for dir_path, filename in dir_matches:
+            if filename:
+                file_paths.append(dir_path + filename)
+
+        # Pattern 4: Standalone filenames that look like code files
+        filename_pattern = r'(?:^|\s)([a-zA-Z_][a-zA-Z0-9_-]*\.(py|js|ts|jsx|tsx|java|cpp|c|go|rs|php|rb|swift|kt|scala|sh|bat|ps1|json|yaml|yml|xml|html|css|scss|md|txt))(?:\s|$|[,;:])'
+        filename_matches = re.findall(filename_pattern, description)
+        file_paths.extend([match[0] for match in filename_matches])
+
+        # Clean and deduplicate paths
+        cleaned_paths = []
+        for path in file_paths:
+            # Normalize path separators
+            normalized_path = path.replace('\\', '/')
+            # Remove leading/trailing whitespace and special chars
+            normalized_path = normalized_path.strip(' .,;:')
+            if normalized_path and normalized_path not in cleaned_paths:
+                cleaned_paths.append(normalized_path)
+
+        return cleaned_paths
+
+    def _enhanced_tokenization(self, description: str) -> List[str]:
+        """Enhanced tokenization that preserves compound terms and technical identifiers."""
+        import re
+
+        # Remove file paths temporarily to avoid double processing
+        file_paths = self._extract_file_paths_from_description(description)
+        temp_description = description
+        for i, path in enumerate(file_paths):
+            temp_description = temp_description.replace(path, f"__FILEPATH_{i}__")
+
+        # Enhanced regex that captures:
+        # - Regular words
+        # - Compound identifiers (snake_case, kebab-case, camelCase)
+        # - Technical terms with numbers
+        enhanced_pattern = r'\b(?:[a-zA-Z][a-zA-Z0-9]*(?:[_-][a-zA-Z0-9]+)*|[a-zA-Z]+[0-9]+|[0-9]+[a-zA-Z]+)\b'
+
+        words = re.findall(enhanced_pattern, temp_description.lower())
+
+        # Add back compound terms from original description
+        compound_terms = self._extract_compound_terms(description)
+        words.extend(compound_terms)
+
+        return words
+
+    def _extract_compound_terms(self, description: str) -> List[str]:
+        """Extract compound technical terms that should be preserved as units."""
+        import re
+
+        compound_terms = []
+
+        # Pattern for snake_case identifiers
+        snake_case_pattern = r'\b[a-zA-Z][a-zA-Z0-9]*(?:_[a-zA-Z0-9]+)+\b'
+        snake_matches = re.findall(snake_case_pattern, description.lower())
+        compound_terms.extend(snake_matches)
+
+        # Pattern for kebab-case identifiers
+        kebab_case_pattern = r'\b[a-zA-Z][a-zA-Z0-9]*(?:-[a-zA-Z0-9]+)+\b'
+        kebab_matches = re.findall(kebab_case_pattern, description.lower())
+        compound_terms.extend(kebab_matches)
+
+        # Pattern for camelCase identifiers
+        camel_case_pattern = r'\b[a-z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9]*\b'
+        camel_matches = re.findall(camel_case_pattern, description)
+        compound_terms.extend([term.lower() for term in camel_matches])
+
+        # Pattern for technical terms with numbers
+        tech_number_pattern = r'\b(?:[a-zA-Z]+[0-9]+|[0-9]+[a-zA-Z]+)\b'
+        tech_matches = re.findall(tech_number_pattern, description.lower())
+        compound_terms.extend(tech_matches)
+
+        return list(set(compound_terms))  # Remove duplicates
 
     def _add_technical_domain_terms(self, terms: List[str], description: str):
         """Add technical domain-specific terms based on description content."""
@@ -1966,10 +2108,36 @@ Provide specific, actionable technical guidance based on the codebase context.""
             terms.extend(['testing', 'validation', 'verification', 'spec'])
 
     def _calculate_term_relevance(self, term: str, description: str, task_type: str) -> float:
-        """Calculate relevance score for a search term."""
+        """Calculate relevance score for a search term with Phase 5 file path prioritization."""
         score = 0.0
         desc_lower = description.lower()
         task_lower = task_type.lower()
+
+        # PHASE 5: File path terms get highest priority
+        file_paths = self._extract_file_paths_from_description(description)
+        is_file_path_term = False
+
+        for file_path in file_paths:
+            # Check if term is a complete filename
+            filename = file_path.split('/')[-1] if '/' in file_path else file_path
+            if term == filename.lower() or term == filename.split('.')[0].lower():
+                score += 2.0  # Highest priority for filenames
+                is_file_path_term = True
+                break
+
+            # Check if term is a directory component
+            path_parts = file_path.split('/')
+            if term in [part.lower() for part in path_parts]:
+                score += 1.5  # High priority for directory components
+                is_file_path_term = True
+                break
+
+            # Check if term is part of compound filename
+            name_without_ext = filename.split('.')[0] if '.' in filename else filename
+            if '_' in name_without_ext and term in name_without_ext.split('_'):
+                score += 1.8  # Very high priority for filename components
+                is_file_path_term = True
+                break
 
         # Exact match in description
         if term in desc_lower:
@@ -1991,9 +2159,11 @@ Provide specific, actionable technical guidance based on the codebase context.""
         if term in task_lower:
             score += 0.6
 
-        # Length bonus for specific terms
-        if len(term) > 6:
+        # Length bonus for specific terms (reduced for file path terms)
+        if len(term) > 6 and not is_file_path_term:
             score += 0.3
+        elif len(term) > 2 and is_file_path_term:
+            score += 0.2  # Small bonus for longer file path terms
 
         return score
 
@@ -2160,14 +2330,31 @@ Provide specific, actionable technical guidance based on the codebase context.""
 
     def _calculate_exact_match_boost(self, original_file_name: str, file_name: str, file_path: str,
                                    search_terms: List[str], task_type: str) -> float:
-        """Phase 4: Calculate massive relevance boost for exact filename matches."""
+        """Phase 5: Enhanced exact match boost with file path awareness."""
         boost = 0.0
         search_terms_str = ' '.join(search_terms).lower()
         file_name_lower = file_name.lower()
+        # Use the full file path for enhanced matching
 
-        # Exact filename matches get massive boost
+        # PHASE 5: Complete file path matches get maximum boost
         for term in search_terms:
             term_lower = term.lower()
+
+            # Check for complete file path match (e.g., "mods/ai/agent_mode.py")
+            if '/' in term_lower and term_lower in file_path.lower():
+                boost += 0.95  # Maximum boost for complete path matches
+                continue
+
+            # Check for exact filename match (e.g., "agent_mode.py")
+            if term_lower == file_name_lower:
+                boost += 0.9  # Very high boost for exact filename matches
+                continue
+
+            # Check for filename without extension match (e.g., "agent_mode")
+            name_without_ext = file_name_lower.split('.')[0] if '.' in file_name_lower else file_name_lower
+            if term_lower == name_without_ext:
+                boost += 0.85  # High boost for filename without extension matches
+                continue
 
             # Perfect filename match (e.g., "setup_windows.bat" for "setup windows")
             if term_lower in file_name_lower:
@@ -2196,6 +2383,12 @@ Provide specific, actionable technical guidance based on the codebase context.""
         for term in search_terms:
             if term in original_file_name:  # Case-sensitive match
                 boost += 0.3
+
+        # PHASE 5: Enhanced logging for file path matching
+        if boost > 0.7:
+            logger.debug(f"Phase 5 High File Match: {original_file_name} - "
+                       f"Path: {file_path}, Boost: {boost:.3f}, "
+                       f"Search terms: {search_terms}")
 
         return min(boost, 0.95)  # Cap to leave room for other factors
 
@@ -3137,14 +3330,22 @@ Keep each consideration concise but specific to this task."""
         print(f"Task: {data['title']}")
         print(f"Type: {data['task_type']}")
 
-        # Collect relevant context using semantic search
-        relevant_context = self._collect_embeddings_context(description, data)
+        # PHASE 5B: Collect relevant context using title, description, and tags
+        combined_text = f"{data['title']} {description}"
+
+        # Include tags if available for enhanced context discovery
+        tags = data.get('tags', [])
+        if tags:
+            tags_text = ' '.join(tags)
+            combined_text = f"{combined_text} {tags_text}"
+
+        relevant_context = self._collect_embeddings_context(combined_text, data)
 
         if relevant_context:
             print(f"✅ Found {len(relevant_context)} relevant files")
 
-            # Interactive context selection
-            selected_context = self._display_context_selection_interface(relevant_context, description)
+            # Interactive context selection using combined text
+            selected_context = self._display_context_selection_interface(relevant_context, combined_text)
             self.creation_state['selected_context'] = selected_context
 
             print(f"\n✅ Step 2 Complete - Context Selected")
@@ -4342,8 +4543,17 @@ Keep each consideration concise but specific to this task."""
     async def _find_relevant_codebase_files(self, description: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Find relevant codebase files based on task description and context."""
         try:
-            # Use semantic search to find relevant files
-            relevant_context = self._collect_embeddings_context(description, context)
+            # PHASE 5B: Use semantic search with title, description, and tags
+            title = context.get('title', '')
+            combined_text = f"{title} {description}" if title else description
+
+            # PHASE 5B: Include tags for enhanced context discovery
+            tags = context.get('tags', [])
+            if tags:
+                tags_text = ' '.join(tags)
+                combined_text = f"{combined_text} {tags_text}"
+
+            relevant_context = self._collect_embeddings_context(combined_text, context)
 
             # Convert to file analysis format
             relevant_files = []
