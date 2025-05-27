@@ -75,7 +75,7 @@ function Test-SetupCompleted {
 
 function Set-SetupCompleted {
     param([string]$Step)
-    $setupFile = ".taskhero_setup.json"
+    $setupFile = Join-Path $PSScriptRoot ".taskhero_setup.json"
     $setupData = @{ setup_completed = @{} }
 
     if (Test-Path $setupFile) {
@@ -798,14 +798,63 @@ Write-ColoredLine "=============================================================
 Write-Host ""
 Write-Success "TaskHero AI has been successfully set up on your system."
 Write-Host ""
-Write-Info "To test your installation, run:"
-Write-Host "  .\venv\Scripts\python.exe test_setup.py"
+
+# Auto-start TaskHero AI
 Write-Host ""
-Write-Info "To start using TaskHero AI, run:"
-Write-Host "  .\venv\Scripts\python.exe -m taskhero"
+Write-ColoredLine "===============================================================================" $Colors.Primary
+Write-ColoredLine "                          Starting TaskHero AI...                        " $Colors.Primary
+Write-ColoredLine "===============================================================================" $Colors.Primary
 Write-Host ""
-Write-Info "For more information, see the documentation at:"
-Write-Host "  https://github.com/yourusername/taskhero-ai"
-Write-Host ""
-Write-Host "Thank you for installing TaskHero AI!"
-Write-Host ""
+
+$pythonExe = Join-Path $PSScriptRoot "venv\Scripts\python.exe"
+if (Test-Path $pythonExe) {
+    Write-Info "Starting TaskHero AI with virtual environment Python..."
+
+    # Test if dependencies are available before starting
+    try {
+        & $pythonExe -c "import colorama, rich, dotenv" 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Dependencies verified, starting application..."
+
+            # Launch TaskHero AI main application
+            $appPath = Join-Path $PSScriptRoot "app.py"
+
+            if (Test-Path $appPath) {
+                Write-Info "Launching TaskHero AI main application..."
+                & $pythonExe $appPath
+            }
+            else {
+                Write-Error "app.py not found in the TaskHero AI directory!"
+                Write-Info "Please ensure you are running this script from the TaskHero AI root directory."
+                Read-Host "Press Enter to exit"
+            }
+        }
+        else {
+            Write-Error "Dependencies not found in virtual environment!"
+            Write-Info "Please run the setup script again with -Force flag."
+            Write-Host ""
+            Write-Info "To manually start TaskHero AI later, run:"
+            Write-Host "  .\venv\Scripts\python.exe app.py"
+            Write-Host ""
+            Read-Host "Press Enter to exit"
+        }
+    }
+    catch {
+        Write-Error "Failed to verify dependencies or start app: $_"
+        Write-Info "Please run the setup script again with -Force flag."
+        Write-Host ""
+        Write-Info "To manually start TaskHero AI later, run:"
+        Write-Host "  .\venv\Scripts\python.exe app.py"
+        Write-Host ""
+        Read-Host "Press Enter to exit"
+    }
+}
+else {
+    Write-Error "Virtual environment Python not found!"
+    Write-Info "Please run the setup script again with -Force flag."
+    Write-Host ""
+    Write-Info "For more information, see the documentation at:"
+    Write-Host "  https://github.com/Interstellar-code/taskheroai"
+    Write-Host ""
+    Read-Host "Press Enter to exit"
+}

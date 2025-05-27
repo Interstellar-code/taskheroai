@@ -75,3 +75,4 @@ env.backup*
 #cache files
 mods/__pycache__/
 *.pyc
+.taskhero_setup.json

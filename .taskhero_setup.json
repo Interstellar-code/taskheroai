@@ -1,28 +1,16 @@
 {
-  "ai": {
-    "default_provider": "anthropic",
-    "max_chat_history": 50,
-    "auto_save_chats": true
+  "indexing": {
+    "auto_index": true,
+    "index_timeout": 300,
+    "batch_size": 10
   },
-  "repository_type": "central",
-  "created": "2025-05-25T21:27:08.55011",
-  "api_providers_configured": true,
-  "last_updated": "2025-05-27T20:32:11.245907",
-  "setup_completed": {
-    "configuration_completed": true,
-    "dependencies_installed": true,
-    "env_file_created": true,
-    "last_updated": "2025-05-27T21:59:45.170141",
-    "setup_completed": true,
-    "pip_upgraded": true,
-    "venv_created": true
-  },
-  "project_management": {
-    "auto_priority": true,
-    "kanban_enabled": true,
-    "default_project_template": "basic",
-    "next_task_number": 81
-  },
+  "recent_projects": [
+    {
+      "path": "C:\\laragon\\www\\taskheroai",
+      "name": "taskheroai",
+      "last_accessed": "2025-05-27T22:20:19.106881"
+    }
+  ],
   "last_directory": "C:\\laragon\\www\\taskheroai",
   "ui": {
     "enable_markdown_rendering": true,
@@ -31,61 +19,57 @@
     "theme": "default",
     "terminal_width": 80
   },
-  "codebase_path": "C:\\laragon\\www\\taskheroai",
-  "version": "2.0",
-  "task_storage_path": "C:\\laragon\\www\\taskheroai\\theherotasks",
-  "recent_projects": [
-    {
-      "path": "C:\\laragon\\www\\taskheroai",
-      "name": "taskheroai",
-      "last_accessed": "2025-05-27T19:10:20.578307"
-    }
-  ],
-  "indexing": {
-    "auto_index": true,
-    "index_timeout": 300,
-    "batch_size": 10
+  "project_management": {
+    "auto_priority": true,
+    "kanban_enabled": true,
+    "default_project_template": "basic"
   },
-  "api_usage_enabled": true,
+  "setup_completed": {
+    "dependencies_installed": true,
+    "last_updated": "2025-05-27T22:21:27.459138",
+    "setup_completed": true,
+    "venv_created": true,
+    "pip_upgraded": true
+  },
   "git": {
     "auto_check_enabled": true,
-    "last_check_timestamp": "2025-05-27T20:44:53.562794",
+    "last_check_timestamp": "2025-05-27T22:09:23.815651",
     "notifications_enabled": true,
     "repository_url": "https://github.com/Interstellar-code/taskheroai",
     "current_version": "1.0.0",
     "last_update_timestamp": null,
     "update_history": [],
     "version_cache": {
-      "commit_hash": "4dd7ee9690aab6f8012dd9084ec1491c64726081",
-      "commit_date": "2025-05-27T17:43:55Z",
-      "commit_message": "Merge pull request #10 from Interstellar-code/fix/project-analysis-deepseek-provider\n\nFix project analysis report generation for DeepSeek and other AI providers",
+      "commit_hash": "f40c53a682c5746ede68d03152a57ea71c09d9ca",
+      "commit_date": "2025-05-27T20:01:11Z",
+      "commit_message": "ps1 fix",
       "author": "Interstellar-code",
       "version": "unknown",
       "release_date": "unknown",
       "release_notes": "",
-      "check_timestamp": "2025-05-27T20:44:53.562139",
+      "check_timestamp": "2025-05-27T22:09:23.814755",
       "success": true
     },
     "update_cache": {
       "success": true,
-      "check_timestamp": "2025-05-27T20:44:53.562794",
+      "check_timestamp": "2025-05-27T22:09:23.815651",
       "current": {
         "version": "1.0.0",
-        "commit_hash": "4dd7ee9690aab6f8012dd9084ec1491c64726081",
+        "commit_hash": "f40c53a682c5746ede68d03152a57ea71c09d9ca",
         "branch": "master",
-        "last_commit_date": "2025-05-27 19:43:55 +0200",
+        "last_commit_date": "2025-05-27 22:01:11 +0200",
         "is_git_repo": true,
         "has_uncommitted_changes": true
       },
       "remote": {
-        "commit_hash": "4dd7ee9690aab6f8012dd9084ec1491c64726081",
-        "commit_date": "2025-05-27T17:43:55Z",
-        "commit_message": "Merge pull request #10 from Interstellar-code/fix/project-analysis-deepseek-provider\n\nFix project analysis report generation for DeepSeek and other AI providers",
+        "commit_hash": "f40c53a682c5746ede68d03152a57ea71c09d9ca",
+        "commit_date": "2025-05-27T20:01:11Z",
+        "commit_message": "ps1 fix",
         "author": "Interstellar-code",
         "version": "unknown",
         "release_date": "unknown",
         "release_notes": "",
-        "check_timestamp": "2025-05-27T20:44:53.562139",
+        "check_timestamp": "2025-05-27T22:09:23.814755",
         "success": true
       },
       "comparison": {
@@ -98,5 +82,10 @@
       "can_update": false,
       "message": "You are running the latest version"
     }
+  },
+  "ai": {
+    "default_provider": "anthropic",
+    "max_chat_history": 50,
+    "auto_save_chats": true
   }
 }
