@@ -3,7 +3,8 @@
 
 param(
     [switch]$Force,
-    [switch]$Help
+    [switch]$Help,
+    [switch]$Initial
 )
 
 # Color scheme for output
@@ -56,6 +57,111 @@ function Show-Progress {
     param([int]$Current, [int]$Total, [string]$Activity)
     $percent = [math]::Round(($Current / $Total) * 100)
     Write-Progress -Activity $Activity -Status "Step $Current of $Total" -PercentComplete $percent
+}
+
+# Function to remove environment folders and files for fresh installation
+function Remove-EnvironmentFolders {
+    Write-Host ""
+    Write-ColoredLine "===============================================================================" $Colors.Warning
+    Write-ColoredLine "                        INITIAL SETUP - CLEANUP WARNING                    " $Colors.Warning
+    Write-ColoredLine "===============================================================================" $Colors.Warning
+    Write-Host ""
+    Write-Warning "The --Initial flag will DELETE the following files and folders:"
+    Write-Host ""
+
+    # Define items to be deleted
+    $itemsToDelete = @(
+        @{ Path = "venv"; Type = "Folder"; Description = "Virtual environment folder" },
+        @{ Path = ".taskhero_setup.json"; Type = "File"; Description = "Setup tracking file" },
+        @{ Path = ".env"; Type = "File"; Description = "Environment configuration file" },
+        @{ Path = "app_settings.json"; Type = "File"; Description = "Application settings file" }
+    )
+
+    # Find all __pycache__ folders
+    $pycacheFolders = Get-ChildItem -Path . -Recurse -Directory -Name "__pycache__" -ErrorAction SilentlyContinue
+    foreach ($folder in $pycacheFolders) {
+        $itemsToDelete += @{ Path = $folder; Type = "Folder"; Description = "Python cache folder" }
+    }
+
+    # Display what will be deleted
+    $existingItems = @()
+    foreach ($item in $itemsToDelete) {
+        if (Test-Path $item.Path) {
+            $existingItems += $item
+            $icon = if ($item.Type -eq "Folder") { "📁" } else { "📄" }
+            Write-ColoredLine "  $icon $($item.Path) - $($item.Description)" $Colors.Error
+        }
+    }
+
+    if ($existingItems.Count -eq 0) {
+        Write-Host ""
+        Write-Success "No environment files or folders found to delete."
+        Write-Info "Proceeding with fresh installation..."
+        return $true
+    }
+
+    Write-Host ""
+    Write-ColoredLine "Total items to delete: $($existingItems.Count)" $Colors.Warning
+    Write-Host ""
+    Write-Warning "⚠️  THIS ACTION CANNOT BE UNDONE! ⚠️"
+    Write-Warning "All your current environment configuration will be lost."
+    Write-Host ""
+
+    # Get user confirmation
+    $confirmation = Get-UserInput "Are you sure you want to delete these items and start fresh? (y/N):" "yn" "N"
+
+    if ($confirmation.ToUpper() -ne "Y") {
+        Write-Host ""
+        Write-Info "Operation cancelled by user."
+        Write-Info "No files were deleted."
+        return $false
+    }
+
+    # Proceed with deletion
+    Write-Host ""
+    Write-Info "Proceeding with cleanup..."
+    Write-Host ""
+
+    $deletedCount = 0
+    $errorCount = 0
+
+    foreach ($item in $existingItems) {
+        try {
+            if (Test-Path $item.Path) {
+                if ($item.Type -eq "Folder") {
+                    Remove-Item $item.Path -Recurse -Force -ErrorAction Stop
+                    Write-Success "✓ Deleted folder: $($item.Path)"
+                } else {
+                    Remove-Item $item.Path -Force -ErrorAction Stop
+                    Write-Success "✓ Deleted file: $($item.Path)"
+                }
+                $deletedCount++
+            }
+        } catch {
+            Write-Error "✗ Failed to delete $($item.Path): $($_.Exception.Message)"
+            $errorCount++
+        }
+    }
+
+    Write-Host ""
+    if ($errorCount -eq 0) {
+        Write-Success "Cleanup completed successfully!"
+        Write-Success "Deleted $deletedCount items."
+        Write-Info "Environment has been reset for fresh installation."
+    } else {
+        Write-Warning "Cleanup completed with $errorCount errors."
+        Write-Info "Successfully deleted $deletedCount items."
+        Write-Warning "Some items could not be deleted. Please check the errors above."
+
+        $continueAnyway = Get-UserInput "Do you want to continue with setup anyway? (Y/N):" "yn" "Y"
+        if ($continueAnyway.ToUpper() -ne "Y") {
+            Write-Info "Setup cancelled."
+            return $false
+        }
+    }
+
+    Write-Host ""
+    return $true
 }
 
 # Setup completion tracking
@@ -201,22 +307,77 @@ function Show-Help {
     Write-Host "  .\setup_windows_modern.ps1 [OPTIONS]"
     Write-Host ""
     Write-Host "OPTIONS:"
-    Write-Host "  -Force    Force re-run all setup steps"
-    Write-Host "  -Help     Show this help message"
+    Write-Host "  -Force     Force re-run all setup steps"
+    Write-Host "  -Initial   Delete all environment files and start completely fresh"
+    Write-Host "  -Help      Show this help message"
     Write-Host ""
     Write-Host "DESCRIPTION:"
     Write-Host "  This script sets up TaskHero AI with all required dependencies,"
     Write-Host "  creates a virtual environment, and configures the application."
     Write-Host ""
+    Write-Host "PARAMETER DETAILS:"
+    Write-Host "  -Force:    Skips existing setup checks and re-runs all installation steps."
+    Write-Host "             Useful when you want to update dependencies or fix issues."
+    Write-Host ""
+    Write-Host "  -Initial:  ⚠️  DESTRUCTIVE OPERATION ⚠️"
+    Write-Host "             Deletes ALL environment files and folders before setup:"
+    Write-Host "             • Virtual environment folder (venv)"
+    Write-Host "             • Setup tracking file (.taskhero_setup.json)"
+    Write-Host "             • Environment configuration (.env)"
+    Write-Host "             • Application settings (app_settings.json)"
+    Write-Host "             • Python cache folders (__pycache__)"
+    Write-Host "             Automatically enables Force mode after cleanup."
+    Write-Host "             Requires user confirmation before deletion."
+    Write-Host ""
     Write-Host "EXAMPLES:"
-    Write-Host "  .\setup_windows_modern.ps1           # Normal setup"
-    Write-Host "  .\setup_windows_modern.ps1 -Force    # Force complete reinstall"
+    Write-Host "  .\setup_windows_modern.ps1              # Normal setup"
+    Write-Host "  .\setup_windows_modern.ps1 -Force       # Force complete reinstall"
+    Write-Host "  .\setup_windows_modern.ps1 -Initial     # Delete everything and start fresh"
+    Write-Host ""
+    Write-Host "SAFETY NOTES:"
+    Write-Host "  • The -Initial flag will ask for confirmation before deleting files"
+    Write-Host "  • Confirmation defaults to 'No' for safety"
+    Write-Host "  • You can cancel the operation at any time during confirmation"
+    Write-Host "  • Use -Initial when you want to completely reset your installation"
     Write-Host ""
     exit 0
 }
 
 if ($Help) {
     Show-Help
+}
+
+# Handle Initial flag - cleanup environment before setup
+if ($Initial) {
+    Write-Host ""
+    Write-ColoredLine "===============================================================================" $Colors.Primary
+    Write-ColoredLine "                        TaskHero AI Initial Setup Mode                    " $Colors.Primary
+    Write-ColoredLine "===============================================================================" $Colors.Primary
+    Write-Host ""
+    Write-Info "Initial setup mode detected - preparing for complete environment reset..."
+
+    # Call cleanup function
+    $cleanupSuccess = Remove-EnvironmentFolders
+
+    if (-not $cleanupSuccess) {
+        Write-Host ""
+        Write-Error "Initial setup cancelled or failed during cleanup."
+        Write-Info "No changes were made to your environment."
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
+
+    # Automatically enable Force mode after successful cleanup
+    Write-Host ""
+    Write-Success "Environment cleanup completed successfully!"
+    Write-Info "Automatically enabling Force mode for complete fresh installation..."
+    $Force = $true
+
+    Write-Host ""
+    Write-ColoredLine "===============================================================================" $Colors.Success
+    Write-ColoredLine "                    Proceeding with Fresh Installation                     " $Colors.Success
+    Write-ColoredLine "===============================================================================" $Colors.Success
+    Write-Host ""
 }
 
 # Main setup process
