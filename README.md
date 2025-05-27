@@ -566,5 +566,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <p align="center">
-  Made with ❤️ for developers who want to understand their code and manage their projects efficiently
+  Made with ❤️ for developers who want to understand their code and manage their projects efficiently !
 </p>
