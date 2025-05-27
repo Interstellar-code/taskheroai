@@ -1223,12 +1223,280 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
         print(f"{Fore.CYAN}💡 This report can help AI agents understand your project structure and make informed decisions{Style.RESET_ALL}")
 
     def _handle_recent_projects(self) -> None:
-        """Handle recent projects option."""
+        """Handle recent projects option with full functionality."""
         print(f"\n{Fore.CYAN}📚 Recent Projects{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}This functionality will be implemented in the next phase.{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}Will show recently indexed projects with quick switching.{Style.RESET_ALL}")
-        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+
+        if not self.settings_manager:
+            print(f"{Fore.RED}Error: Settings manager not available.{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+            return
+
+        recent_projects = self.settings_manager.get_recent_projects()
+
+        if not recent_projects:
+            print(f"{Fore.YELLOW}No recent projects found.{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Projects will appear here after you index them using option 1.{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+            return
+
+        # Determine if this is a central installation or single project
+        installation_type = self._detect_installation_type()
+
+        print(f"{Fore.CYAN}Installation Type: {Style.BRIGHT}{installation_type}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Found {len(recent_projects)} recent project(s):{Style.RESET_ALL}\n")
+
+        # Display projects with status
+        valid_projects = []
+        for i, project in enumerate(recent_projects, 1):
+            project_path = project.get('path', '')
+            project_name = project.get('name', 'Unknown')
+            last_accessed = project.get('last_accessed', 'Unknown')
+
+            # Check if project directory still exists
+            if not os.path.exists(project_path):
+                print(f"{Fore.RED}{i:2d}. ❌ {project_name}{Style.RESET_ALL}")
+                print(f"     📁 {project_path}")
+                print(f"     ⚠️  Directory no longer exists")
+                print()
+                continue
+
+            valid_projects.append((i, project))
+
+            # Check indexing status
+            index_status = self._get_project_index_status(project_path)
+            status_icon, status_text, status_color = self._format_index_status(index_status)
+
+            print(f"{Fore.GREEN}{i:2d}. {status_icon} {Style.BRIGHT}{project_name}{Style.RESET_ALL}")
+            print(f"     📁 {project_path}")
+            print(f"     🕒 Last accessed: {last_accessed}")
+            print(f"     📊 Status: {status_color}{status_text}{Style.RESET_ALL}")
+
+            # Show additional info for indexed projects
+            if index_status['indexed']:
+                files_count = index_status.get('files_indexed', 0)
+                if files_count > 0:
+                    print(f"     📄 Files indexed: {files_count}")
+            print()
+
+        if not valid_projects:
+            print(f"{Fore.YELLOW}All recent projects have been moved or deleted.{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Use option 13 (Project Cleanup Manager) to clean up the list.{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+            return
+
+        # Show menu options
+        print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Options:{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}• Enter project number (1-{len(recent_projects)}) to switch to that project{Style.RESET_ALL}")
+        print(f"{Fore.BLUE}• Type 'r' + number (e.g., 'r3') to remove a project from recent list{Style.RESET_ALL}")
+        print(f"{Fore.MAGENTA}• Type 'c' to clear all recent projects{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}• Press Enter or type '0' to go back{Style.RESET_ALL}")
+
+        while True:
+            choice = input(f"\n{Fore.GREEN}Choose an option: {Style.RESET_ALL}").strip().lower()
+
+            if not choice or choice == '0':
+                break
+
+            elif choice == 'c':
+                confirm = input(f"{Fore.YELLOW}Clear all recent projects? (y/N): {Style.RESET_ALL}").strip().lower()
+                if confirm in ['y', 'yes']:
+                    self.settings_manager.clear_recent_projects()
+                    print(f"{Fore.GREEN}✅ Recent projects cleared.{Style.RESET_ALL}")
+                    break
+                else:
+                    print(f"{Fore.CYAN}Operation cancelled.{Style.RESET_ALL}")
+
+            elif choice.startswith('r') and len(choice) > 1:
+                try:
+                    project_num = int(choice[1:])
+                    if 1 <= project_num <= len(recent_projects):
+                        project_to_remove = recent_projects[project_num - 1]
+                        project_path = project_to_remove.get('path', '')
+                        project_name = project_to_remove.get('name', 'Unknown')
+
+                        confirm = input(f"{Fore.YELLOW}Remove '{project_name}' from recent projects? (y/N): {Style.RESET_ALL}").strip().lower()
+                        if confirm in ['y', 'yes']:
+                            self.settings_manager.remove_from_recent_projects(project_path)
+                            print(f"{Fore.GREEN}✅ Project removed from recent list.{Style.RESET_ALL}")
+                            # Refresh the display
+                            self._handle_recent_projects()
+                            return
+                        else:
+                            print(f"{Fore.CYAN}Operation cancelled.{Style.RESET_ALL}")
+                    else:
+                        print(f"{Fore.RED}Invalid project number. Please enter 1-{len(recent_projects)}.{Style.RESET_ALL}")
+                except ValueError:
+                    print(f"{Fore.RED}Invalid format. Use 'r' followed by project number (e.g., 'r3').{Style.RESET_ALL}")
+
+            else:
+                try:
+                    project_num = int(choice)
+                    if 1 <= project_num <= len(recent_projects):
+                        selected_project = recent_projects[project_num - 1]
+                        project_path = selected_project.get('path', '')
+                        project_name = selected_project.get('name', 'Unknown')
+
+                        if os.path.exists(project_path):
+                            print(f"\n{Fore.GREEN}🔄 Switching to project: {Style.BRIGHT}{project_name}{Style.RESET_ALL}")
+                            print(f"{Fore.CYAN}📁 Path: {project_path}{Style.RESET_ALL}")
+
+                            # Switch to the selected project
+                            self._switch_to_project(project_path)
+                            break
+                        else:
+                            print(f"{Fore.RED}❌ Project directory no longer exists: {project_path}{Style.RESET_ALL}")
+                            print(f"{Fore.CYAN}Consider removing it from recent projects using 'r{project_num}'.{Style.RESET_ALL}")
+                    else:
+                        print(f"{Fore.RED}Invalid project number. Please enter 1-{len(recent_projects)}.{Style.RESET_ALL}")
+                except ValueError:
+                    print(f"{Fore.RED}Invalid input. Please enter a number, 'r' + number, 'c', or press Enter to go back.{Style.RESET_ALL}")
+
+    def _detect_installation_type(self) -> str:
+        """Detect if this is a central installation or single project setup."""
+        try:
+            # Check if we're in a project directory with TaskHero AI as a subdirectory
+            current_dir = os.getcwd()
+            parent_dir = os.path.dirname(current_dir)
+
+            # If current directory name is 'taskheroai' and parent has other projects
+            if os.path.basename(current_dir) == 'taskheroai':
+                # Check if parent directory has other subdirectories (potential projects)
+                try:
+                    parent_contents = [d for d in os.listdir(parent_dir)
+                                     if os.path.isdir(os.path.join(parent_dir, d)) and d != 'taskheroai']
+                    if len(parent_contents) > 0:
+                        return "Project Integration (TaskHero AI integrated into project folder)"
+                except (PermissionError, OSError):
+                    pass
+
+            # Check if we're in a tools/utilities directory
+            if any(keyword in current_dir.lower() for keyword in ['tools', 'utilities', 'bin', 'opt']):
+                return "Central Installation (Multi-project analysis tool)"
+
+            # Check if we have multiple recent projects from different base directories
+            if self.settings_manager:
+                recent_projects = self.settings_manager.get_recent_projects()
+                if len(recent_projects) > 1:
+                    base_dirs = set()
+                    for project in recent_projects:
+                        project_path = project.get('path', '')
+                        if project_path:
+                            # Get the parent directory of the project
+                            base_dir = os.path.dirname(project_path)
+                            base_dirs.add(base_dir)
+
+                    if len(base_dirs) > 1:
+                        return "Central Installation (Multiple project directories detected)"
+
+            return "Single Project Setup (Dedicated to one codebase)"
+
+        except Exception as e:
+            self.logger.debug(f"Error detecting installation type: {e}")
+            return "Unknown Installation Type"
+
+    def _get_project_index_status(self, project_path: str) -> Dict[str, Any]:
+        """Get the indexing status for a specific project."""
+        try:
+            from ..code.indexer import FileIndexer
+
+            # Create a temporary indexer to check status
+            temp_indexer = FileIndexer(project_path)
+            index_status = temp_indexer.is_index_complete()
+
+            # Get additional information
+            result = {
+                'indexed': index_status.get('complete', False),
+                'outdated_count': index_status.get('outdated_count', 0),
+                'missing_count': index_status.get('missing_count', 0),
+                'ignored_count': index_status.get('ignored_count', 0),
+                'reason': index_status.get('reason', 'Unknown'),
+                'files_indexed': 0
+            }
+
+            # Try to get file count if indexed
+            if result['indexed']:
+                try:
+                    sample_files = temp_indexer.get_sample_files(1000)  # Get up to 1000 files
+                    result['files_indexed'] = len(sample_files)
+                except Exception:
+                    pass
+
+            return result
+
+        except Exception as e:
+            self.logger.debug(f"Error checking index status for {project_path}: {e}")
+            return {
+                'indexed': False,
+                'outdated_count': 0,
+                'missing_count': 0,
+                'ignored_count': 0,
+                'reason': f'Error checking status: {str(e)}',
+                'files_indexed': 0
+            }
+
+    def _format_index_status(self, index_status: Dict[str, Any]) -> tuple:
+        """Format index status into icon, text, and color."""
+        indexed = index_status.get('indexed', False)
+        outdated_count = index_status.get('outdated_count', 0)
+        missing_count = index_status.get('missing_count', 0)
+
+        if indexed and outdated_count == 0 and missing_count == 0:
+            return "✅", "Fully Indexed", Fore.GREEN
+        elif indexed and (outdated_count > 0 or missing_count > 0):
+            if outdated_count > 0 and missing_count == 0:
+                return "🔄", f"Needs Update ({outdated_count} files)", Fore.YELLOW
+            elif missing_count > 0 and outdated_count == 0:
+                return "⚠️", f"Partially Indexed ({missing_count} new files)", Fore.YELLOW
+            else:
+                return "⚠️", f"Needs Update ({outdated_count} outdated, {missing_count} new)", Fore.YELLOW
+        else:
+            return "❌", "Not Indexed", Fore.RED
+
+    def _switch_to_project(self, project_path: str) -> None:
+        """Switch the current session to a different project."""
+        try:
+            from ..code.indexer import FileIndexer
+            from ..code.decisions import FileSelector, ProjectAnalyzer
+
+            # Update settings with new directory
+            if self.settings_manager:
+                self.settings_manager.set_last_directory(project_path)
+                # Update recent projects (this will move it to the top)
+                self.settings_manager.add_to_recent_projects(project_path)
+
+            # Initialize new indexer components
+            self.indexer = FileIndexer(project_path)
+            self.file_selector = FileSelector()
+            self.project_analyzer = ProjectAnalyzer(self.indexer)
+
+            # Check index status
+            index_status = self.indexer.is_index_complete()
+            self.index_outdated = not index_status.get('complete', False)
+
+            # Update AI manager dependencies
+            if self.ai_manager:
+                self.ai_manager.set_dependencies(self.indexer, self.file_selector, self.project_analyzer)
+
+            # Update UI manager state
+            if self.ui_manager:
+                self.ui_manager.set_application_state(self.indexer, self.index_outdated)
+
+            print(f"{Fore.GREEN}✅ Successfully switched to project!{Style.RESET_ALL}")
+
+            if self.index_outdated:
+                print(f"{Fore.YELLOW}⚠️  Index is outdated. Consider reindexing using option 1.{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.GREEN}📊 Project is fully indexed and ready for analysis.{Style.RESET_ALL}")
+
+            input(f"\n{Fore.CYAN}Press Enter to return to main menu...{Style.RESET_ALL}")
+
+        except Exception as e:
+            self.logger.error(f"Error switching to project {project_path}: {e}")
+            print(f"{Fore.RED}❌ Error switching to project: {e}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}You can try indexing this project using option 1.{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
 
     def _handle_chat_ai(self) -> None:
         """Handle chat with AI option."""
