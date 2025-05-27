@@ -1092,13 +1092,47 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
 
             print(f"  Using {provider.title()} ({model}) for analysis...")
 
-            # Generate analysis
-            analysis = await self._get_ai_response(prompt, provider, model)
+            # Generate analysis with fallback
+            analysis = await self._get_ai_response_with_fallback(prompt, provider, model)
             return analysis
 
         except Exception as e:
             self.logger.error(f"Error generating AI analysis: {e}")
             return f"Error generating AI analysis: {str(e)}"
+
+    async def _get_ai_response_with_fallback(self, prompt: str, provider: str, model: str) -> str:
+        """Get AI response with fallback to other providers if the primary fails."""
+        try:
+            # Try the primary provider first
+            return await self._get_ai_response(prompt, provider, model)
+        except Exception as primary_error:
+            self.logger.warning(f"Primary provider {provider} failed: {primary_error}")
+
+            # Define fallback providers in order of preference
+            fallback_providers = [
+                ('ollama', 'llama3.2:latest'),
+                ('openai', 'gpt-4'),
+                ('anthropic', 'claude-3-sonnet-20240229'),
+                ('deepseek', 'deepseek-chat')
+            ]
+
+            # Remove the failed provider from fallbacks
+            fallback_providers = [(p, m) for p, m in fallback_providers if p != provider]
+
+            for fallback_provider, fallback_model in fallback_providers:
+                try:
+                    print(f"  Primary provider failed, trying {fallback_provider.title()}...")
+                    return await self._get_ai_response(prompt, fallback_provider, fallback_model)
+                except Exception as fallback_error:
+                    self.logger.warning(f"Fallback provider {fallback_provider} failed: {fallback_error}")
+                    continue
+
+            # If all providers fail, return the original error with helpful message
+            error_msg = str(primary_error)
+            if "API key not configured" in error_msg:
+                return f"Error generating analysis: {error_msg}\n\nTo fix this:\n1. Go to AI Settings in the main menu\n2. Configure API keys for at least one provider\n3. Try the analysis again\n\nSupported providers: OpenAI, Anthropic, DeepSeek, Ollama"
+            else:
+                return f"Error generating analysis: All AI providers failed.\nPrimary error ({provider}): {primary_error}\n\nPlease check your AI provider settings and try again."
 
     async def _get_ai_response(self, prompt: str, provider: str, model: str) -> str:
         """Get AI response using specified provider and model."""
@@ -1129,6 +1163,37 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
                 provider_config['host'] = ollama_settings.get('HOST', 'http://127.0.0.1:11434')
                 # Ollama can handle more tokens
                 provider_config['max_tokens'] = 3000
+            elif provider == 'deepseek':
+                from ..settings import AISettingsManager
+                ai_settings = AISettingsManager()
+                ai_settings.initialize()
+                deepseek_settings = ai_settings.get_deepseek_settings()
+                provider_config['api_key'] = deepseek_settings.get('API_KEY')
+                # DeepSeek can handle good amount of tokens
+                provider_config['max_tokens'] = 2000
+                # Validate API key
+                if not provider_config['api_key']:
+                    raise Exception("DeepSeek API key not configured. Please set up DeepSeek API key in AI settings.")
+            elif provider == 'anthropic':
+                from ..settings import AISettingsManager
+                ai_settings = AISettingsManager()
+                ai_settings.initialize()
+                anthropic_settings = ai_settings.get_anthropic_settings()
+                provider_config['api_key'] = anthropic_settings.get('API_KEY')
+                provider_config['max_tokens'] = 1500
+                # Validate API key
+                if not provider_config['api_key']:
+                    raise Exception("Anthropic API key not configured. Please set up Anthropic API key in AI settings.")
+            elif provider == 'openrouter':
+                from ..settings import AISettingsManager
+                ai_settings = AISettingsManager()
+                ai_settings.initialize()
+                openrouter_settings = ai_settings.get_openrouter_settings()
+                provider_config['api_key'] = openrouter_settings.get('API_KEY')
+                provider_config['max_tokens'] = 2000
+                # Validate API key
+                if not provider_config['api_key']:
+                    raise Exception("OpenRouter API key not configured. Please set up OpenRouter API key in AI settings.")
 
             # Create provider factory and get response
             factory = ProviderFactory()
@@ -1143,7 +1208,17 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
 
         except Exception as e:
             self.logger.error(f"Error getting AI response: {e}")
-            return f"Error generating analysis: {str(e)}"
+            error_msg = str(e)
+
+            # Provide more helpful error messages
+            if "API key not configured" in error_msg:
+                return f"Error generating analysis: {error_msg}\n\nTo fix this:\n1. Go to AI Settings in the main menu\n2. Configure your {provider.title()} API key\n3. Try the analysis again"
+            elif "authentication failed" in error_msg.lower():
+                return f"Error generating analysis: Authentication failed for {provider.title()}\n\nPlease check your API key in AI Settings."
+            elif "rate limit" in error_msg.lower():
+                return f"Error generating analysis: Rate limit exceeded for {provider.title()}\n\nPlease wait a moment and try again."
+            else:
+                return f"Error generating analysis: {error_msg}"
 
     def _format_dict_for_prompt(self, data: Dict[str, Any]) -> str:
         """Format dictionary data for AI prompt."""
