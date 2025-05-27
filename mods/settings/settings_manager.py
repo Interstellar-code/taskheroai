@@ -16,7 +16,7 @@ from ..core import BaseManager
 class SettingsManager(BaseManager):
     """Manager for application settings and user preferences."""
 
-    def __init__(self, settings_file: str = ".app_settings.json"):
+    def __init__(self, settings_file: str = ".taskhero_setup.json"):
         """
         Initialize the settings manager.
 

@@ -2139,7 +2139,7 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
                 analysis["total_size"] += temp_size
 
             # Check settings files
-            settings_files = [".app_settings.json", ".env.backup*", "*.log"]
+            settings_files = [".taskhero_setup.json", ".env.backup*", "*.log"]
             settings_size = 0
             settings_count = 0
 
@@ -2448,7 +2448,7 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
 
         if confirm == "RESET":
             settings_files = [
-                ".app_settings.json",
+                ".taskhero_setup.json",
                 ".env.backup",
                 ".env.backup.legacy"
             ]

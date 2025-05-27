@@ -494,12 +494,12 @@ class TaskManager:
         self._ensure_directories()
 
     def _get_planning_dir_from_settings(self) -> Path:
-        """Get planning directory from app_settings.json or use default."""
+        """Get planning directory from .taskhero_setup.json or use default."""
         try:
-            app_settings_path = self.project_root / "app_settings.json"
-            if app_settings_path.exists():
+            setup_settings_path = self.project_root / ".taskhero_setup.json"
+            if setup_settings_path.exists():
                 import json
-                with open(app_settings_path, 'r', encoding='utf-8') as f:
+                with open(setup_settings_path, 'r', encoding='utf-8') as f:
                     settings = json.load(f)
 
                 task_storage_path = settings.get('task_storage_path')
@@ -982,9 +982,9 @@ class TaskManager:
         return len(errors) == 0, errors
 
     def _get_next_task_number_from_settings(self) -> Optional[int]:
-        """Get the next task number from app settings."""
+        """Get the next task number from .taskhero_setup.json settings."""
         try:
-            settings_path = Path("app_settings.json")
+            settings_path = Path(".taskhero_setup.json")
             if settings_path.exists():
                 with open(settings_path, 'r', encoding='utf-8') as f:
                     settings = json.load(f)
@@ -997,9 +997,9 @@ class TaskManager:
         return None
 
     def _update_next_task_number_in_settings(self, next_number: int) -> None:
-        """Update the next task number in app settings."""
+        """Update the next task number in .taskhero_setup.json settings."""
         try:
-            settings_path = Path("app_settings.json")
+            settings_path = Path(".taskhero_setup.json")
             settings = {}
 
             # Load existing settings

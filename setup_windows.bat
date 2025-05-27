@@ -145,21 +145,21 @@ if exist "app_settings.json" (
 )
 exit /b 1
 
-:: Function to save configuration to app_settings.json
+:: Function to save configuration to .taskhero_setup.json
 :save_config
 set "config_key=%1"
 set "config_value=%2"
-:: Create or update app_settings.json using Python if available
+:: Create or update .taskhero_setup.json using Python if available
 python --version >nul 2>&1
 if %errorlevel% equ 0 (
-    python -c "import json,os; data=json.load(open('app_settings.json')) if os.path.exists('app_settings.json') else {}; data['%config_key%']='%config_value%'; json.dump(data,open('app_settings.json','w'),indent=2)" 2>nul
+    python -c "import json,os; data=json.load(open('.taskhero_setup.json')) if os.path.exists('.taskhero_setup.json') else {'setup_completed':{}}; data['%config_key%']='%config_value%'; json.dump(data,open('.taskhero_setup.json','w'),indent=2)" 2>nul
     if !errorlevel! equ 0 exit /b 0
 )
 :: Fallback: create simple JSON structure
-if not exist "app_settings.json" (
-    echo {""%config_key%"": ""%config_value%""} > app_settings.json
+if not exist ".taskhero_setup.json" (
+    echo {"setup_completed": {}, "%config_key%": "%config_value%"} > .taskhero_setup.json
 ) else (
-    echo [WARNING] Could not update app_settings.json automatically. Please update manually.
+    echo [WARNING] Could not update .taskhero_setup.json automatically. Please update manually.
 )
 exit /b 0
 

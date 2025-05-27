@@ -1,19 +1,101 @@
 {
+  "version": "2.0",
+  "created": "2025-05-25T21:27:08.550110",
+  "last_updated": "2025-05-27T20:32:11.245907",
+  "repository_type": "central",
+  "codebase_path": "C:\\laragon\\www\\taskheroai",
+  "task_storage_path": "C:\\laragon\\www\\taskheroai\\theherotasks",
+  "api_usage_enabled": true,
+  "api_providers_configured": true,
+  "last_directory": "C:\\laragon\\www\\taskheroai",
+  "recent_projects": [
+    {
+      "path": "C:\\laragon\\www\\taskheroai",
+      "name": "taskheroai",
+      "last_accessed": "2025-05-26T13:03:47.320231"
+    }
+  ],
+  "ui": {
+    "enable_markdown_rendering": true,
+    "show_thinking_blocks": false,
+    "enable_streaming_mode": false,
+    "theme": "default",
+    "terminal_width": 80
+  },
+  "ai": {
+    "default_provider": "anthropic",
+    "max_chat_history": 50,
+    "auto_save_chats": true
+  },
+  "project_management": {
+    "auto_priority": true,
+    "kanban_enabled": true,
+    "default_project_template": "basic",
+    "next_task_number": 81
+  },
+  "indexing": {
+    "auto_index": true,
+    "index_timeout": 300,
+    "batch_size": 10
+  },
   "setup_completed": {
-    "configuration_completed": {
-      "completed": true
+    "venv_created": true,
+    "env_file_created": true,
+    "pip_upgraded": true,
+    "dependencies_installed": true,
+    "last_updated": "2025-05-27T20:32:11.245907",
+    "configuration_completed": true
+  },
+  "git": {
+    "auto_check_enabled": true,
+    "last_check_timestamp": "2025-05-27T20:44:53.562794",
+    "notifications_enabled": true,
+    "repository_url": "https://github.com/Interstellar-code/taskheroai",
+    "current_version": "1.0.0",
+    "last_update_timestamp": null,
+    "update_history": [],
+    "version_cache": {
+      "commit_hash": "4dd7ee9690aab6f8012dd9084ec1491c64726081",
+      "commit_date": "2025-05-27T17:43:55Z",
+      "commit_message": "Merge pull request #10 from Interstellar-code/fix/project-analysis-deepseek-provider\n\nFix project analysis report generation for DeepSeek and other AI providers",
+      "author": "Interstellar-code",
+      "version": "unknown",
+      "release_date": "unknown",
+      "release_notes": "",
+      "check_timestamp": "2025-05-27T20:44:53.562139",
+      "success": true
     },
-    "venv_created": {
-      "completed": true
-    },
-    "pip_upgraded": {
-      "completed": true
-    },
-    "dependencies_installed": {
-      "completed": true
-    },
-    "env_file_created": {
-      "completed": true
+    "update_cache": {
+      "success": true,
+      "check_timestamp": "2025-05-27T20:44:53.562794",
+      "current": {
+        "version": "1.0.0",
+        "commit_hash": "4dd7ee9690aab6f8012dd9084ec1491c64726081",
+        "branch": "master",
+        "last_commit_date": "2025-05-27 19:43:55 +0200",
+        "is_git_repo": true,
+        "has_uncommitted_changes": true
+      },
+      "remote": {
+        "commit_hash": "4dd7ee9690aab6f8012dd9084ec1491c64726081",
+        "commit_date": "2025-05-27T17:43:55Z",
+        "commit_message": "Merge pull request #10 from Interstellar-code/fix/project-analysis-deepseek-provider\n\nFix project analysis report generation for DeepSeek and other AI providers",
+        "author": "Interstellar-code",
+        "version": "unknown",
+        "release_date": "unknown",
+        "release_notes": "",
+        "check_timestamp": "2025-05-27T20:44:53.562139",
+        "success": true
+      },
+      "comparison": {
+        "update_available": false,
+        "comparison": "up_to_date",
+        "message": "You are running the latest version",
+        "can_update": false
+      },
+      "update_available": false,
+      "can_update": false,
+      "message": "You are running the latest version"
     }
   }
 }

@@ -23,14 +23,14 @@ class GitManager(BaseManager):
     def __init__(self, settings_manager=None):
         """
         Initialize the Git manager.
-        
+
         Args:
             settings_manager: Settings manager instance
         """
         super().__init__("GitManager")
         self.settings_manager = settings_manager
         self.version_manager = None
-        
+
         # Default settings
         self.default_settings = {
             "auto_check_enabled": True,
@@ -41,16 +41,14 @@ class GitManager(BaseManager):
             "last_update_timestamp": None,
             "update_history": []
         }
-        
+
         # Files and directories to preserve during updates
         self.preserve_patterns = [
             "theherotasks/",
-            "app_settings.json",
             ".env",
             ".taskhero_setup.json",
             "logs/",
             "*.log",
-            ".git_version_cache.json",
             # User-created files
             "user_*",
             "custom_*",
@@ -70,17 +68,17 @@ class GitManager(BaseManager):
         try:
             # Get Git settings from app settings
             git_settings = self._get_git_settings()
-            
-            # Initialize version manager
+
+            # Initialize version manager with settings manager for consolidated cache
             repository_url = git_settings.get("repository_url", self.default_settings["repository_url"])
-            self.version_manager = VersionManager(repository_url)
-            
+            self.version_manager = VersionManager(repository_url, self.settings_manager)
+
             # Ensure Git settings exist in app settings
             self._ensure_git_settings()
-            
+
             self.logger.info("Git Manager initialized")
             self.update_status("git_ready", True)
-            
+
         except Exception as e:
             self.logger.error(f"Failed to initialize Git manager: {e}")
             self.update_status("git_error", str(e))
@@ -89,7 +87,7 @@ class GitManager(BaseManager):
         """Get Git settings from app settings."""
         if not self.settings_manager:
             return self.default_settings.copy()
-        
+
         try:
             settings = self.settings_manager.get_settings()
             return settings.get("git", self.default_settings.copy())
@@ -101,7 +99,7 @@ class GitManager(BaseManager):
         """Ensure Git settings exist in app settings."""
         if not self.settings_manager:
             return
-        
+
         try:
             settings = self.settings_manager.get_settings()
             if "git" not in settings:
@@ -114,27 +112,27 @@ class GitManager(BaseManager):
     def update_git_setting(self, key: str, value: Any) -> bool:
         """
         Update a specific Git setting.
-        
+
         Args:
             key: Setting key
             value: Setting value
-            
+
         Returns:
             True if successful, False otherwise
         """
         if not self.settings_manager:
             return False
-        
+
         try:
             settings = self.settings_manager.get_settings()
             if "git" not in settings:
                 settings["git"] = self.default_settings.copy()
-            
+
             settings["git"][key] = value
             self.settings_manager.save_settings(settings)
             self.logger.info(f"Updated Git setting {key} = {value}")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Error updating Git setting {key}: {e}")
             return False
@@ -142,10 +140,10 @@ class GitManager(BaseManager):
     def check_for_updates(self, force_check: bool = False) -> Dict[str, Any]:
         """
         Check for available updates.
-        
+
         Args:
             force_check: Force check even if recently checked
-            
+
         Returns:
             Update check result
         """
@@ -156,22 +154,22 @@ class GitManager(BaseManager):
                     "error": "Version manager not initialized",
                     "update_available": False
                 }
-            
+
             # Check if we should skip (unless forced)
             if not force_check and not self._should_check_for_updates():
                 last_result = self._get_last_check_result()
                 if last_result:
                     return last_result
-            
+
             self.logger.info("Checking for updates...")
-            
+
             # Get current and remote versions
             current_version = self.version_manager.get_current_version()
             remote_version = self.version_manager.get_remote_version(use_cache=not force_check)
-            
+
             # Compare versions
             comparison = self.version_manager.compare_versions(current_version, remote_version)
-            
+
             # Prepare result
             result = {
                 "success": True,
@@ -183,16 +181,16 @@ class GitManager(BaseManager):
                 "can_update": comparison.get("can_update", False),
                 "message": comparison.get("message", "")
             }
-            
+
             # Update last check timestamp
             self.update_git_setting("last_check_timestamp", result["check_timestamp"])
-            
+
             # Cache result
             self._cache_check_result(result)
-            
+
             self.logger.info(f"Update check completed: {result['message']}")
             return result
-            
+
         except Exception as e:
             self.logger.error(f"Error checking for updates: {e}")
             return {
@@ -205,14 +203,14 @@ class GitManager(BaseManager):
     def _should_check_for_updates(self) -> bool:
         """Check if we should perform an update check."""
         git_settings = self._get_git_settings()
-        
+
         if not git_settings.get("auto_check_enabled", True):
             return False
-        
+
         last_check = git_settings.get("last_check_timestamp")
         if not last_check:
             return True
-        
+
         try:
             last_check_time = datetime.fromisoformat(last_check)
             # Check at most once per hour
@@ -221,38 +219,52 @@ class GitManager(BaseManager):
             return True
 
     def _get_last_check_result(self) -> Optional[Dict[str, Any]]:
-        """Get the last cached check result."""
+        """Get the last cached check result from consolidated settings."""
         try:
-            cache_file = Path(".git_update_cache.json")
-            if cache_file.exists():
-                with open(cache_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+            if self.settings_manager:
+                settings = self.settings_manager.get_settings()
+                git_settings = settings.get("git", {})
+                return git_settings.get("update_cache")
+            else:
+                # Fallback to old cache file if settings manager not available
+                cache_file = Path(".git_update_cache.json")
+                if cache_file.exists():
+                    with open(cache_file, 'r', encoding='utf-8') as f:
+                        return json.load(f)
         except Exception as e:
             self.logger.debug(f"Error reading update cache: {e}")
         return None
 
     def _cache_check_result(self, result: Dict[str, Any]) -> None:
-        """Cache the check result."""
+        """Cache the check result in consolidated settings."""
         try:
-            cache_file = Path(".git_update_cache.json")
-            with open(cache_file, 'w', encoding='utf-8') as f:
-                json.dump(result, f, indent=2)
+            if self.settings_manager:
+                settings = self.settings_manager.get_settings()
+                if "git" not in settings:
+                    settings["git"] = self.default_settings.copy()
+                settings["git"]["update_cache"] = result
+                self.settings_manager.save_settings(settings)
+            else:
+                # Fallback to old cache file if settings manager not available
+                cache_file = Path(".git_update_cache.json")
+                with open(cache_file, 'w', encoding='utf-8') as f:
+                    json.dump(result, f, indent=2)
         except Exception as e:
             self.logger.debug(f"Error caching update result: {e}")
 
     def perform_update(self, backup_user_files: bool = True) -> Dict[str, Any]:
         """
         Perform Git update while preserving user files.
-        
+
         Args:
             backup_user_files: Whether to backup user files before update
-            
+
         Returns:
             Update result
         """
         try:
             self.logger.info("Starting Git update process...")
-            
+
             # Pre-update checks
             pre_check = self._pre_update_checks()
             if not pre_check["can_update"]:
@@ -261,7 +273,7 @@ class GitManager(BaseManager):
                     "error": pre_check["error"],
                     "stage": "pre_check"
                 }
-            
+
             # Backup user files if requested
             backup_info = None
             if backup_user_files:
@@ -272,31 +284,31 @@ class GitManager(BaseManager):
                         "error": f"Backup failed: {backup_info['error']}",
                         "stage": "backup"
                     }
-            
+
             # Perform Git operations
             git_result = self._perform_git_update()
             if not git_result["success"]:
                 # Restore backup if update failed
                 if backup_info and backup_info["success"]:
                     self._restore_backup(backup_info["backup_path"])
-                
+
                 return {
                     "success": False,
                     "error": f"Git update failed: {git_result['error']}",
                     "stage": "git_update",
                     "backup_restored": backup_info is not None
                 }
-            
+
             # Post-update tasks
             post_result = self._post_update_tasks(git_result)
-            
+
             # Clean up backup if successful
             if backup_info and backup_info["success"]:
                 self._cleanup_backup(backup_info["backup_path"])
-            
+
             # Record update in history
             self._record_update_history(git_result)
-            
+
             result = {
                 "success": True,
                 "message": "Update completed successfully",
@@ -305,10 +317,10 @@ class GitManager(BaseManager):
                 "backup_created": backup_info is not None,
                 "update_timestamp": datetime.now().isoformat()
             }
-            
+
             self.logger.info("Git update completed successfully")
             return result
-            
+
         except Exception as e:
             self.logger.error(f"Error during update: {e}")
             return {
@@ -327,7 +339,7 @@ class GitManager(BaseManager):
                     "can_update": False,
                     "error": "Git is not installed or not available in PATH"
                 }
-            
+
             # Check if we're in a Git repository
             result = subprocess.run(
                 ["git", "rev-parse", "--is-inside-work-tree"],
@@ -340,7 +352,7 @@ class GitManager(BaseManager):
                     "can_update": False,
                     "error": "Not in a Git repository"
                 }
-            
+
             # Check for uncommitted changes
             result = subprocess.run(
                 ["git", "status", "--porcelain"],
@@ -353,7 +365,7 @@ class GitManager(BaseManager):
                     "can_update": False,
                     "error": "Uncommitted changes detected. Please commit or stash changes first."
                 }
-            
+
             # Check network connectivity to remote
             result = subprocess.run(
                 ["git", "ls-remote", "--heads", "origin"],
@@ -367,9 +379,9 @@ class GitManager(BaseManager):
                     "can_update": False,
                     "error": "Cannot connect to remote repository"
                 }
-            
+
             return {"can_update": True}
-            
+
         except subprocess.TimeoutExpired:
             return {
                 "can_update": False,
@@ -387,9 +399,9 @@ class GitManager(BaseManager):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_dir = Path(f".backup_{timestamp}")
             backup_dir.mkdir(exist_ok=True)
-            
+
             backed_up_files = []
-            
+
             for pattern in self.preserve_patterns:
                 # Handle directory patterns
                 if pattern.endswith("/"):
@@ -415,14 +427,14 @@ class GitManager(BaseManager):
                             backup_path.parent.mkdir(parents=True, exist_ok=True)
                             shutil.copy2(file_path, backup_path)
                             backed_up_files.append(str(file_path))
-            
+
             return {
                 "success": True,
                 "backup_path": str(backup_dir),
                 "backed_up_files": backed_up_files,
                 "file_count": len(backed_up_files)
             }
-            
+
         except Exception as e:
             return {
                 "success": False,
@@ -440,13 +452,13 @@ class GitManager(BaseManager):
                 cwd=Path.cwd(),
                 timeout=60
             )
-            
+
             if fetch_result.returncode != 0:
                 return {
                     "success": False,
                     "error": f"Git fetch failed: {fetch_result.stderr}"
                 }
-            
+
             # Get current branch
             branch_result = subprocess.run(
                 ["git", "branch", "--show-current"],
@@ -455,7 +467,7 @@ class GitManager(BaseManager):
                 cwd=Path.cwd()
             )
             current_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else "master"
-            
+
             # Pull changes
             pull_result = subprocess.run(
                 ["git", "pull", "origin", current_branch],
@@ -464,13 +476,13 @@ class GitManager(BaseManager):
                 cwd=Path.cwd(),
                 timeout=60
             )
-            
+
             if pull_result.returncode != 0:
                 return {
                     "success": False,
                     "error": f"Git pull failed: {pull_result.stderr}"
                 }
-            
+
             # Get new commit info
             commit_result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
@@ -479,7 +491,7 @@ class GitManager(BaseManager):
                 cwd=Path.cwd()
             )
             new_commit = commit_result.stdout.strip() if commit_result.returncode == 0 else "unknown"
-            
+
             return {
                 "success": True,
                 "branch": current_branch,
@@ -487,7 +499,7 @@ class GitManager(BaseManager):
                 "fetch_output": fetch_result.stdout,
                 "pull_output": pull_result.stdout
             }
-            
+
         except subprocess.TimeoutExpired:
             return {
                 "success": False,
@@ -505,7 +517,7 @@ class GitManager(BaseManager):
             backup_dir = Path(backup_path)
             if not backup_dir.exists():
                 return False
-            
+
             # Restore all backed up files
             for item in backup_dir.rglob("*"):
                 if item.is_file():
@@ -513,10 +525,10 @@ class GitManager(BaseManager):
                     target_path = Path(relative_path)
                     target_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(item, target_path)
-            
+
             self.logger.info(f"Restored backup from {backup_path}")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Error restoring backup: {e}")
             return False
@@ -535,27 +547,27 @@ class GitManager(BaseManager):
         """Perform post-update tasks."""
         try:
             tasks_completed = []
-            
+
             # Update version info
             if self.version_manager:
                 current_version = self.version_manager.get_current_version()
                 self.update_git_setting("current_version", current_version.get("version", "unknown"))
                 tasks_completed.append("Updated version info")
-            
+
             # Update last update timestamp
             self.update_git_setting("last_update_timestamp", datetime.now().isoformat())
             tasks_completed.append("Updated timestamp")
-            
+
             # Clear version cache to force fresh check
             if self.version_manager:
                 self.version_manager.clear_cache()
                 tasks_completed.append("Cleared version cache")
-            
+
             return {
                 "success": True,
                 "tasks_completed": tasks_completed
             }
-            
+
         except Exception as e:
             return {
                 "success": False,
@@ -567,7 +579,7 @@ class GitManager(BaseManager):
         try:
             git_settings = self._get_git_settings()
             history = git_settings.get("update_history", [])
-            
+
             # Add new entry
             history.append({
                 "timestamp": datetime.now().isoformat(),
@@ -575,13 +587,13 @@ class GitManager(BaseManager):
                 "branch": git_result.get("branch", "unknown"),
                 "success": git_result.get("success", False)
             })
-            
+
             # Keep only last 10 entries
             if len(history) > 10:
                 history = history[-10:]
-            
+
             self.update_git_setting("update_history", history)
-            
+
         except Exception as e:
             self.logger.error(f"Error recording update history: {e}")
 
@@ -589,10 +601,10 @@ class GitManager(BaseManager):
         """Get current update status and settings."""
         try:
             git_settings = self._get_git_settings()
-            
+
             # Get last check result
             last_check = self._get_last_check_result()
-            
+
             return {
                 "settings": git_settings,
                 "last_check": last_check,
@@ -600,7 +612,7 @@ class GitManager(BaseManager):
                 "git_available": self._is_git_available(),
                 "is_git_repo": self._is_git_repository()
             }
-            
+
         except Exception as e:
             self.logger.error(f"Error getting update status: {e}")
             return {
