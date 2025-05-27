@@ -182,7 +182,7 @@ if (Test-Path $ProjectPath) {
 }
 
 # Step 3: Run the main setup script
-Write-SectionHeader "Step 3: Running TaskHero AI Setup" "⚙️"
+Write-SectionHeader "Step 3: Running TaskHero AI Setup" "[INSTALL]"
 
 $setupScript = "setup_windows.ps1"
 if (Test-Path $setupScript) {
@@ -230,7 +230,7 @@ if (Test-Path $setupScript) {
 
 # Final message
 Write-Host ""
-Write-SectionHeader "Setup Complete!" "🎉"
+Write-SectionHeader "Setup Complete!" "[DONE]"
 Write-ColoredLine "TaskHero AI has been successfully installed!" $Colors.Success
 Write-ColoredLine "Location: $ProjectPath" $Colors.Info
 Write-Host ""
