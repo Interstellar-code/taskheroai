@@ -48,7 +48,7 @@ function Write-ColoredLine {
 }
 
 function Write-SectionHeader {
-    param([string]$Title, [string]$Icon = "🔧")
+    param([string]$Title, [string]$Icon = "[*]")
     Write-Host ""
     Write-ColoredLine "===============================================================================" $Colors.Primary
     Write-ColoredLine "$Icon $Title" $Colors.Primary
@@ -109,7 +109,7 @@ function Install-Python {
 # Main script execution
 Clear-Host
 
-Write-SectionHeader "TaskHero AI Standalone Setup" "🚀"
+Write-SectionHeader "TaskHero AI Standalone Setup" "[SETUP]"
 Write-ColoredLine "This script will download and set up TaskHero AI automatically." $Colors.Info
 Write-ColoredLine "Repository: $RepoUrl" $Colors.Text
 Write-ColoredLine "Target Directory: $TargetDir" $Colors.Text
@@ -130,7 +130,7 @@ if (Test-Path $ProjectPath) {
 }
 
 # Step 1: Check prerequisites
-Write-SectionHeader "Step 1: Checking Prerequisites" "🔍"
+Write-SectionHeader "Step 1: Checking Prerequisites" "[CHECK]"
 
 Write-ColoredLine "Checking Git installation..." $Colors.Info
 if (-not (Test-GitInstalled)) {
@@ -145,7 +145,7 @@ if (-not (Test-PythonInstalled)) {
 Write-ColoredLine "✓ Python 3.8+ is installed" $Colors.Success
 
 # Step 2: Clone or update repository
-Write-SectionHeader "Step 2: Repository Setup" "📥"
+Write-SectionHeader "Step 2: Repository Setup" "[REPO]"
 
 if (Test-Path $ProjectPath) {
     Write-ColoredLine "Updating existing repository..." $Colors.Info
@@ -182,7 +182,7 @@ if (Test-Path $ProjectPath) {
 }
 
 # Step 3: Run the main setup script
-Write-SectionHeader "Step 3: Running TaskHero AI Setup" "⚙️"
+Write-SectionHeader "Step 3: Running TaskHero AI Setup" "[INSTALL]"
 
 $setupScript = "setup_windows.ps1"
 if (Test-Path $setupScript) {
@@ -230,7 +230,7 @@ if (Test-Path $setupScript) {
 
 # Final message
 Write-Host ""
-Write-SectionHeader "Setup Complete!" "🎉"
+Write-SectionHeader "Setup Complete!" "[DONE]"
 Write-ColoredLine "TaskHero AI has been successfully installed!" $Colors.Success
 Write-ColoredLine "Location: $ProjectPath" $Colors.Info
 Write-Host ""
