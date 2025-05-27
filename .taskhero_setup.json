@@ -1,31 +1,21 @@
 {
-  "version": "2.0",
-  "created": "2025-05-25T21:27:08.550110",
-  "last_updated": "2025-05-27T20:32:11.245907",
-  "repository_type": "central",
-  "codebase_path": "C:\\laragon\\www\\taskheroai",
-  "task_storage_path": "C:\\laragon\\www\\taskheroai\\theherotasks",
-  "api_usage_enabled": true,
-  "api_providers_configured": true,
-  "last_directory": "C:\\laragon\\www\\taskheroai",
-  "recent_projects": [
-    {
-      "path": "C:\\laragon\\www\\taskheroai",
-      "name": "taskheroai",
-      "last_accessed": "2025-05-27T19:10:20.578307"
-    }
-  ],
-  "ui": {
-    "enable_markdown_rendering": true,
-    "show_thinking_blocks": false,
-    "enable_streaming_mode": false,
-    "theme": "default",
-    "terminal_width": 80
-  },
   "ai": {
     "default_provider": "anthropic",
     "max_chat_history": 50,
     "auto_save_chats": true
+  },
+  "repository_type": "central",
+  "created": "2025-05-25T21:27:08.55011",
+  "api_providers_configured": true,
+  "last_updated": "2025-05-27T20:32:11.245907",
+  "setup_completed": {
+    "configuration_completed": true,
+    "dependencies_installed": true,
+    "env_file_created": true,
+    "last_updated": "2025-05-27T21:59:45.170141",
+    "setup_completed": true,
+    "pip_upgraded": true,
+    "venv_created": true
   },
   "project_management": {
     "auto_priority": true,
@@ -33,19 +23,30 @@
     "default_project_template": "basic",
     "next_task_number": 81
   },
+  "last_directory": "C:\\laragon\\www\\taskheroai",
+  "ui": {
+    "enable_markdown_rendering": true,
+    "show_thinking_blocks": false,
+    "enable_streaming_mode": false,
+    "theme": "default",
+    "terminal_width": 80
+  },
+  "codebase_path": "C:\\laragon\\www\\taskheroai",
+  "version": "2.0",
+  "task_storage_path": "C:\\laragon\\www\\taskheroai\\theherotasks",
+  "recent_projects": [
+    {
+      "path": "C:\\laragon\\www\\taskheroai",
+      "name": "taskheroai",
+      "last_accessed": "2025-05-27T19:10:20.578307"
+    }
+  ],
   "indexing": {
     "auto_index": true,
     "index_timeout": 300,
     "batch_size": 10
   },
-  "setup_completed": {
-    "venv_created": true,
-    "env_file_created": true,
-    "pip_upgraded": true,
-    "dependencies_installed": true,
-    "last_updated": "2025-05-27T20:32:11.245907",
-    "configuration_completed": true
-  },
+  "api_usage_enabled": true,
   "git": {
     "auto_check_enabled": true,
     "last_check_timestamp": "2025-05-27T20:44:53.562794",

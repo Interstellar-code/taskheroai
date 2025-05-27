@@ -327,13 +327,18 @@ if ($Force -or -not (Test-SetupCompleted "venv_created")) {
         Write-Info "Virtual environment directory exists. Checking if it's valid..."
         if (Test-Path "venv\Scripts\python.exe") {
             try {
-                # Attempt to activate to check validity
-                & "venv\Scripts\activate.ps1"
-                Write-Success "Valid virtual environment found. Skipping creation."
-                Set-SetupCompleted "venv_created" | Out-Null
-                $venvNeedsCreation = $false # Mark as not needing creation
+                # Test if the virtual environment is valid by running a simple command
+                & "venv\Scripts\python.exe" -c "import sys; print('Virtual environment is valid')" 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Valid virtual environment found. Skipping creation."
+                    Set-SetupCompleted "venv_created" | Out-Null
+                    $venvNeedsCreation = $false
+                } else {
+                    Write-Warning "Virtual environment directory exists but is invalid. Recreating..."
+                    Remove-Item "venv" -Recurse -Force
+                }
             } catch {
-                Write-Warning "Virtual environment directory exists but activation failed. Recreating..."
+                Write-Warning "Virtual environment directory exists but is invalid. Recreating..."
                 Remove-Item "venv" -Recurse -Force
             }
         } else {
@@ -342,7 +347,7 @@ if ($Force -or -not (Test-SetupCompleted "venv_created")) {
         }
     }
 
-    if ($venvNeedsCreation) { # Only create if it doesn't exist or was removed/invalidated
+    if ($venvNeedsCreation) {
         Write-Info "Creating new virtual environment..."
         & python -m venv venv
 
@@ -354,7 +359,7 @@ if ($Force -or -not (Test-SetupCompleted "venv_created")) {
         Write-Success "Virtual environment created successfully"
         Set-SetupCompleted "venv_created" | Out-Null
     }
-} else { # This else corresponds to the initial 'if ($Force -or -not (Test-SetupCompleted "venv_created"))'
+} else {
     Write-Success "Virtual environment already exists - skipping"
 }
 
@@ -496,390 +501,311 @@ if (Test-Path ".env") {
     }
 }
 
-if ($skipOllamaCheck) {
-    Write-Info "Ollama configuration found in .env file. Skipping Ollama installation check."
-    Write-Info "Using existing configuration from .env file."
-} else {
+if (-not $skipOllamaCheck) {
+    Write-Info "Checking for Ollama installation..."
+    $ollamaInstalled = $false
+    $ollamaRunning = $false
+
+    # Check if Ollama is installed
     try {
-        & where.exe ollama 2>&1 | Out-Null # Use where.exe for cross-shell compatibility
-        if ($LASTEXITCODE -eq 0) {
-            Write-Success "Ollama is installed."
-        } else {
-            Write-Warning "Ollama is not installed or not in PATH."
-            Write-Info "You will need to install Ollama to use local models."
-            Write-Info "Download from: https://ollama.com/download"
-            $openOllama = Get-UserInput "Would you like to open the Ollama download page? (Y/N):" "yn" "N"
-            if ($openOllama.ToUpper() -eq "Y") {
-                Start-Process "https://ollama.com/download"
+        $ollamaPath = Get-Command ollama -ErrorAction SilentlyContinue
+        if ($ollamaPath) {
+            Write-Success "Ollama found at: $($ollamaPath.Source)"
+            $ollamaInstalled = $true
+
+            # Check if Ollama is running
+            try {
+                $ollamaStatus = Invoke-RestMethod -Uri "http://localhost:11434/api/version" -Method Get -ErrorAction SilentlyContinue
+                if ($ollamaStatus) {
+                    Write-Success "Ollama is running (version: $($ollamaStatus.version))"
+                    $ollamaRunning = $true
+                }
+            } catch {
+                Write-Warning "Ollama is installed but not running"
             }
         }
     } catch {
-        Write-Warning "Failed to check Ollama: $_"
-        Write-Info "Ollama is not installed or not in PATH."
-        Write-Info "You will need to install Ollama to use local models."
-        Write-Info "Download from: https://ollama.com/download"
-        $openOllama = Get-UserInput "Would you like to open the Ollama download page? (Y/N):" "yn" "N"
-        if ($openOllama.ToUpper() -eq "Y") {
+        Write-Warning "Ollama not found in PATH"
+    }
+
+    if (-not $ollamaInstalled) {
+        Write-Info "Ollama is not installed. TaskHero AI can use Ollama for local AI processing."
+        $installOllama = Get-UserInput "Would you like to install Ollama now? (Y/N):" "yn" "Y"
+
+        if ($installOllama.ToUpper() -eq "Y") {
+            Write-Info "Opening Ollama installation page..."
             Start-Process "https://ollama.com/download"
-        }
-    }
-}
 
-# Step 6: Environment Configuration (.env file)
-Write-SectionHeader "Step 6: Environment Configuration" "⚙️"
-Show-Progress 6 7 "Setting up environment variables..."
-
-if ($Force -or -not (Test-SetupCompleted "env_file_created")) {
-    if (-not (Test-Path ".env")) {
-        Write-Info "Creating .env file with default settings..."
-
-        $envContent = @"
-# Provider can be: ollama, google, openai, anthropic, groq, or openrouter
-AI_CHAT_PROVIDER=ollama
-AI_EMBEDDING_PROVIDER=ollama
-AI_DESCRIPTION_PROVIDER=ollama
-AI_AGENT_BUDDY_PROVIDER=ollama
-
-# API Keys for each functionality (only needed if using that provider)
-# The same key will be used for the selected provider in each category
-AI_CHAT_API_KEY=None
-AI_EMBEDDING_API_KEY=None
-AI_DESCRIPTION_API_KEY=None
-AI_AGENT_BUDDY_API_KEY=None
-
-# Model names for each provider
-# For ollama: llama2, codellama, mistral, etc. (embedding)
-# For OpenAI: gpt-4, gpt-3.5-turbo, text-embedding-ada-002 (embedding)
-# For OpenRouter: anthropic/claude-3-opus, openai/gpt-4-turbo, google/gemini-pro, etc.
-# For Google: gemini-pro, gemini-pro-vision
-# For Anthropic: claude-3-5-sonnet-latest, claude-3-opus-20240229, claude-3-haiku-20240307
-# For Groq: llama3-8b-8192, llama3-70b-8192, mixtral-8x7b-32768
-CHAT_MODEL=llama2
-EMBEDDING_MODEL=all-minilm:33m
-DESCRIPTION_MODEL=llama2
-AI_AGENT_BUDDY_MODEL=llama3.2
-
-# Model Tempratures
-CHAT_MODEL_TEMPERATURE=0.7
-DESCRIPTION_MODEL_TEMPERATURE=0.3
-AI_AGENT_BUDDY_MODEL_TEMPERATURE=0.7
-INTENT_DETECTION_TEMPERATURE=0.1
-
-# Model Max Tokens
-CHAT_MODEL_MAX_TOKENS=4096
-DESCRIPTION_MODEL_MAX_TOKENS=4096
-AI_AGENT_BUDDY_MODEL_MAX_TOKENS=4096
-INTENT_DETECTION_MAX_TOKENS=4096
-
-# Other Model Settings
-CHAT_MODEL_TOP_P=0.95
-CHAT_MODEL_TOP_K=40
-DESCRIPTION_MODEL_TOP_P=0.95
-DESCRIPTION_MODEL_TOP_K=40
-INTENT_DETECTION_TOP_P=0.95
-INTENT_DETECTION_TOP_K=40
-
-# Optional: Site information for OpenRouter rankings
-SITE_URL=http://localhost:3000
-SITE_NAME=Local Development
-
-# Performance settings (LOW, MEDIUM, MAX)
-# LOW: Minimal resource usage, suitable for low-end systems
-# MEDIUM: Balanced resource usage, suitable for most systems
-# MAX: Maximum resource usage, suitable for high-end systems
-PERFORMANCE_MODE=MEDIUM
-# Maximum number of threads to use (will be calculated automatically if not set)
-MAX_THREADS=16
-# Cache size for embedding queries (higher values use more memory but improve performance)
-EMBEDDING_CACHE_SIZE=1000
-# Similarity threshold for embedding search (lower values return more results but may be less relevant)
-EMBEDDING_SIMILARITY_THRESHOLD=0.05
-
-# API Rate Limiting Settings
-# Delay in milliseconds between embedding API calls to prevent rate limiting
-# Recommended: 100ms for Google, 0ms for OpenAI/Ollama (set to 0 to disable)
-EMBEDDING_API_DELAY_MS=100
-# Delay in milliseconds between description generation API calls to prevent rate limiting
-# Recommended: 100ms for Google, 0ms for OpenAI/Ollama (set to 0 to disable)
-DESCRIPTION_API_DELAY_MS=100
-
-# UI Settings
-# Enable/disable markdown rendering (TRUE/FALSE)
-ENABLE_MARKDOWN_RENDERING=TRUE
-# Show thinking blocks in AI responses (TRUE/FALSE)
-SHOW_THINKING_BLOCKS=FALSE
-# Enable streaming mode for AI responses (TRUE/FALSE) # Tends to be slower for some reason # Broken for openrouter TODO: Fix this at some point !
-ENABLE_STREAMING_MODE=FALSE
-# Enable chat logging to save conversations (TRUE/FALSE)
-CHAT_LOGS=FALSE
-# Enable memory for AI conversations (TRUE/FALSE)
-MEMORY_ENABLED=TRUE
-# Maximum number of memory items to store
-MAX_MEMORY_ITEMS=10
-# Execute commands without confirmation (TRUE/FALSE)
-# When FALSE, the user will be prompted to confirm before executing any command
-# When TRUE, commands will execute automatically without confirmation
-COMMANDS_YOLO=FALSE
-
-# HTTP API Server Settings
-# Allow connections from any IP address (TRUE/FALSE)
-# When FALSE, the server only accepts connections from localhost (127.0.0.1)
-# When TRUE, the server accepts connections from any IP address (0.0.0.0)
-# WARNING: Setting this to TRUE may expose your API to the internet
-HTTP_ALLOW_ALL_ORIGINS=FALSE
-
-# MCP Server Settings
-# URL of the HTTP API server
-MCP_API_URL=http://localhost:8000
-# Port to run the HTTP API server on
-MCP_HTTP_PORT=8000
-"@
-
-        $envContent | Out-File -FilePath ".env" -Encoding UTF8
-        Write-Success "Environment file created successfully"
-        Set-SetupCompleted "env_file_created" | Out-Null
-    } else {
-        Write-Success "Environment file already exists"
-        Set-SetupCompleted "env_file_created" | Out-Null
-    }
-} else {
-    Write-Success "Environment configuration already completed - skipping"
-}
-
-# Step 7: Interactive Configuration Wizard
-Write-SectionHeader "Step 7: Interactive Configuration Wizard" "W"
-Show-Progress 7 7 "Running configuration wizard..."
-
-if ($Force -or -not (Test-SetupCompleted "configuration_completed")) {
-    Write-Info "Starting interactive configuration wizard..."
-    Write-Info "This will configure TaskHero AI for your specific needs."
-
-    # Configuration Step 1: Repository Type
-    Write-SectionHeader "Configuration 1/5: Repository Type"
-    Write-Host "Will this be a central repository for all different code bases,"
-    Write-Host "or will it reside within an existing codebase?"
-    Write-Host ""
-    Write-Host "1. Central repository (recommended for multiple projects)"
-    Write-Host "2. Singular repository (embedded in existing codebase)"
-
-    $repoType = ""
-    if ($Force -or -not (Test-Path ".taskhero_setup.json" -and (Get-Content ".taskhero_setup.json" | Out-String) -match "repository_type")) {
-        $repoChoice = Get-UserInput "Please select repository type (1 or 2):" "option" "2" -ValidOptions @("1", "2")
-        if ($repoChoice -eq "1") {
-            $repoType = "central"
-            Write-Success "Selected: Central repository"
+            Write-Info "Please follow the installation instructions on the website."
+            Write-Info "After installation, please restart this setup script."
+            Read-Host "Press Enter to exit"
+            exit 0
         } else {
-            $repoType = "singular"
-            Write-Success "Selected: Singular repository"
+            Write-Info "Skipping Ollama installation."
+            Write-Info "You can install it later from https://ollama.com/download"
         }
-        Save-AppConfig "repository_type" $repoType
-    } else {
-        Write-Info "Repository type already configured. Skipping..."
-        $setupData = Get-Content ".taskhero_setup.json" | ConvertFrom-Json
-        $repoType = $setupData.repository_type
-    }
+    } elseif (-not $ollamaRunning) {
+        Write-Info "Ollama is installed but not running."
+        $startOllama = Get-UserInput "Would you like to start Ollama now? (Y/N):" "yn" "Y"
 
-    # Configuration Step 2: Codebase Path
-    Write-SectionHeader "Configuration 2/5: Codebase Path"
-    Write-Host "Please specify the path of the codebase that TaskHero will index."
-    Write-Host "Current directory: $PWD"
-    Write-Host ""
-    Write-Host "Examples:"
-    Write-Host "- C:\Projects\MyProject"
-    Write-Host "- .\MyProject (relative path)"
-    Write-Host "- $PWD (current directory)"
+        if ($startOllama.ToUpper() -eq "Y") {
+            Write-Info "Starting Ollama..."
+            Start-Process "ollama" -ArgumentList "serve" -WindowStyle Hidden
 
-    $codebasePath = ""
-    if ($Force -or -not (Test-Path ".taskhero_setup.json" -and (Get-Content ".taskhero_setup.json" | Out-String) -match "codebase_path")) {
-        $codebasePath = Get-UserInput "Enter the codebase path (default: $PWD):" "path" "$PWD"
-        if (-not (Test-Path $codebasePath)) {
-            Write-Warning "Path does not exist: $codebasePath"
-            $continuePath = Get-UserInput "Continue anyway? (Y/N):" "yn" "N"
-            if ($continuePath.ToUpper() -eq "N") {
-                $codebasePath = Get-UserInput "Enter the codebase path (default: $PWD):" "path" "$PWD"
-            }
-        }
-        Write-Success "Codebase path set to: $codebasePath"
-        Save-AppConfig "codebase_path" $codebasePath
-    } else {
-        Write-Info "Codebase path already configured. Skipping..."
-        $setupData = Get-Content ".taskhero_setup.json" | ConvertFrom-Json
-        $codebasePath = $setupData.codebase_path
-    }
+            # Wait for Ollama to start
+            Write-Info "Waiting for Ollama to start (this may take a moment)..."
+            $ollamaStarted = $false
+            $retryCount = 0
+            $maxRetries = 10
 
-    # Configuration Step 3: Task Files Storage
-    Write-SectionHeader "Configuration 3/5: Task Files Storage Location"
-    Write-Host "Where would you like to store project task files?"
-    Write-Host ""
-    Write-Host "1. Present folder ($PWD)"
-    Write-Host "2. TaskHero tasks folder (/theherotasks) [RECOMMENDED]"
-    Write-Host "3. Custom path (you will specify)"
-
-    $taskStoragePath = ""
-    if ($Force -or -not (Test-Path ".taskhero_setup.json" -and (Get-Content ".taskhero_setup.json" | Out-String) -match "task_storage_path")) {
-        $storageChoice = Get-UserInput "Please select storage location (1, 2, or 3, default 2):" "option" "2" -ValidOptions @("1", "2", "3")
-        if ($storageChoice -eq "1") {
-            $taskStoragePath = $PWD.Path
-            Write-Success "Selected: Present folder"
-        } elseif ($storageChoice -eq "2") {
-            $taskStoragePath = Join-Path $PWD.Path "theherotasks"
-            Write-Success "Selected: TaskHero tasks folder (/theherotasks)"
-        } else {
-            $taskStoragePath = Get-UserInput "Enter custom path for task files:" "path" ""
-            Write-Success "Selected: Custom path"
-        }
-
-        if (-not (Test-Path $taskStoragePath)) {
-            Write-Info "Creating directory: $taskStoragePath"
-            New-Item -ItemType Directory -Path $taskStoragePath -Force | Out-Null
-        }
-        # Create task status subdirectories
-        $taskSubDirs = @("todo", "inprogress", "testing", "devdone", "done", "backlog", "archive")
-        foreach ($subDir in $taskSubDirs) {
-            $fullPath = Join-Path $taskStoragePath $subDir
-            if (-not (Test-Path $fullPath)) {
-                New-Item -ItemType Directory -Path $fullPath -Force | Out-Null
-            }
-        }
-        Write-Success "Created task status subdirectories"
-        Save-AppConfig "task_storage_path" $taskStoragePath
-    } else {
-        Write-Info "Task storage location already configured. Skipping..."
-        $setupData = Get-Content ".taskhero_setup.json" | ConvertFrom-Json
-        $taskStoragePath = $setupData.task_storage_path
-    }
-
-    # Configuration Step 4: API and MCP Functions
-    Write-SectionHeader "Configuration 4/5: API and MCP Functions"
-    Write-Host "Will TaskHero API and MCP functions be used?"
-    Write-Host "This enables advanced AI features and integrations."
-    Write-Host ""
-    Write-Host "Y - Yes, enable API and MCP functions"
-    Write-Host "N - No, use basic functionality only"
-
-    $apiEnabled = $false
-    if ($Force -or -not (Test-Path ".taskhero_setup.json" -and (Get-Content ".taskhero_setup.json" | Out-String) -match "api_usage_enabled")) {
-        $apiChoice = Get-UserInput "Enable API and MCP functions? (Y/N):" "yn" "Y"
-        if ($apiChoice.ToUpper() -eq "Y") {
-            Write-Success "API and MCP functions will be enabled"
-            $apiEnabled = $true
-            Save-AppConfig "api_usage_enabled" $true
-        } else {
-            Write-Success "Using basic functionality only"
-            $apiEnabled = $false
-            Save-AppConfig "api_usage_enabled" $false
-        }
-    } else {
-        Write-Info "API usage preference already configured. Skipping..."
-        $setupData = Get-Content ".taskhero_setup.json" | ConvertFrom-Json
-        $apiEnabled = $setupData.api_usage_enabled
-    }
-
-    # Configuration Step 5: API Details (only if API is enabled)
-    if ($apiEnabled) {
-        Write-SectionHeader "Configuration 5/5: API Provider Configuration"
-        Write-Host "Configure your preferred AI providers and API keys."
-        Write-Host "You can configure multiple providers or skip for now."
-        Write-Host ""
-        Write-Host "Available providers:"
-        Write-Host "- OpenAI (GPT models)"
-        Write-Host "- Anthropic (Claude models)"
-        Write-Host "- DeepSeek (DeepSeek models)"
-        Write-Host "- OpenRouter (Multiple models)"
-        Write-Host "- Ollama (Local models)"
-
-        if ($Force -or -not (Test-Path ".taskhero_setup.json" -and (Get-Content ".taskhero_setup.json" | Out-String) -match "api_providers_configured")) {
-            Write-Info "API configuration can be done manually by editing the .env file."
-            Write-Info "Default configuration uses Ollama (local models)."
-            $configureApis = Get-UserInput "Would you like to configure API keys now? (Y/N):" "yn" "N"
-
-            if ($configureApis.ToUpper() -eq "Y") {
-                Write-Info "Opening .env file for manual configuration..."
-                Write-Info "Please edit the API keys and providers as needed."
-                Write-Info "Save and close the file when done, then press Enter to continue."
+            while (-not $ollamaStarted -and $retryCount -lt $maxRetries) {
                 try {
-                    Start-Process notepad.exe -ArgumentList ".env" -Wait
+                    $ollamaStatus = Invoke-RestMethod -Uri "http://localhost:11434/api/version" -Method Get -ErrorAction SilentlyContinue
+                    if ($ollamaStatus) {
+                        Write-Success "Ollama started successfully (version: $($ollamaStatus.version))"
+                        $ollamaStarted = $true
+                    }
                 } catch {
-                    Write-Info "Please manually edit the .env file with your preferred text editor."
-                    Read-Host "Press Enter to continue"
+                    Write-Info "Waiting for Ollama to start... ($($retryCount + 1)/$maxRetries)"
+                    Start-Sleep -Seconds 2
+                    $retryCount++
+                }
+            }
+
+            if (-not $ollamaStarted) {
+                Write-Warning "Failed to start Ollama automatically."
+                Write-Info "Please start Ollama manually and then continue with setup."
+            }
+        } else {
+            Write-Info "Skipping Ollama startup."
+            Write-Info "You can start it manually later."
+        }
+    }
+
+    # Check for models if Ollama is running
+    if ($ollamaRunning) {
+        Write-Info "Checking for required Ollama models..."
+        try {
+            $ollamaModels = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -Method Get -ErrorAction SilentlyContinue
+
+            $requiredModels = @("llama3", "llama3:8b", "llama2", "mistral")
+            $installedModels = $ollamaModels.models | ForEach-Object { $_.name }
+
+            $missingModels = $requiredModels | Where-Object { $_ -notin $installedModels }
+
+            if ($missingModels.Count -gt 0) {
+                Write-Info "Some recommended models are not installed: $($missingModels -join ', ')"
+                $installModels = Get-UserInput "Would you like to install the missing models now? (Y/N):" "yn" "Y"
+
+                if ($installModels.ToUpper() -eq "Y") {
+                    foreach ($model in $missingModels) {
+                        Write-Info "Pulling $model... (this may take several minutes)"
+                        Start-Process "ollama" -ArgumentList "pull $model" -NoNewWindow -Wait
+                        Write-Success "Model $model installed successfully"
+                    }
+                } else {
+                    Write-Info "Skipping model installation."
+                    Write-Info "You can install them later using 'ollama pull [model-name]'"
                 }
             } else {
-                Write-Info "Skipping API configuration. You can configure later by editing .env file."
-            }
-            Save-AppConfig "api_providers_configured" $true
-        } else {
-            Write-Info "API providers already configured. Skipping..."
-        }
-    }
-
-    Write-SectionHeader "Configuration Complete!"
-    Write-Success "TaskHero AI configuration has been completed successfully!"
-    Write-Info "All settings have been saved and will be remembered for future runs."
-
-    Set-SetupCompleted "configuration_completed" | Out-Null
-} else {
-    Write-Success "Configuration wizard already completed - skipping"
-}
-
-# Final Completion Message
-Write-Host ""
-Write-ColoredLine "===============================================================================" $Colors.Success
-Write-ColoredLine "                        TaskHero AI Setup Complete!                       " $Colors.Success
-Write-ColoredLine "===============================================================================" $Colors.Success
-Write-Host ""
-Write-Success "Installation and configuration completed successfully!"
-Write-Host ""
-Write-ColoredLine "To start the application, run:" $Colors.Info
-Write-ColoredLine "   venv\Scripts\Activate.ps1" $Colors.Text
-Write-ColoredLine "   python app.py" $Colors.Text
-Write-Host ""
-if ($pythonAvailable) {
-    Write-ColoredLine "Setup status has been saved to .taskhero_setup.json" $Colors.Info
-} else {
-    Write-ColoredLine "Setup status tracking is limited without Python" $Colors.Info
-}
-Write-ColoredLine "To force re-run all steps, use: .\setup_windows_modern.ps1 -Force" $Colors.Info
-Write-ColoredLine "For more information, see the README.md file" $Colors.Info
-Write-Host ""
-
-# Auto-start TaskHero AI
-if ($pythonAvailable) {
-    Write-Host ""
-    Write-ColoredLine "===============================================================================" $Colors.Primary
-    Write-ColoredLine "                          Starting TaskHero AI...                        " $Colors.Primary
-    Write-ColoredLine "===============================================================================" $Colors.Primary
-    Write-Host ""
-
-    if (Test-Path "venv\Scripts\python.exe") {
-        Write-Info "Starting TaskHero AI with virtual environment Python..."
-
-        # Test if dependencies are available before starting
-        try {
-            & "venv\Scripts\python.exe" -c "import colorama" 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "Dependencies verified - starting application..."
-                & "venv\Scripts\python.exe" app.py
-            } else {
-                Write-Error "Dependencies not found in virtual environment!"
-                Write-Info "Please run the setup script again with -Force flag."
-                Read-Host "Press Enter to exit"
+                Write-Success "All recommended models are already installed"
             }
         } catch {
-            Write-Error "Failed to verify dependencies or start app: $_"
-            Write-Info "Please run the setup script again with -Force flag."
-            Read-Host "Press Enter to exit"
+            Write-Warning "Failed to check Ollama models: $_"
         }
-    } else {
-        Write-Error "Virtual environment Python not found!"
-        Write-Info "Please run the setup script again with -Force flag."
-        Read-Host "Press Enter to exit"
     }
-} else {
-    Write-Host ""
-    Write-ColoredLine "===============================================================================" $Colors.Info
-    Write-ColoredLine "   Please install Python and re-run this script to start TaskHero AI.   " $Colors.Info
-    Write-ColoredLine "===============================================================================" $Colors.Info
-    Read-Host "Press Enter to exit"
 }
 
-Read-Host "Press Enter to exit"
+# Step 6: Configure Application
+Write-SectionHeader "Step 6: Configuring Application" "⚙️"
+Show-Progress 6 7 "Setting up configuration..."
+
+# Check for .env file
+if (-not (Test-Path ".env")) {
+    Write-Info "Creating default .env file..."
+
+    # Create basic .env file with default settings
+    $defaultEnv = @"
+# TaskHero AI Configuration
+# Created by setup script on $(Get-Date)
+
+# AI Provider Configuration
+AI_CHAT_PROVIDER=ollama
+AI_CHAT_MODEL=llama3
+AI_VISION_PROVIDER=ollama
+AI_VISION_MODEL=llama3
+
+# Ollama Configuration
+OLLAMA_HOST=http://localhost:11434
+
+# Application Settings
+APP_DEBUG=false
+APP_LOG_LEVEL=INFO
+APP_DATA_DIR=./data
+"@
+
+    $defaultEnv | Out-File -FilePath ".env" -Encoding UTF8
+    Write-Success "Created default .env configuration"
+} else {
+    Write-Info ".env file already exists - checking for required settings..."
+
+    $envContent = Get-Content ".env" | Out-String
+    $missingSettings = @()
+
+    # Check for essential settings
+    $essentialSettings = @(
+        "AI_CHAT_PROVIDER",
+        "AI_CHAT_MODEL",
+        "AI_VISION_PROVIDER",
+        "AI_VISION_MODEL",
+        "APP_DATA_DIR"
+    )
+
+    foreach ($setting in $essentialSettings) {
+        if ($envContent -notmatch "$setting=") {
+            $missingSettings += $setting
+        }
+    }
+
+    if ($missingSettings.Count -gt 0) {
+        $missingList = $missingSettings -join ', '
+        Write-Warning "Some essential settings are missing from .env file: $missingList"
+        $updateEnv = Get-UserInput "Would you like to add these settings with default values? (Y/N):" "yn" "Y"
+
+        if ($updateEnv.ToUpper() -eq "Y") {
+            $updatedEnv = $envContent.TrimEnd()
+            $updatedEnv += "`n`n# Added by setup script on $(Get-Date)`n"
+
+            foreach ($setting in $missingSettings) {
+                switch ($setting) {
+                    "AI_CHAT_PROVIDER" { $updatedEnv += "AI_CHAT_PROVIDER=ollama`n" }
+                    "AI_CHAT_MODEL" { $updatedEnv += "AI_CHAT_MODEL=llama3`n" }
+                    "AI_VISION_PROVIDER" { $updatedEnv += "AI_VISION_PROVIDER=ollama`n" }
+                    "AI_VISION_MODEL" { $updatedEnv += "AI_VISION_MODEL=llama3`n" }
+                    "APP_DATA_DIR" { $updatedEnv += "APP_DATA_DIR=./data`n" }
+                }
+            }
+
+            $updatedEnv | Out-File -FilePath ".env" -Encoding UTF8
+            Write-Success "Updated .env file with missing settings"
+        } else {
+            Write-Info "Skipping .env update. You may need to add these settings manually."
+        }
+    } else {
+        Write-Success "All essential settings found in .env file"
+    }
+}
+
+# Create data directory if it doesn't exist
+$dataDir = "./data"
+if (-not (Test-Path $dataDir)) {
+    Write-Info "Creating data directory..."
+    New-Item -Path $dataDir -ItemType Directory | Out-Null
+    Write-Success "Created data directory"
+} else {
+    Write-Success "Data directory already exists"
+}
+
+# Step 7: Finalize Setup
+Write-SectionHeader "Step 7: Finalizing Setup" "🎉"
+Show-Progress 7 7 "Completing installation..."
+
+# Create a simple test script to verify everything works
+$testScriptPath = Join-Path $PWD "test_setup.py"
+if (-not (Test-Path $testScriptPath) -or $Force) {
+    Write-Info "Creating test script..."
+
+    $testScript = @"
+#!/usr/bin/env python
+# TaskHero AI Setup Test Script
+# Created by setup script on $(Get-Date)
+
+import os
+import sys
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from dotenv import load_dotenv
+
+console = Console()
+
+def main():
+    console.print(Panel.fit("TaskHero AI Setup Test", style="cyan"))
+    console.print("")
+
+    # Check Python version
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    console.print(f"Python version: [green]{py_version}[/green]")
+
+    # Check environment
+    load_dotenv()
+    env_vars = {
+        "AI_CHAT_PROVIDER": os.getenv("AI_CHAT_PROVIDER", "Not set"),
+        "AI_CHAT_MODEL": os.getenv("AI_CHAT_MODEL", "Not set"),
+        "AI_VISION_PROVIDER": os.getenv("AI_VISION_PROVIDER", "Not set"),
+        "AI_VISION_MODEL": os.getenv("AI_VISION_MODEL", "Not set"),
+        "OLLAMA_HOST": os.getenv("OLLAMA_HOST", "Not set"),
+        "APP_DATA_DIR": os.getenv("APP_DATA_DIR", "Not set"),
+    }
+
+    console.print("\nEnvironment Configuration:")
+    for key, value in env_vars.items():
+        color = "green" if value != "Not set" else "red"
+        console.print(f"  {key}: [{color}]{value}[/{color}]")
+
+    # Check data directory
+    data_dir = os.getenv("APP_DATA_DIR", "./data")
+    if os.path.exists(data_dir):
+        console.print(f"\nData directory: [green]{os.path.abspath(data_dir)}[/green]")
+    else:
+        console.print(f"\nData directory: [red]Not found: {os.path.abspath(data_dir)}[/red]")
+
+    # Check Ollama if configured
+    if env_vars["AI_CHAT_PROVIDER"] == "ollama" or env_vars["AI_VISION_PROVIDER"] == "ollama":
+        console.print("\nChecking Ollama connection...")
+        try:
+            import requests
+            ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+            response = requests.get(f"{ollama_host}/api/version", timeout=5)
+            if response.status_code == 200:
+                version = response.json().get("version", "unknown")
+                console.print(f"  Ollama connection: [green]Success (version: {version})[/green]")
+            else:
+                console.print(f"  Ollama connection: [red]Failed (status code: {response.status_code})[/red]")
+        except Exception as e:
+            console.print(f"  Ollama connection: [red]Error: {str(e)}[/red]")
+            console.print("  Make sure Ollama is running and accessible.")
+
+    console.print("\n[cyan]Setup test completed![/cyan]")
+    console.print("If you see any issues above, please check the documentation or run the setup script again.")
+
+if __name__ == "__main__":
+    main()
+"@
+
+    $testScript | Out-File -FilePath $testScriptPath -Encoding UTF8
+    Write-Success "Created test script"
+}
+
+# Mark setup as completed
+Set-SetupCompleted "setup_completed" | Out-Null
+
+# Final message
+Write-Host ""
+Write-ColoredLine "===============================================================================" $Colors.Primary
+Write-ColoredLine "                        TaskHero AI Setup Complete!                        " $Colors.Primary
+Write-ColoredLine "===============================================================================" $Colors.Primary
+Write-Host ""
+Write-Success "TaskHero AI has been successfully set up on your system."
+Write-Host ""
+Write-Info "To test your installation, run:"
+Write-Host "  .\venv\Scripts\python.exe test_setup.py"
+Write-Host ""
+Write-Info "To start using TaskHero AI, run:"
+Write-Host "  .\venv\Scripts\python.exe -m taskhero"
+Write-Host ""
+Write-Info "For more information, see the documentation at:"
+Write-Host "  https://github.com/yourusername/taskhero-ai"
+Write-Host ""
+Write-Host "Thank you for installing TaskHero AI!"
+Write-Host ""
