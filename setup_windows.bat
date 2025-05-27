@@ -13,34 +13,27 @@ echo.
 :: Skip over function definitions during main execution
 goto :main
 
-:: Function to check if a setup step was completed (batch-only fallback)
+:: Function to check if a setup step was completed (using .taskhero_setup.json)
 :check_setup_completed_fallback
 set "step_name=%1"
-set "setup_marker_file=.setup_%step_name%.done"
-if exist "%setup_marker_file%" (
-    exit /b 0
-) else (
-    exit /b 1
-)
+:: Check .taskhero_setup.json for completion status
+powershell -Command "if (Test-Path '.taskhero_setup.json') { $json = Get-Content '.taskhero_setup.json' | ConvertFrom-Json; if ($json.setup_completed.'%step_name%' -eq $true) { exit 0 } else { exit 1 } } else { exit 1 }"
+exit /b %ERRORLEVEL%
 
-:: Function to mark a setup step as completed (batch-only fallback)
+:: Function to mark a setup step as completed (using .taskhero_setup.json)
 :mark_setup_completed_fallback
 set "step_name=%1"
-set "setup_marker_file=.setup_%step_name%.done"
-echo %date% %time% > "%setup_marker_file%"
+:: Update .taskhero_setup.json with completion status
+powershell -Command "$file = '.taskhero_setup.json'; if (Test-Path $file) { $json = Get-Content $file | ConvertFrom-Json } else { $json = @{setup_completed=@{}} }; if (-not $json.setup_completed) { $json | Add-Member -NotePropertyName 'setup_completed' -NotePropertyValue @{} }; $json.setup_completed | Add-Member -NotePropertyName '%step_name%' -NotePropertyValue $true -Force; $json.setup_completed | Add-Member -NotePropertyName 'last_updated' -NotePropertyValue (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.ffffff') -Force; $json | ConvertTo-Json -Depth 10 | Out-File $file -Encoding UTF8"
 exit /b 0
 
-:: Function to check if a file is newer than a completed step (batch-only fallback)
+:: Function to check if a file is newer than a completed step (using .taskhero_setup.json)
 :check_file_newer_fallback
 set "file_path=%1"
 set "step_name=%2"
-set "setup_marker_file=.setup_%step_name%.done"
-if not exist "%setup_marker_file%" (
-    exit /b 0
-)
-if not exist "%file_path%" (
-    exit /b 1
-)
+:: Check if step was completed and compare file timestamps
+powershell -Command "if (-not (Test-Path '.taskhero_setup.json')) { exit 0 }; $json = Get-Content '.taskhero_setup.json' | ConvertFrom-Json; if (-not $json.setup_completed.'%step_name%') { exit 0 }; if (-not (Test-Path '%file_path%')) { exit 1 }; $setupTime = [DateTime]::Parse($json.setup_completed.last_updated); $fileTime = (Get-Item '%file_path%').LastWriteTime; if ($fileTime -gt $setupTime) { exit 0 } else { exit 1 }"
+exit /b %ERRORLEVEL%
 :: Simple check: if requirements.txt exists and marker exists, assume it may need update
 :: This is a simplified check for batch-only mode
 exit /b 0

@@ -62,15 +62,14 @@ logs/
 .env.*.backup
 env.backup*
 
-# VerbalCodeAI specific
+# TaskHero AI specific
 .index/
-.app_settings.json
 
 # Temporary files
 *.tmp
 *.temp
 *.bak
-*.backup 
+*.backup
 
 
 #cache files

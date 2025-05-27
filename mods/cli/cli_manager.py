@@ -2702,8 +2702,8 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
             except Exception as e:
                 print(f"{Fore.RED}❌ Error deleting logs: {e}{Style.RESET_ALL}")
 
-        # Delete settings files
-        settings_patterns = [".app_settings.json", ".env_backups", ".env.backup*"]
+        # Delete settings files (excluding .taskhero_setup.json)
+        settings_patterns = [".env_backups", ".env.backup*"]
         for pattern in settings_patterns:
             if '*' in pattern:
                 import glob

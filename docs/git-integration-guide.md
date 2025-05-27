@@ -31,7 +31,7 @@ The Git Integration and Auto-Update System provides TaskHero AI with the ability
 
 **Automatic**: Updates are checked automatically on startup (if enabled)
 
-**Manual**: 
+**Manual**:
 1. Go to Git Settings → Check for Updates Now (option 4)
 2. View the update status and available versions
 
@@ -45,7 +45,7 @@ The Git Integration and Auto-Update System provides TaskHero AI with the ability
 
 ## Configuration
 
-Git settings are stored in `app_settings.json`:
+Git settings are stored in `.taskhero_setup.json`:
 
 ```json
 {
@@ -78,7 +78,7 @@ mods/ui/
 ### Key Features
 - Single version check on startup (no continuous polling)
 - Update notifications in home menu
-- Git update option in settings menu  
+- Git update option in settings menu
 - Preservation of user files during updates
 - Integration with existing app_settings.json
 - Windows PowerShell compatibility
