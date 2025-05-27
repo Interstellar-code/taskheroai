@@ -487,7 +487,8 @@ $env:PATH = "$venvScripts;$env:PATH"
 
 # Verify activation by checking Python path
 try {
-    $pythonPath = & python -c "import sys; print(sys.executable)" 2>&1
+    $sysCmd = "import sys; print(sys.executable)"
+    $pythonPath = & python -c $sysCmd 2>&1
     if ($pythonPath -like "*venv*") {
         Write-Success "Virtual environment activated successfully"
         Write-Info "Using Python: $pythonPath"
@@ -556,7 +557,8 @@ if ($Force -or -not (Test-SetupCompleted "dependencies_installed")) {
 
             foreach ($dep in $keyDeps) {
                 $testCmd = if ($dep -eq "python-dotenv") { "dotenv" } else { $dep }
-                $testResult = & $pythonExe -c "import $testCmd; print('$dep: OK')" 2>&1
+                $importCmd = "import $testCmd; print('$testCmd imported successfully')"
+                $testResult = & $pythonExe -c $importCmd 2>&1
                 if ($LASTEXITCODE -eq 0) {
                     Write-Success "✓ $dep"
                 } else {
@@ -593,7 +595,8 @@ if ($Force -or -not (Test-SetupCompleted "dependencies_installed")) {
     $pythonExe = Join-Path $PWD "venv\Scripts\python.exe"
     if (Test-Path $pythonExe) {
         try {
-            $coloramaTest = & $pythonExe -c "import colorama; print('verified')" 2>&1
+            $verifyCmd = "import colorama; print('verified')"
+            $coloramaTest = & $pythonExe -c $verifyCmd 2>&1
             if ($LASTEXITCODE -ne 0) {
                 Write-Warning "Dependencies marked as installed but verification failed"
                 Write-Info "Re-installing dependencies..."
@@ -771,11 +774,13 @@ try {
         $env:PATH = "$venvScripts;$env:PATH"
 
         # Verify the Python path before starting
-        $actualPython = & $pythonExe -c "import sys; print(sys.executable)" 2>&1
+        $pythonCmd = "import sys; print(sys.executable)"
+        $actualPython = & $pythonExe -c $pythonCmd 2>&1
         Write-Info "Using Python: $actualPython"
 
         # Test if colorama is available
-        $coloramaTest = & $pythonExe -c "import colorama; print('colorama available')" 2>&1
+        $coloramaCmd = "import colorama; print('colorama available')"
+        $coloramaTest = & $pythonExe -c $coloramaCmd 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Dependencies verified - colorama is available"
             Write-Info "Starting TaskHero AI with virtual environment Python..."
