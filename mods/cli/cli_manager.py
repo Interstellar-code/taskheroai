@@ -932,52 +932,55 @@ class CLIManager(BaseManager):
 
             stats['indexed_files'] = len(indexed_files)
 
-            # Analyze file types and sizes
-            for file_path in indexed_files[:50]:  # Analyze first 50 files
-                try:
-                    if os.path.exists(file_path):
-                        file_ext = os.path.splitext(file_path)[1].lower()
-                        file_size = os.path.getsize(file_path)
-
-                        # Count file types
-                        stats['file_types'][file_ext] = stats['file_types'].get(file_ext, 0) + 1
-
-                        # Track total size
-                        stats['size_info']['total_size'] += file_size
-
-                        # Track largest files
-                        if len(stats['size_info']['largest_files']) < 5:
-                            stats['size_info']['largest_files'].append((file_path, file_size))
-                        else:
-                            # Replace smallest if current is larger
-                            min_size_idx = min(range(len(stats['size_info']['largest_files'])),
-                                             key=lambda i: stats['size_info']['largest_files'][i][1])
-                            if file_size > stats['size_info']['largest_files'][min_size_idx][1]:
-                                stats['size_info']['largest_files'][min_size_idx] = (file_path, file_size)
-
-                        # Language breakdown
-                        language = self._get_language_from_extension(file_ext)
-                        if language:
-                            stats['language_breakdown'][language] = stats['language_breakdown'].get(language, 0) + 1
-
-                except Exception as e:
-                    self.logger.debug(f"Error analyzing file {file_path}: {e}")
-                    continue
-
-            # Sort largest files
-            stats['size_info']['largest_files'].sort(key=lambda x: x[1], reverse=True)
-
-            # Get total files count from directory
+            # Analyze ALL files in the directory for accurate statistics
             if os.path.exists(self.indexer.root_path):
                 for root, dirs, files in os.walk(self.indexer.root_path):
                     # Skip .index and hidden directories
                     dirs[:] = [d for d in dirs if not d.startswith('.') and d != '__pycache__']
+
+                    # Count all files
                     stats['total_files'] += len(files)
 
                     # Directory structure analysis
                     rel_path = os.path.relpath(root, self.indexer.root_path)
                     if rel_path != '.' and len(rel_path.split(os.sep)) <= 3:  # Only top 3 levels
                         stats['directory_structure'][rel_path] = len(files)
+
+                    # Analyze each file for types, sizes, and languages
+                    for filename in files:
+                        try:
+                            file_path = os.path.join(root, filename)
+                            if os.path.exists(file_path) and os.path.isfile(file_path):
+                                file_ext = os.path.splitext(filename)[1].lower()
+                                file_size = os.path.getsize(file_path)
+
+                                # Count file types
+                                stats['file_types'][file_ext] = stats['file_types'].get(file_ext, 0) + 1
+
+                                # Track total size
+                                stats['size_info']['total_size'] += file_size
+
+                                # Track largest files (keep top 10)
+                                if len(stats['size_info']['largest_files']) < 10:
+                                    stats['size_info']['largest_files'].append((file_path, file_size))
+                                else:
+                                    # Replace smallest if current is larger
+                                    min_size_idx = min(range(len(stats['size_info']['largest_files'])),
+                                                     key=lambda i: stats['size_info']['largest_files'][i][1])
+                                    if file_size > stats['size_info']['largest_files'][min_size_idx][1]:
+                                        stats['size_info']['largest_files'][min_size_idx] = (file_path, file_size)
+
+                                # Language breakdown
+                                language = self._get_language_from_extension(file_ext)
+                                if language:
+                                    stats['language_breakdown'][language] = stats['language_breakdown'].get(language, 0) + 1
+
+                        except Exception as e:
+                            self.logger.debug(f"Error analyzing file {file_path}: {e}")
+                            continue
+
+            # Sort largest files
+            stats['size_info']['largest_files'].sort(key=lambda x: x[1], reverse=True)
 
         except Exception as e:
             self.logger.error(f"Error collecting project statistics: {e}")
@@ -1017,7 +1020,23 @@ class CLIManager(BaseManager):
             '.xml': 'XML',
             '.md': 'Markdown',
             '.dockerfile': 'Docker',
-            '.tf': 'Terraform'
+            '.tf': 'Terraform',
+            '.txt': 'Text',
+            '.log': 'Log Files',
+            '.ini': 'Configuration',
+            '.cfg': 'Configuration',
+            '.conf': 'Configuration',
+            '.env': 'Environment',
+            '.gitignore': 'Git',
+            '.gitattributes': 'Git',
+            '.toml': 'TOML',
+            '.lock': 'Lock Files',
+            '.sample': 'Sample Files',
+            '.example': 'Example Files',
+            '.j2': 'Jinja2 Templates',
+            '.pyc': 'Python Bytecode',
+            '.pyo': 'Python Bytecode',
+            '.pyd': 'Python Extension'
         }
         return language_map.get(ext)
 
