@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "created": "2025-05-25T21:27:08.550110",
-  "last_updated": "2025-05-26T21:18:46.591796",
+  "last_updated": "2025-05-26T23:33:06.386564",
   "repository_type": "central",
   "codebase_path": "C:\\laragon\\www\\taskheroai",
   "task_storage_path": "C:\\laragon\\www\\taskheroai\\theherotasks",
@@ -31,7 +31,7 @@
     "auto_priority": true,
     "kanban_enabled": true,
     "default_project_template": "basic",
-    "next_task_number": 82
+    "next_task_number": 81
   },
   "indexing": {
     "auto_index": true,
