@@ -61,7 +61,7 @@ function Show-Progress {
 # Setup completion tracking
 function Test-SetupCompleted {
     param([string]$Step)
-    $setupFile = ".taskhero_setup.json"
+    $setupFile = Join-Path $PSScriptRoot ".taskhero_setup.json"
     if (Test-Path $setupFile) {
         try {
             $setupData = Get-Content $setupFile | ConvertFrom-Json
@@ -163,7 +163,7 @@ function Save-AppConfig {
         [string]$Key,
         $Value
     )
-    $setupFile = ".taskhero_setup.json"
+    $setupFile = Join-Path $PSScriptRoot ".taskhero_setup.json"
     $setupData = @{ setup_completed = @{} }
 
     if (Test-Path $setupFile) {
@@ -228,9 +228,79 @@ Write-Host ""
 
 if ($Force) {
     Write-Warning "Force mode enabled - all steps will be re-executed"
-    if (Test-Path ".taskhero_setup.json") {
-        Remove-Item ".taskhero_setup.json" -Force
+    $setupFile = Join-Path $PSScriptRoot ".taskhero_setup.json"
+    if (Test-Path $setupFile) {
+        Remove-Item $setupFile -Force
         Write-Info "Cleared previous setup state"
+    }
+}
+
+# Check if setup is already complete and can skip to app launch
+if (-not $Force) {
+    $setupFile = Join-Path $PSScriptRoot ".taskhero_setup.json"
+    if (Test-Path $setupFile) {
+        try {
+            $setupData = Get-Content $setupFile | ConvertFrom-Json
+            $requiredSteps = @("venv_created", "dependencies_installed", "pip_upgraded", "setup_completed")
+            $allStepsComplete = $true
+
+            foreach ($step in $requiredSteps) {
+                if (-not $setupData.setup_completed.$step) {
+                    $allStepsComplete = $false
+                    break
+                }
+            }
+
+            # Also verify that key files/directories exist
+            $pythonExe = Join-Path $PSScriptRoot "venv\Scripts\python.exe"
+            $appFile = Join-Path $PSScriptRoot "app.py"
+
+            if ($allStepsComplete -and (Test-Path $pythonExe) -and (Test-Path $appFile)) {
+                Write-Host ""
+                Write-ColoredLine "===============================================================================" $Colors.Success
+                Write-ColoredLine "                    TaskHero AI Already Set Up - Quick Start!                " $Colors.Success
+                Write-ColoredLine "===============================================================================" $Colors.Success
+                Write-Host ""
+                Write-Success "Setup already completed on $($setupData.setup_completed.last_updated)"
+                Write-Info "All required components are installed and configured."
+                Write-Host ""
+
+                # Quick verification of dependencies
+                Write-Info "Performing quick dependency check..."
+                try {
+                    & $pythonExe -c "import colorama, rich, dotenv" 2>&1 | Out-Null
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Success "Dependencies verified successfully"
+
+                        # Skip directly to app launch
+                        Write-Host ""
+                        Write-ColoredLine "===============================================================================" $Colors.Primary
+                        Write-ColoredLine "                          Starting TaskHero AI...                        " $Colors.Primary
+                        Write-ColoredLine "===============================================================================" $Colors.Primary
+                        Write-Host ""
+
+                        Write-Info "Launching TaskHero AI main application..."
+                        & $pythonExe $appFile
+                        exit 0
+                    }
+                    else {
+                        Write-Warning "Dependencies verification failed. Running full setup..."
+                    }
+                }
+                catch {
+                    Write-Warning "Dependencies check failed: $_. Running full setup..."
+                }
+            }
+            else {
+                Write-Info "Setup incomplete or files missing. Running full setup..."
+            }
+        }
+        catch {
+            Write-Info "Could not read setup file. Running full setup..."
+        }
+    }
+    else {
+        Write-Info "No previous setup found. Running full setup..."
     }
 }
 

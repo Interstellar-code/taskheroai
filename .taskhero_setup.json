@@ -24,13 +24,6 @@
     "kanban_enabled": true,
     "default_project_template": "basic"
   },
-  "setup_completed": {
-    "dependencies_installed": true,
-    "last_updated": "2025-05-27T22:21:27.459138",
-    "setup_completed": true,
-    "venv_created": true,
-    "pip_upgraded": true
-  },
   "git": {
     "auto_check_enabled": true,
     "last_check_timestamp": "2025-05-27T22:09:23.815651",
@@ -87,5 +80,12 @@
     "default_provider": "anthropic",
     "max_chat_history": 50,
     "auto_save_chats": true
+  },
+  "setup_completed": {
+    "dependencies_installed": true,
+    "last_updated": "2025-05-27T22:22:43.169619",
+    "setup_completed": true,
+    "venv_created": true,
+    "pip_upgraded": true
   }
 }
