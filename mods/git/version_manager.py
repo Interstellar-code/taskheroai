@@ -264,8 +264,8 @@ class VersionManager:
             response = requests.get(api_url, timeout=10)
 
             if response.status_code == 404:
-                # No releases found
-                return {}
+                # No releases found - try to get version from tags or use commit-based versioning
+                return self._get_version_from_tags()
 
             response.raise_for_status()
             release_data = response.json()
@@ -279,7 +279,64 @@ class VersionManager:
 
         except Exception as e:
             self.logger.debug(f"Error getting latest release: {e}")
-            return {}
+            # Fallback to tag-based or commit-based versioning
+            return self._get_version_from_tags()
+
+    def _get_version_from_tags(self) -> Dict[str, Any]:
+        """Get version information from Git tags or generate from commit."""
+        try:
+            # Try to get latest tag
+            api_url = f"https://api.github.com/repos/{self.owner}/{self.repo}/tags"
+            response = requests.get(api_url, timeout=10)
+
+            if response.status_code == 200:
+                tags = response.json()
+                if tags:
+                    # Use the latest tag as version
+                    latest_tag = tags[0]
+                    return {
+                        "version": latest_tag["name"],
+                        "date": "unknown",
+                        "notes": f"Version from tag: {latest_tag['name']}",
+                        "url": f"https://github.com/{self.owner}/{self.repo}/releases/tag/{latest_tag['name']}"
+                    }
+
+            # No tags found - generate version from commit date
+            # Get the latest commit to generate a date-based version
+            commit_api_url = f"https://api.github.com/repos/{self.owner}/{self.repo}/commits/master"
+            commit_response = requests.get(commit_api_url, timeout=10)
+
+            if commit_response.status_code == 200:
+                commit_data = commit_response.json()
+                commit_date = commit_data["commit"]["committer"]["date"]
+                # Convert to date-based version (e.g., 2024.01.15)
+                from datetime import datetime
+                date_obj = datetime.fromisoformat(commit_date.replace('Z', '+00:00'))
+                version = f"{date_obj.year}.{date_obj.month:02d}.{date_obj.day:02d}"
+
+                return {
+                    "version": version,
+                    "date": commit_date,
+                    "notes": f"Date-based version from latest commit",
+                    "url": f"https://github.com/{self.owner}/{self.repo}/commit/{commit_data['sha']}"
+                }
+
+            # Ultimate fallback
+            return {
+                "version": "1.0.0",
+                "date": "unknown",
+                "notes": "Default version - no releases or tags found",
+                "url": f"https://github.com/{self.owner}/{self.repo}"
+            }
+
+        except Exception as e:
+            self.logger.debug(f"Error getting version from tags: {e}")
+            return {
+                "version": "1.0.0",
+                "date": "unknown",
+                "notes": "Default version - error retrieving version info",
+                "url": f"https://github.com/{self.owner}/{self.repo}"
+            }
 
     def _get_cached_remote_version(self) -> Optional[Dict[str, Any]]:
         """Get cached remote version if still valid from consolidated settings."""
