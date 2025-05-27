@@ -63,6 +63,38 @@ class GitManager(BaseManager):
             "Thumbs.db"
         ]
 
+        # Patterns for user/config files that are expected to be modified
+        self.user_file_patterns = [
+            "theherotasks/",
+            ".env",
+            ".taskhero_setup.json",
+            "taskhero_setup.json",  # Git sometimes shows without leading dot
+            ".app_settings.json",
+            "app_settings.json",    # Git sometimes shows without leading dot
+            "logs/",
+            "*.log",
+            "user_*",
+            "custom_*",
+            "venv/",
+            ".venv/",
+            ".vscode/",
+            ".idea/",
+            ".DS_Store",
+            "Thumbs.db",
+            # Backup directories
+            ".backup_*",
+            # Cache files
+            ".git_*_cache.json",
+            "__pycache__/",
+            "*.pyc",
+            "*.pyo",
+            # Temporary files
+            "*.tmp",
+            "*.temp",
+            ".pytest_cache/",
+            ".coverage"
+        ]
+
     def _perform_initialization(self) -> None:
         """Initialize the Git manager."""
         try:
@@ -329,8 +361,73 @@ class GitManager(BaseManager):
                 "stage": "unknown"
             }
 
+    def _categorize_uncommitted_files(self) -> Dict[str, List[str]]:
+        """
+        Categorize uncommitted files into user files and core files.
+
+        Returns:
+            Dictionary with 'user_files' and 'core_files' lists
+        """
+        try:
+            # Get uncommitted files
+            result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
+
+            if result.returncode != 0:
+                return {"user_files": [], "core_files": []}
+
+            uncommitted_files = []
+            for line in result.stdout.strip().split('\n'):
+                if line.strip():
+                    # Extract filename from git status output (skip status indicators)
+                    filename = line[3:].strip()
+                    uncommitted_files.append(filename)
+
+            user_files = []
+            core_files = []
+
+            for file_path in uncommitted_files:
+                is_user_file = False
+
+                # Check against user file patterns
+                for pattern in self.user_file_patterns:
+                    if pattern.endswith("/"):
+                        # Directory pattern
+                        if file_path.startswith(pattern) or file_path.startswith(pattern.rstrip("/")):
+                            is_user_file = True
+                            break
+                    elif "*" in pattern:
+                        # Wildcard pattern
+                        import fnmatch
+                        if fnmatch.fnmatch(file_path, pattern):
+                            is_user_file = True
+                            break
+                    else:
+                        # Exact file pattern
+                        if file_path == pattern or file_path.endswith("/" + pattern):
+                            is_user_file = True
+                            break
+
+                if is_user_file:
+                    user_files.append(file_path)
+                else:
+                    core_files.append(file_path)
+
+            return {
+                "user_files": user_files,
+                "core_files": core_files
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error categorizing uncommitted files: {e}")
+            return {"user_files": [], "core_files": []}
+
     def _pre_update_checks(self) -> Dict[str, Any]:
-        """Perform pre-update checks."""
+        """Perform pre-update checks with smart uncommitted changes handling."""
         try:
             # Check if Git is available
             result = subprocess.run(["git", "--version"], capture_output=True, text=True)
@@ -353,18 +450,29 @@ class GitManager(BaseManager):
                     "error": "Not in a Git repository"
                 }
 
-            # Check for uncommitted changes
-            result = subprocess.run(
-                ["git", "status", "--porcelain"],
-                capture_output=True,
-                text=True,
-                cwd=Path.cwd()
-            )
-            if result.stdout.strip():
+            # Smart uncommitted changes check
+            file_categories = self._categorize_uncommitted_files()
+            core_files = file_categories.get("core_files", [])
+            user_files = file_categories.get("user_files", [])
+
+            if core_files:
+                # Block update if core TaskHero files are modified
+                core_files_str = ", ".join(core_files[:5])  # Show first 5 files
+                if len(core_files) > 5:
+                    core_files_str += f" (and {len(core_files) - 5} more)"
+
                 return {
                     "can_update": False,
-                    "error": "Uncommitted changes detected. Please commit or stash changes first."
+                    "error": f"Core TaskHero files have uncommitted changes: {core_files_str}. Please commit or stash these changes first."
                 }
+
+            if user_files:
+                # Allow update but log user files that will be preserved
+                user_files_str = ", ".join(user_files[:3])
+                if len(user_files) > 3:
+                    user_files_str += f" (and {len(user_files) - 3} more)"
+
+                self.logger.info(f"User files detected and will be preserved: {user_files_str}")
 
             # Check network connectivity to remote
             result = subprocess.run(
@@ -380,7 +488,11 @@ class GitManager(BaseManager):
                     "error": "Cannot connect to remote repository"
                 }
 
-            return {"can_update": True}
+            return {
+                "can_update": True,
+                "user_files_count": len(user_files),
+                "core_files_count": len(core_files)
+            }
 
         except subprocess.TimeoutExpired:
             return {
@@ -442,8 +554,34 @@ class GitManager(BaseManager):
             }
 
     def _perform_git_update(self) -> Dict[str, Any]:
-        """Perform the actual Git update."""
+        """Perform the actual Git update with smart user file handling."""
+        stash_created = False
         try:
+            # Check if there are any uncommitted changes
+            status_result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
+
+            has_changes = bool(status_result.stdout.strip())
+
+            # If there are changes, stash them temporarily
+            if has_changes:
+                stash_result = subprocess.run(
+                    ["git", "stash", "push", "-m", "TaskHero auto-update stash"],
+                    capture_output=True,
+                    text=True,
+                    cwd=Path.cwd()
+                )
+
+                if stash_result.returncode == 0:
+                    stash_created = True
+                    self.logger.info("Stashed uncommitted changes for update")
+                else:
+                    self.logger.warning(f"Failed to stash changes: {stash_result.stderr}")
+
             # Fetch latest changes
             fetch_result = subprocess.run(
                 ["git", "fetch", "origin"],
@@ -454,6 +592,9 @@ class GitManager(BaseManager):
             )
 
             if fetch_result.returncode != 0:
+                # Restore stash if fetch failed
+                if stash_created:
+                    self._restore_stash()
                 return {
                     "success": False,
                     "error": f"Git fetch failed: {fetch_result.stderr}"
@@ -478,10 +619,19 @@ class GitManager(BaseManager):
             )
 
             if pull_result.returncode != 0:
+                # Restore stash if pull failed
+                if stash_created:
+                    self._restore_stash()
                 return {
                     "success": False,
                     "error": f"Git pull failed: {pull_result.stderr}"
                 }
+
+            # Restore stashed changes
+            if stash_created:
+                restore_result = self._restore_stash()
+                if not restore_result:
+                    self.logger.warning("Failed to restore stashed changes - they remain in stash")
 
             # Get new commit info
             commit_result = subprocess.run(
@@ -497,19 +647,60 @@ class GitManager(BaseManager):
                 "branch": current_branch,
                 "new_commit": new_commit,
                 "fetch_output": fetch_result.stdout,
-                "pull_output": pull_result.stdout
+                "pull_output": pull_result.stdout,
+                "stash_used": stash_created,
+                "stash_restored": stash_created
             }
 
         except subprocess.TimeoutExpired:
+            # Restore stash if operation timed out
+            if stash_created:
+                self._restore_stash()
             return {
                 "success": False,
                 "error": "Git operation timed out"
             }
         except Exception as e:
+            # Restore stash if operation failed
+            if stash_created:
+                self._restore_stash()
             return {
                 "success": False,
                 "error": str(e)
             }
+
+    def _restore_stash(self) -> bool:
+        """Restore the most recent stash."""
+        try:
+            # Check if there are any stashes
+            stash_list_result = subprocess.run(
+                ["git", "stash", "list"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
+
+            if not stash_list_result.stdout.strip():
+                return True  # No stash to restore
+
+            # Pop the most recent stash
+            stash_pop_result = subprocess.run(
+                ["git", "stash", "pop"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
+
+            if stash_pop_result.returncode == 0:
+                self.logger.info("Successfully restored stashed changes")
+                return True
+            else:
+                self.logger.error(f"Failed to restore stash: {stash_pop_result.stderr}")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Error restoring stash: {e}")
+            return False
 
     def _restore_backup(self, backup_path: str) -> bool:
         """Restore files from backup."""

@@ -382,8 +382,8 @@ class VersionManager:
                 except Exception:
                     version_comparison = "unknown"
 
-            # Check if we can update (no uncommitted changes)
-            can_update = not current.get("has_uncommitted_changes", False) and current.get("is_git_repo", False)
+            # Check if we can update (Git repo is sufficient, uncommitted changes will be handled)
+            can_update = current.get("is_git_repo", False)
 
             # Determine if update is available
             update_available = current_hash != remote_hash and can_update
@@ -418,13 +418,13 @@ class VersionManager:
             return "Not a Git repository - updates not available"
 
         if current.get("has_uncommitted_changes", False):
-            return "Uncommitted changes detected - please commit or stash changes before updating"
+            return "User files detected - will be preserved during update"
 
         if update_available:
             return "New version available - ready to update"
 
         if current.get("commit_hash") == remote.get("commit_hash"):
-            return "You are running the latest version"
+            return "You are up to date"
 
         return "Version status unclear - manual check recommended"
 
