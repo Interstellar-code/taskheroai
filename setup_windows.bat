@@ -158,6 +158,91 @@ exit /b 0
 
 
 
+:: Function to add TaskHero AI folder to .gitignore
+:add_to_gitignore
+set "codebase_path=%1"
+set "taskhero_path=%2"
+
+echo [INFO] Configuring .gitignore to exclude TaskHero AI files...
+echo [INFO] Codebase path: %codebase_path%
+echo [INFO] TaskHero AI path: %taskhero_path%
+
+:: Calculate relative path from codebase to TaskHero AI folder
+set "gitignore_path=%codebase_path%\.gitignore"
+set "relative_path="
+
+:: Get the folder name of TaskHero AI installation
+for %%i in ("%taskhero_path%") do set "taskhero_folder=%%~ni"
+
+:: Try to calculate relative path (simplified approach for batch)
+:: If codebase path contains taskhero path, use relative path
+echo %taskhero_path% | findstr /i "%codebase_path%" >nul
+if %errorlevel% equ 0 (
+    :: TaskHero is inside codebase, use relative path
+    call :get_relative_path "%codebase_path%" "%taskhero_path%" relative_path
+) else (
+    :: TaskHero is outside codebase, use folder name
+    set "relative_path=./%taskhero_folder%"
+)
+
+echo [INFO] Relative path to ignore: %relative_path%
+
+:: Check if .gitignore exists, create if not
+if not exist "%gitignore_path%" (
+    echo [INFO] Creating .gitignore file in codebase directory...
+    echo. > "%gitignore_path%"
+)
+
+:: Check if TaskHero AI is already in .gitignore
+findstr /i "taskheroai" "%gitignore_path%" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [SUCCESS] TaskHero AI folder is already in .gitignore
+    exit /b 0
+)
+
+findstr /i "%relative_path%" "%gitignore_path%" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [SUCCESS] TaskHero AI folder is already in .gitignore
+    exit /b 0
+)
+
+:: Add TaskHero AI to .gitignore
+echo. >> "%gitignore_path%"
+echo # TaskHero AI - Added by setup script >> "%gitignore_path%"
+echo %relative_path% >> "%gitignore_path%"
+
+echo [SUCCESS] Added TaskHero AI folder to .gitignore: %relative_path%
+exit /b 0
+
+:: Helper function to get relative path (simplified)
+:get_relative_path
+set "base_path=%~1"
+set "target_path=%~2"
+set "result_var=%3"
+
+:: Simple relative path calculation
+set "folder_name="
+for %%i in ("%target_path%") do set "folder_name=%%~ni"
+set "%result_var%=./%folder_name%"
+exit /b 0
+
+:: Function to get configuration value from .taskhero_setup.json
+:get_config_value
+set "config_key=%1"
+set "return_var=%2"
+
+if not exist ".taskhero_setup.json" (
+    set "%return_var%="
+    exit /b 1
+)
+
+:: Use PowerShell to extract the value from JSON
+for /f "delims=" %%i in ('powershell -Command "try { $json = Get-Content '.taskhero_setup.json' | ConvertFrom-Json; if ($json.'%config_key%') { Write-Output $json.'%config_key%' } else { Write-Output '' } } catch { Write-Output '' }"') do (
+    set "%return_var%=%%i"
+)
+
+exit /b 0
+
 :: Function to display section header
 :show_section
 set "title=%1"
@@ -640,6 +725,20 @@ if %FORCE_SETUP% equ 0 (
     call :check_config_exists "codebase_path"
     if !errorlevel! equ 0 (
         echo [INFO] Codebase path already configured. Skipping...
+        :: Still check .gitignore for existing codebase path
+        call :check_setup_completed_fallback "gitignore_configured"
+        if !errorlevel! equ 0 (
+            echo [SUCCESS] .gitignore already configured - skipping
+        ) else (
+            call :get_config_value "codebase_path" EXISTING_CODEBASE_PATH
+            if not "!EXISTING_CODEBASE_PATH!"=="" (
+                echo [INFO] Checking .gitignore configuration for existing codebase path...
+                call :add_to_gitignore "!EXISTING_CODEBASE_PATH!" "%CD%"
+                if !errorlevel! equ 0 (
+                    call :mark_setup_completed_fallback "gitignore_configured"
+                )
+            )
+        )
         goto :config_task_storage
     )
 )
@@ -653,6 +752,20 @@ if not exist "!CODEBASE_PATH!" (
 )
 echo [SUCCESS] Codebase path set to: !CODEBASE_PATH!
 call :save_config "codebase_path" "!CODEBASE_PATH!"
+
+:: Add TaskHero AI folder to .gitignore in the codebase directory
+if %FORCE_SETUP% equ 0 (
+    call :check_setup_completed_fallback "gitignore_configured"
+    if !errorlevel! equ 0 (
+        echo [SUCCESS] .gitignore already configured - skipping
+        goto :config_task_storage
+    )
+)
+echo.
+call :add_to_gitignore "!CODEBASE_PATH!" "%CD%"
+if !errorlevel! equ 0 (
+    call :mark_setup_completed_fallback "gitignore_configured"
+)
 
 :config_task_storage
 :: Configuration Step 3: Task Files Storage

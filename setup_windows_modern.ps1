@@ -297,6 +297,99 @@ function Get-ConfigValue {
     }
 }
 
+# Function to add TaskHero AI folder to .gitignore
+function Add-ToGitIgnore {
+    param(
+        [string]$CodebasePath,
+        [string]$TaskHeroPath
+    )
+
+    try {
+        # Resolve absolute paths
+        $codebaseAbsolute = Resolve-Path $CodebasePath -ErrorAction SilentlyContinue
+        $taskHeroAbsolute = Resolve-Path $TaskHeroPath -ErrorAction SilentlyContinue
+
+        if (-not $codebaseAbsolute) {
+            Write-Warning "Could not resolve codebase path: $CodebasePath"
+            return $false
+        }
+
+        if (-not $taskHeroAbsolute) {
+            Write-Warning "Could not resolve TaskHero AI path: $TaskHeroPath"
+            return $false
+        }
+
+        # Find .gitignore file in codebase directory
+        $gitIgnorePath = Join-Path $codebaseAbsolute.Path ".gitignore"
+
+        # Calculate relative path from codebase to TaskHero AI folder
+        $relativePath = ""
+        try {
+            # Try to get relative path
+            $relativePath = [System.IO.Path]::GetRelativePath($codebaseAbsolute.Path, $taskHeroAbsolute.Path)
+            # Normalize path separators for git (use forward slashes)
+            $relativePath = $relativePath -replace '\\', '/'
+        } catch {
+            # Fallback: use folder name if paths are not related
+            $relativePath = Split-Path $taskHeroAbsolute.Path -Leaf
+        }
+
+        # Ensure the path starts with / for absolute ignore or is relative
+        if (-not $relativePath.StartsWith('/') -and -not $relativePath.StartsWith('./')) {
+            if ($relativePath -eq (Split-Path $taskHeroAbsolute.Path -Leaf)) {
+                # If it's just the folder name, make it relative
+                $relativePath = "./$relativePath"
+            }
+        }
+
+        Write-Info "Adding TaskHero AI folder to .gitignore..."
+        Write-Info "Codebase path: $($codebaseAbsolute.Path)"
+        Write-Info "TaskHero AI path: $($taskHeroAbsolute.Path)"
+        Write-Info "Relative path to ignore: $relativePath"
+
+        # Read existing .gitignore content or create empty array
+        $gitIgnoreContent = @()
+        if (Test-Path $gitIgnorePath) {
+            $gitIgnoreContent = Get-Content $gitIgnorePath -ErrorAction SilentlyContinue
+            if (-not $gitIgnoreContent) {
+                $gitIgnoreContent = @()
+            }
+        }
+
+        # Check if the path is already in .gitignore
+        $pathExists = $false
+        foreach ($line in $gitIgnoreContent) {
+            $trimmedLine = $line.Trim()
+            if ($trimmedLine -eq $relativePath -or
+                $trimmedLine -eq "/$relativePath" -or
+                $trimmedLine -eq $relativePath.TrimStart('./') -or
+                $trimmedLine -eq "taskheroai" -or
+                $trimmedLine -eq "/taskheroai" -or
+                $trimmedLine -eq "./taskheroai") {
+                $pathExists = $true
+                break
+            }
+        }
+
+        if ($pathExists) {
+            Write-Success "TaskHero AI folder is already in .gitignore"
+            return $true
+        }
+
+        # Add the path to .gitignore
+        $newContent = $gitIgnoreContent + @("", "# TaskHero AI - Added by setup script", $relativePath)
+
+        # Write to .gitignore file
+        $newContent | Out-File -FilePath $gitIgnorePath -Encoding UTF8
+        Write-Success "Added TaskHero AI folder to .gitignore: $relativePath"
+
+        return $true
+    } catch {
+        Write-Warning "Failed to update .gitignore: $_"
+        return $false
+    }
+}
+
 # Function to set configuration value in .taskhero_setup.json
 function Set-ConfigValue {
     param(
@@ -984,6 +1077,37 @@ if (-not $skipCodebasePath) {
     $codebasePath = Get-UserInput "Enter the codebase path to index:" "path" $PWD
     Write-Success "Codebase path set to: $codebasePath"
     Set-ConfigValue "codebase_path" $codebasePath
+
+    # Add TaskHero AI folder to .gitignore in the codebase directory
+    if (-not $Force -and (Test-SetupCompleted "gitignore_configured")) {
+        Write-Success ".gitignore already configured - skipping"
+    } else {
+        Write-Host ""
+        Write-Info "Configuring .gitignore to exclude TaskHero AI files..."
+        $gitIgnoreResult = Add-ToGitIgnore -CodebasePath $codebasePath -TaskHeroPath $PSScriptRoot
+        if ($gitIgnoreResult) {
+            Set-SetupCompleted "gitignore_configured" | Out-Null
+        } else {
+            Write-Warning "Could not automatically update .gitignore. You may want to manually add the TaskHero AI folder to your .gitignore file."
+        }
+    }
+} else {
+    # Even if skipping codebase path configuration, try to update .gitignore if we have the path
+    $existingCodebasePath = Get-ConfigValue "codebase_path"
+    if ($existingCodebasePath) {
+        if (-not $Force -and (Test-SetupCompleted "gitignore_configured")) {
+            Write-Success ".gitignore already configured - skipping"
+        } else {
+            Write-Host ""
+            Write-Info "Checking .gitignore configuration for existing codebase path..."
+            $gitIgnoreResult = Add-ToGitIgnore -CodebasePath $existingCodebasePath -TaskHeroPath $PSScriptRoot
+            if ($gitIgnoreResult) {
+                Set-SetupCompleted "gitignore_configured" | Out-Null
+            } else {
+                Write-Info "Note: You may want to manually add the TaskHero AI folder to your .gitignore file."
+            }
+        }
+    }
 }
 
 # Configuration Step 3: Task Files Storage
