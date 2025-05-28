@@ -72,8 +72,18 @@ env.backup*
 *.backup
 
 
-#cache files
-mods/__pycache__/
-*.pyc
+# TaskHero AI Configuration Files (user-specific, should not be committed)
 *.taskhero_setup.json
 .taskhero_setup.json
+app_settings.json
+.app_settings.json
+
+# Cache files
+mods/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Git cache files
+.git_update_cache.json
+.git_version_cache.json
