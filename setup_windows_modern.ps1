@@ -182,7 +182,14 @@ function Test-SetupCompleted {
     if (Test-Path $setupFile) {
         try {
             $setupData = Get-Content $setupFile | ConvertFrom-Json
-            return $setupData.setup_completed.$Step -eq $true
+            # Check if setup_completed section exists
+            if ($setupData.PSObject.Properties.Name -contains "setup_completed") {
+                # Check if the specific step exists and is true
+                if ($setupData.setup_completed.PSObject.Properties.Name -contains $Step) {
+                    return $setupData.setup_completed.$Step -eq $true
+                }
+            }
+            return $false
         } catch {
             return $false
         }
@@ -190,40 +197,84 @@ function Test-SetupCompleted {
     return $false
 }
 
+# Function to initialize setup file with proper structure
+function Initialize-SetupFile {
+    $setupFile = Join-Path $PSScriptRoot ".taskhero_setup.json"
+
+    try {
+        if (Test-Path $setupFile) {
+            # Check if existing file has setup_completed section
+            $setupData = Get-Content $setupFile | ConvertFrom-Json
+            if (-not ($setupData.PSObject.Properties.Name -contains "setup_completed")) {
+                Write-Info "Adding setup completion tracking to existing configuration..."
+                $setupData | Add-Member -MemberType NoteProperty -Name "setup_completed" -Value ([PSCustomObject]@{
+                    last_updated = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.ffffff")
+                }) -Force
+                $setupData | ConvertTo-Json -Depth 10 | Out-File -FilePath $setupFile -Encoding UTF8
+            }
+        } else {
+            Write-Info "Creating new setup tracking file..."
+            $defaultStructure = @{
+                setup_completed = @{
+                    last_updated = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.ffffff")
+                }
+            }
+            $defaultStructure | ConvertTo-Json -Depth 10 | Out-File -FilePath $setupFile -Encoding UTF8
+        }
+        return $true
+    } catch {
+        Write-Warning "Failed to initialize setup file: $_"
+        return $false
+    }
+}
+
 function Set-SetupCompleted {
     param([string]$Step)
     $setupFile = Join-Path $PSScriptRoot ".taskhero_setup.json"
-    $setupData = @{ setup_completed = @{} }
 
-    if (Test-Path $setupFile) {
-        try {
-            $jsonContent = Get-Content $setupFile | ConvertFrom-Json
-            # Convert PSCustomObject to hashtable for easier manipulation
-            $setupData = @{}
-            $jsonContent.PSObject.Properties | ForEach-Object {
-                if ($_.Name -eq "setup_completed") {
-                    $setupData[$_.Name] = @{}
-                    $_.Value.PSObject.Properties | ForEach-Object {
-                        $setupData["setup_completed"][$_.Name] = $_.Value
+    try {
+        # Initialize with default structure
+        $setupData = @{ setup_completed = @{} }
+
+        if (Test-Path $setupFile) {
+            try {
+                $jsonContent = Get-Content $setupFile | ConvertFrom-Json
+                # Convert PSCustomObject to hashtable for easier manipulation
+                $setupData = @{}
+                $jsonContent.PSObject.Properties | ForEach-Object {
+                    if ($_.Name -eq "setup_completed") {
+                        $setupData[$_.Name] = @{}
+                        if ($_.Value -and $_.Value.PSObject.Properties) {
+                            $_.Value.PSObject.Properties | ForEach-Object {
+                                $setupData["setup_completed"][$_.Name] = $_.Value
+                            }
+                        }
+                    } else {
+                        $setupData[$_.Name] = $_.Value
                     }
-                } else {
-                    $setupData[$_.Name] = $_.Value
                 }
+            } catch {
+                Write-Warning "Failed to read existing setup file, creating new structure"
+                $setupData = @{ setup_completed = @{} }
             }
-        } catch {
-            $setupData = @{ setup_completed = @{} }
         }
+
+        # Ensure setup_completed section exists
+        if (-not $setupData.ContainsKey("setup_completed")) {
+            $setupData.setup_completed = @{}
+        }
+
+        # Set the step as completed
+        $setupData.setup_completed.$Step = $true
+        $setupData.setup_completed.last_updated = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.ffffff")
+
+        # Save back to file
+        $setupData | ConvertTo-Json -Depth 10 | Out-File -FilePath $setupFile -Encoding UTF8
+        return $true
+    } catch {
+        Write-Warning "Failed to save setup completion status for '$Step': $_"
+        return $false
     }
-
-    if (-not $setupData.setup_completed) {
-        $setupData.setup_completed = @{}
-    }
-
-    $setupData.setup_completed.$Step = $true
-    $setupData.setup_completed.last_updated = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.ffffff")
-
-    $setupData | ConvertTo-Json -Depth 10 | Out-File -FilePath $setupFile -Encoding UTF8
-    return $true
 }
 
 # Function to get user input with validation (adapted from batch script)
@@ -561,6 +612,9 @@ if ($Force) {
     }
 }
 
+# Initialize setup file with proper structure
+Initialize-SetupFile | Out-Null
+
 # Check if setup is already complete and can skip to app launch
 if (-not $Force) {
     $setupFile = Join-Path $PSScriptRoot ".taskhero_setup.json"
@@ -570,11 +624,18 @@ if (-not $Force) {
             $requiredSteps = @("venv_created", "dependencies_installed", "pip_upgraded", "setup_completed")
             $allStepsComplete = $true
 
-            foreach ($step in $requiredSteps) {
-                if (-not $setupData.setup_completed.$step) {
-                    $allStepsComplete = $false
-                    break
+            # Check if setup_completed section exists
+            if ($setupData.PSObject.Properties.Name -contains "setup_completed") {
+                foreach ($step in $requiredSteps) {
+                    if (-not ($setupData.setup_completed.PSObject.Properties.Name -contains $step) -or
+                        -not ($setupData.setup_completed.$step -eq $true)) {
+                        $allStepsComplete = $false
+                        break
+                    }
                 }
+            } else {
+                Write-Info "Setup completion tracking not found. Running full setup..."
+                $allStepsComplete = $false
             }
 
             # Also verify that key files/directories exist
