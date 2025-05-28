@@ -28,59 +28,59 @@ def test_git_stash_update():
     """Test the new git stash update functionality."""
     logger = setup_logging()
     logger.info("🚀 Testing Git Stash Update Functionality")
-    
+
     try:
         # Initialize settings manager
         settings_manager = SettingsManager()
         settings_manager.initialize()
-        
+
         # Initialize git manager
         git_manager = GitManager(settings_manager)
         git_manager.initialize()
-        
+
         logger.info("✅ Git Manager initialized successfully")
-        
+
         # Check for updates first
         logger.info("📡 Checking for available updates...")
         update_check = git_manager.check_for_updates(force_check=True)
-        
+
         if not update_check["success"]:
             logger.error(f"❌ Update check failed: {update_check['error']}")
             return False
-            
+
         logger.info(f"📊 Update check result: {update_check['message']}")
-        
+
         if not update_check.get("update_available", False):
             logger.info("ℹ️  No updates available - creating a test scenario")
             logger.info("💡 You can test this by making some local changes and running again")
             return True
-        
+
         # Test the new stash-based update
         logger.info("🔄 Testing new Git stash-based update...")
-        stash_result = git_manager.perform_stash_update()
-        
+        stash_result = git_manager.perform_update(use_stash=True)
+
         if stash_result["success"]:
             logger.info("✅ Git stash update completed successfully!")
             logger.info(f"📝 Method used: {stash_result.get('method', 'unknown')}")
-            
+
             git_details = stash_result.get("git_result", {})
             if git_details.get("stash_used"):
                 logger.info(f"📦 Stash used: {git_details.get('stash_name', 'unnamed')}")
                 logger.info(f"🔄 Stash restored: {git_details.get('stash_restored', False)}")
             else:
                 logger.info("📝 No uncommitted changes - stash not needed")
-                
+
             if git_details.get("has_conflicts"):
                 logger.warning("⚠️  Conflicts detected during stash restoration")
                 logger.info("🛠️  Manual conflict resolution may be required")
-                
+
         else:
             logger.error(f"❌ Git stash update failed: {stash_result['error']}")
             logger.error(f"🔍 Failed at stage: {stash_result.get('stage', 'unknown')}")
             return False
-            
+
         return True
-        
+
     except Exception as e:
         logger.error(f"💥 Test failed with exception: {e}")
         return False
@@ -88,10 +88,10 @@ def test_git_stash_update():
 def demonstrate_difference():
     """Demonstrate the difference between old and new approaches."""
     logger = setup_logging()
-    
+
     logger.info("📋 Git Update Method Comparison")
     logger.info("=" * 50)
-    
+
     logger.info("🔴 OLD METHOD (Legacy Backup/Restore):")
     logger.info("  1. Check for uncommitted changes")
     logger.info("  2. Block update if core files are modified")
@@ -101,7 +101,7 @@ def demonstrate_difference():
     logger.info("  6. Restore files from backup if update fails")
     logger.info("  7. Clean up backup directories")
     logger.info("  ❌ Problems: Complex, error-prone, blocks on core file changes")
-    
+
     logger.info("")
     logger.info("🟢 NEW METHOD (Git Stash):")
     logger.info("  1. Check basic git requirements")
@@ -110,7 +110,7 @@ def demonstrate_difference():
     logger.info("  4. git stash pop (restore ALL changes)")
     logger.info("  5. Handle conflicts gracefully if they occur")
     logger.info("  ✅ Benefits: Simple, reliable, handles all file types")
-    
+
     logger.info("")
     logger.info("🎯 Key Improvements:")
     logger.info("  • No more blocking on core file changes")
@@ -122,14 +122,14 @@ def demonstrate_difference():
 if __name__ == "__main__":
     print("🧪 Git Stash Update Test Script")
     print("=" * 40)
-    
+
     # Show the differences
     demonstrate_difference()
     print()
-    
+
     # Run the test
     success = test_git_stash_update()
-    
+
     if success:
         print("\n🎉 Test completed successfully!")
         print("💡 The new git stash update method is working correctly.")

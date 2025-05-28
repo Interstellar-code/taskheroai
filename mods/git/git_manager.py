@@ -411,6 +411,16 @@ class GitManager(BaseManager):
             # Post-update tasks
             post_result = self._post_update_tasks(git_result)
 
+            # Update local version number
+            if self.version_manager:
+                remote_version = git_result.get("remote_version")
+                if remote_version:
+                    version_updated = self.version_manager.update_local_version(remote_version)
+                    if version_updated:
+                        self.logger.info(f"Local version updated to: {remote_version}")
+                    else:
+                        self.logger.warning("Failed to update local version number")
+
             # Record update in history
             self._record_update_history(git_result)
 
@@ -882,6 +892,13 @@ class GitManager(BaseManager):
         try:
             self.logger.info("Starting git stash-based update...")
 
+            # Get remote version info before update
+            remote_version = None
+            if self.version_manager:
+                remote_info = self.version_manager.get_remote_version(use_cache=False)
+                if remote_info.get("success"):
+                    remote_version = remote_info.get("version")
+
             # Check if there are any uncommitted changes
             status_result = subprocess.run(
                 ["git", "status", "--porcelain"],
@@ -994,6 +1011,7 @@ class GitManager(BaseManager):
                 "method": "git_stash",
                 "branch": current_branch,
                 "new_commit": new_commit,
+                "remote_version": remote_version,
                 "stash_used": stash_created,
                 "stash_name": stash_name if stash_created else None,
                 "stash_restored": stash_created and not stash_conflicts,
