@@ -149,8 +149,12 @@ class GitManager(BaseManager):
         try:
             settings = self.settings_manager.get_settings()
             if "git" not in settings:
-                settings["git"] = self.default_settings.copy()
-                self.settings_manager.save_settings(settings)
+                # Use set_setting to preserve setup-specific settings
+                for key, value in self.default_settings.items():
+                    self.settings_manager.set_setting(f"git.{key}", value, save=False)
+
+                # Save once after setting all git settings
+                self.settings_manager.save_settings()
                 self.logger.info("Added Git settings to app settings")
         except Exception as e:
             self.logger.error(f"Error ensuring Git settings: {e}")
@@ -234,12 +238,8 @@ class GitManager(BaseManager):
             return False
 
         try:
-            settings = self.settings_manager.get_settings()
-            if "git" not in settings:
-                settings["git"] = self.default_settings.copy()
-
-            settings["git"][key] = value
-            self.settings_manager.save_settings(settings)
+            # Use set_setting to preserve setup-specific settings
+            self.settings_manager.set_setting(f"git.{key}", value)
             self.logger.info(f"Updated Git setting {key} = {value}")
             return True
 
@@ -349,11 +349,8 @@ class GitManager(BaseManager):
         """Cache the check result in consolidated settings."""
         try:
             if self.settings_manager:
-                settings = self.settings_manager.get_settings()
-                if "git" not in settings:
-                    settings["git"] = self.default_settings.copy()
-                settings["git"]["update_cache"] = result
-                self.settings_manager.save_settings(settings)
+                # Use set_setting to preserve setup-specific settings
+                self.settings_manager.set_setting("git.update_cache", result)
             else:
                 # Fallback to old cache file if settings manager not available
                 cache_file = Path(".git_update_cache.json")

@@ -61,28 +61,23 @@ class SettingsManager(BaseManager):
             return self.settings
 
     def save_settings(self, settings: Optional[Dict[str, Any]] = None) -> None:
-        """Save current settings to the settings file, preserving setup-specific settings."""
+        """Save current settings to the settings file, preserving existing settings."""
         try:
             # Use provided settings or current settings
             settings_to_save = settings if settings is not None else self.settings.copy()
 
-            # Setup-specific keys that should be preserved from the original file
-            setup_specific_keys = {
-                'codebase_path', 'task_storage_path', 'repository_type',
-                'setup_completed', 'next_task_number'
-            }
-
-            # If the file exists, load it and preserve setup-specific settings
+            # If the file exists, load it and preserve ALL existing settings
+            # Then merge with the new settings (new settings take precedence)
             if self.settings_file.exists():
                 try:
                     with open(self.settings_file, "r", encoding="utf-8") as f:
                         existing_settings = json.load(f)
 
-                    # Preserve setup-specific settings from the existing file
-                    for key in setup_specific_keys:
-                        if key in existing_settings:
-                            settings_to_save[key] = existing_settings[key]
-                            self.logger.debug(f"Preserved setup-specific setting: {key}")
+                    # Merge existing settings with new settings (new settings take precedence)
+                    # This preserves setup-specific settings and any other existing settings
+                    merged_settings = self._merge_settings(existing_settings, settings_to_save)
+                    settings_to_save = merged_settings
+                    self.logger.debug("Merged new settings with existing settings")
 
                 except Exception as e:
                     self.logger.warning(f"Could not read existing settings for preservation: {e}")
@@ -97,7 +92,7 @@ class SettingsManager(BaseManager):
             if settings is not None:
                 self.settings = settings
 
-            self.logger.info(f"Settings saved to {self.settings_file} (setup-specific settings preserved)")
+            self.logger.info(f"Settings saved to {self.settings_file} (existing settings preserved)")
         except Exception as e:
             self.logger.error(f"Error saving settings: {e}")
 

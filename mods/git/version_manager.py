@@ -376,11 +376,8 @@ class VersionManager:
         try:
             # Try to save to consolidated settings first
             if self.settings_manager:
-                settings = self.settings_manager.get_settings()
-                if "git" not in settings:
-                    settings["git"] = {}
-                settings["git"]["version_cache"] = version_data
-                self.settings_manager.save_settings(settings)
+                # Use set_setting to preserve setup-specific settings
+                self.settings_manager.set_setting("git.version_cache", version_data)
                 self.logger.debug("Cached remote version data in settings")
             else:
                 # Fallback to old cache file if settings manager not available
@@ -490,10 +487,11 @@ class VersionManager:
         try:
             # Clear from consolidated settings
             if self.settings_manager:
-                settings = self.settings_manager.get_settings()
-                if "git" in settings and "version_cache" in settings["git"]:
-                    del settings["git"]["version_cache"]
-                    self.settings_manager.save_settings(settings)
+                # Check if version_cache exists before trying to delete it
+                current_cache = self.settings_manager.get_setting("git.version_cache")
+                if current_cache is not None:
+                    # Use set_setting with None to clear the cache
+                    self.settings_manager.set_setting("git.version_cache", None)
                     self.logger.info("Version cache cleared from settings")
 
             # Also clear old cache file if it exists
