@@ -23,6 +23,7 @@ from .context_analyzer import ContextAnalyzer, ProjectContext
 from .context_analyzer_enhanced import EnhancedContextAnalyzer, EnhancedProjectContext, CodeAnalysis
 from .template_optimizer import TemplateOptimizer
 from .task_quality_validator import TaskQualityValidator
+from .path_resolver import get_project_paths
 from ..ai.providers.provider_factory import ProviderFactory
 from ..ai.providers.base_provider import AIProvider
 
@@ -38,9 +39,12 @@ class AITaskCreator:
         Args:
             project_root: Root directory for project management
         """
-        self.project_root = Path(project_root) if project_root else Path.cwd()
-        self.template_engine = TemplateEngine(project_root)
-        self.task_manager = TaskManager(project_root)
+        # Use the centralized path resolver
+        self.project_paths = get_project_paths(project_root)
+        self.project_root = self.project_paths.project_root
+
+        self.template_engine = TemplateEngine(str(self.project_root))
+        self.task_manager = TaskManager(str(self.project_root))
 
         # Phase 4B: Real AI Integration
         self.provider_factory = ProviderFactory()

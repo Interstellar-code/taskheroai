@@ -24,6 +24,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import re
 import time
 from functools import lru_cache
+from .path_resolver import get_project_paths
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +70,10 @@ class SemanticSearchEngine:
             project_root: Root directory of the project
             similarity_threshold: Minimum similarity score for results
         """
-        self.project_root = Path(project_root)
-        self.embeddings_dir = self._find_embeddings_directory()
+        # Use the centralized path resolver
+        self.project_paths = get_project_paths(project_root)
+        self.project_root = self.project_paths.project_root
+        self.embeddings_dir = self.project_paths.embeddings_dir
         self.similarity_threshold = similarity_threshold
 
         # Initialize vectorizer with optimized parameters
@@ -92,46 +95,6 @@ class SemanticSearchEngine:
 
         logger.info(f"Initialized SemanticSearchEngine with threshold {similarity_threshold}")
         logger.info(f"Using embeddings directory: {self.embeddings_dir}")
-
-    def _find_embeddings_directory(self) -> Path:
-        """
-        Find the correct embeddings directory by searching in project root and parent directories.
-
-        Returns:
-            Path to the embeddings directory
-        """
-        # List of potential locations to search for .index/embeddings
-        search_paths = [
-            self.project_root / ".index" / "embeddings",  # In project root
-            self.project_root.parent / ".index" / "embeddings",  # In parent directory
-            self.project_root.parent.parent / ".index" / "embeddings",  # In grandparent directory
-        ]
-
-        # Also check if project_root itself contains 'taskheroai' and adjust accordingly
-        if 'taskheroai' in str(self.project_root).lower():
-            # If project_root points to taskheroai directory, check parent
-            parent_path = self.project_root.parent / ".index" / "embeddings"
-            if parent_path not in search_paths:
-                search_paths.insert(1, parent_path)
-
-        # Search for existing embeddings directory
-        for embeddings_path in search_paths:
-            if embeddings_path.exists() and embeddings_path.is_dir():
-                # Check if it contains any .json files (embedding files)
-                if any(embeddings_path.glob("*.json")):
-                    logger.info(f"Found embeddings directory at: {embeddings_path}")
-                    return embeddings_path
-                else:
-                    logger.debug(f"Embeddings directory exists but is empty: {embeddings_path}")
-
-        # If no existing embeddings found, use the default location (project root)
-        default_path = self.project_root / ".index" / "embeddings"
-        logger.warning(f"No existing embeddings found. Will use default location: {default_path}")
-
-        # Log all searched paths for debugging
-        logger.debug(f"Searched paths: {[str(p) for p in search_paths]}")
-
-        return default_path
 
     def _load_chunks_from_embeddings(self) -> List[ContextChunk]:
         """

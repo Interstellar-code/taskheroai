@@ -18,6 +18,7 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import logging
 import re
+from .path_resolver import get_project_paths
 
 logger = logging.getLogger("TaskHeroAI.ProjectManagement.TaskManager")
 
@@ -480,63 +481,23 @@ class TaskManager:
             project_root: Root directory for project management. Defaults to current working directory.
             planning_dir: Custom planning directory path. If None, will try to load from app_settings.json
         """
-        self.project_root = Path(project_root) if project_root else Path.cwd()
+        # Use the centralized path resolver
+        self.project_paths = get_project_paths(project_root)
+        self.project_root = self.project_paths.project_root
 
         # Determine planning directory
         if planning_dir:
             self.planning_dir = Path(planning_dir)
         else:
-            # Try to load from app_settings.json
-            self.planning_dir = self._get_planning_dir_from_settings()
+            # Use the resolved task storage directory
+            self.planning_dir = self.project_paths.task_storage_dir
 
-        self.templates_dir = self.project_root / "mods" / "project_management" / "templates"
+        self.templates_dir = self.project_paths.templates_dir
 
         # Ensure planning directories exist
         self._ensure_directories()
 
-    def _get_planning_dir_from_settings(self) -> Path:
-        """Get planning directory from .taskhero_setup.json relative to indexed directory."""
-        try:
-            setup_settings_path = self.project_root / ".taskhero_setup.json"
-            if setup_settings_path.exists():
-                import json
-                with open(setup_settings_path, 'r', encoding='utf-8') as f:
-                    settings = json.load(f)
 
-                # Get the indexed directory from settings (check multiple sources)
-                indexed_directory = settings.get('codebase_path') or settings.get('last_directory')
-                task_storage_path = settings.get('task_storage_path')
-
-                if indexed_directory and task_storage_path:
-                    # Convert to Path objects for easier manipulation
-                    indexed_path = Path(indexed_directory)
-
-                    # If task_storage_path is absolute, extract just the folder name
-                    if os.path.isabs(task_storage_path) or (':\\' in task_storage_path) or (':/' in task_storage_path) or task_storage_path.startswith('/') or len(task_storage_path.split('\\')) > 1:
-                        if '\\' in task_storage_path:
-                            task_folder_name = task_storage_path.split('\\')[-1]
-                        else:
-                            task_folder_name = os.path.basename(task_storage_path)
-                    else:
-                        task_folder_name = task_storage_path
-
-                    # Calculate task folder relative to indexed directory
-                    return indexed_path / task_folder_name
-
-                elif task_storage_path:
-                    # Fallback to old behavior if no indexed directory is set
-                    if os.path.isabs(task_storage_path) or (':\\' in task_storage_path) or (':/' in task_storage_path) or task_storage_path.startswith('/') or len(task_storage_path.split('\\')) > 1:
-                        if '\\' in task_storage_path:
-                            task_storage_path = task_storage_path.split('\\')[-1]
-                        else:
-                            task_storage_path = os.path.basename(task_storage_path)
-                    return self.project_root / task_storage_path
-
-        except Exception as e:
-            logger.warning(f"Could not load task storage path from .taskhero_setup.json: {e}")
-
-        # Fallback to new default location
-        return self.project_root / "theherotasks"
 
     def _ensure_directories(self):
         """Ensure all required directories exist."""
