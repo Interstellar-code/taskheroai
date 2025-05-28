@@ -214,9 +214,10 @@ class TaskCLI:
             print(f"  {Fore.GREEN}3.{Style.RESET_ALL} Quick status update")
             print(f"  {Fore.GREEN}4.{Style.RESET_ALL} Search tasks")
             print(f"  {Fore.GREEN}5.{Style.RESET_ALL} Refresh task scan")
+            print(f"  {Fore.GREEN}6.{Style.RESET_ALL} Update task folder location")
             print(f"  {Fore.GREEN}0.{Style.RESET_ALL} Back to main menu")
 
-            choice = input(f"\n{Fore.GREEN}Choose action (0-5): {Style.RESET_ALL}").strip()
+            choice = input(f"\n{Fore.GREEN}Choose action (0-6): {Style.RESET_ALL}").strip()
 
             if choice == "1":
                 self.quick_create()
@@ -228,6 +229,8 @@ class TaskCLI:
                 self.search_tasks_interactive()
             elif choice == "5":
                 self.refresh_task_scan()
+            elif choice == "6":
+                self.update_task_folder_location()
             elif choice == "0":
                 break
             else:
@@ -451,5 +454,131 @@ class TaskCLI:
 
         except Exception as e:
             print(f"\n{Fore.RED}❌ Error during task scan: {e}{Style.RESET_ALL}")
+
+        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def update_task_folder_location(self) -> None:
+        """Update the task folder location relative to indexed directory."""
+        print(f"\n{Fore.CYAN}📁 Update Task Folder Location{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+
+        try:
+            import json
+            from pathlib import Path
+
+            # Get current settings
+            setup_settings_path = Path(".taskhero_setup.json")
+            if not setup_settings_path.exists():
+                print(f"{Fore.RED}❌ .taskhero_setup.json not found. Please run setup first.{Style.RESET_ALL}")
+                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                return
+
+            with open(setup_settings_path, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+
+            # Get indexed directory (check multiple sources)
+            indexed_directory = settings.get('codebase_path') or settings.get('last_directory')
+            current_task_path = settings.get('task_storage_path', 'theherotasks')
+
+            if not indexed_directory:
+                print(f"{Fore.RED}❌ No indexed directory found in settings.{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}Please index a directory first.{Style.RESET_ALL}")
+                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                return
+
+            # Show current configuration
+            print(f"\n{Fore.YELLOW}📋 Current Configuration:{Style.RESET_ALL}")
+            print(f"  📂 Indexed Directory: {Fore.WHITE}{indexed_directory}{Style.RESET_ALL}")
+            print(f"  📁 Current Task Folder: {Fore.WHITE}{current_task_path}{Style.RESET_ALL}")
+
+            # Calculate current absolute path
+            indexed_path = Path(indexed_directory)
+            current_absolute_path = indexed_path / current_task_path
+            print(f"  🎯 Full Task Path: {Fore.WHITE}{current_absolute_path}{Style.RESET_ALL}")
+
+            # Show options
+            print(f"\n{Fore.CYAN}📁 Task Folder Options:{Style.RESET_ALL}")
+            print(f"  {Fore.GREEN}1.{Style.RESET_ALL} theherotasks (recommended)")
+            print(f"  {Fore.GREEN}2.{Style.RESET_ALL} tasks")
+            print(f"  {Fore.GREEN}3.{Style.RESET_ALL} project-tasks")
+            print(f"  {Fore.GREEN}4.{Style.RESET_ALL} Custom folder name")
+            print(f"  {Fore.GREEN}0.{Style.RESET_ALL} Cancel")
+
+            choice = input(f"\n{Fore.GREEN}Choose option (0-4): {Style.RESET_ALL}").strip()
+
+            if choice == "0":
+                print(f"{Fore.YELLOW}Operation cancelled.{Style.RESET_ALL}")
+                return
+            elif choice == "1":
+                new_folder = "theherotasks"
+            elif choice == "2":
+                new_folder = "tasks"
+            elif choice == "3":
+                new_folder = "project-tasks"
+            elif choice == "4":
+                new_folder = input(f"{Fore.GREEN}Enter custom folder name: {Style.RESET_ALL}").strip()
+                if not new_folder:
+                    print(f"{Fore.YELLOW}Operation cancelled.{Style.RESET_ALL}")
+                    return
+                # Validate folder name
+                if any(char in new_folder for char in ['/', '\\', ':', '*', '?', '"', '<', '>', '|']):
+                    print(f"{Fore.RED}❌ Invalid folder name. Please avoid special characters.{Style.RESET_ALL}")
+                    input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                    return
+            else:
+                print(f"{Fore.RED}Invalid choice.{Style.RESET_ALL}")
+                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                return
+
+            # Check if it's the same as current
+            if new_folder == current_task_path:
+                print(f"{Fore.YELLOW}📁 Task folder is already set to '{new_folder}'.{Style.RESET_ALL}")
+                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                return
+
+            # Show what will happen
+            new_absolute_path = indexed_path / new_folder
+            print(f"\n{Fore.CYAN}📋 Proposed Changes:{Style.RESET_ALL}")
+            print(f"  📁 New Task Folder: {Fore.WHITE}{new_folder}{Style.RESET_ALL}")
+            print(f"  🎯 New Full Path: {Fore.WHITE}{new_absolute_path}{Style.RESET_ALL}")
+
+            # Ask about migration
+            migrate_tasks = False
+            if current_absolute_path.exists():
+                print(f"\n{Fore.YELLOW}📦 Existing tasks found in current location.{Style.RESET_ALL}")
+                migrate_choice = input(f"{Fore.GREEN}Migrate existing tasks to new location? (y/N): {Style.RESET_ALL}").strip().lower()
+                migrate_tasks = migrate_choice in ['y', 'yes']
+
+            # Confirm
+            print(f"\n{Fore.CYAN}⚠️  Confirmation Required:{Style.RESET_ALL}")
+            print(f"  • Update task folder to: {Fore.WHITE}{new_folder}{Style.RESET_ALL}")
+            if migrate_tasks:
+                print(f"  • Migrate existing tasks: {Fore.GREEN}Yes{Style.RESET_ALL}")
+            else:
+                print(f"  • Migrate existing tasks: {Fore.RED}No{Style.RESET_ALL}")
+
+            confirm = input(f"\n{Fore.GREEN}Proceed with update? (y/N): {Style.RESET_ALL}").strip().lower()
+            if confirm not in ['y', 'yes']:
+                print(f"{Fore.YELLOW}Operation cancelled.{Style.RESET_ALL}")
+                return
+
+            # Perform the update
+            print(f"\n{Fore.CYAN}🔄 Updating task folder location...{Style.RESET_ALL}")
+
+            if self.task_manager.update_task_storage_path(new_folder, migrate_tasks):
+                print(f"{Fore.GREEN}✅ Task folder location updated successfully!{Style.RESET_ALL}")
+                print(f"  📁 New location: {Fore.WHITE}{new_absolute_path}{Style.RESET_ALL}")
+
+                if migrate_tasks:
+                    print(f"  📦 Tasks migrated successfully")
+
+                print(f"\n{Fore.CYAN}💡 Note: The task folder is now relative to your indexed directory.{Style.RESET_ALL}")
+                print(f"This ensures task files are included in your project's indexing.{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.RED}❌ Failed to update task folder location.{Style.RESET_ALL}")
+                print(f"Check the logs for more details.{Style.RESET_ALL}")
+
+        except Exception as e:
+            print(f"{Fore.RED}❌ Error updating task folder location: {e}{Style.RESET_ALL}")
 
         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")

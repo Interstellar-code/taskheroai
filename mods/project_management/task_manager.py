@@ -6,6 +6,7 @@ status workflow management, and AI integration preparation.
 Provides functionality for managing tasks across different states: backlog, todo, inprogress, devdone, testing, done.
 """
 
+import gc
 import json
 import os
 import shutil
@@ -494,7 +495,7 @@ class TaskManager:
         self._ensure_directories()
 
     def _get_planning_dir_from_settings(self) -> Path:
-        """Get planning directory from .taskhero_setup.json or use default."""
+        """Get planning directory from .taskhero_setup.json relative to indexed directory."""
         try:
             setup_settings_path = self.project_root / ".taskhero_setup.json"
             if setup_settings_path.exists():
@@ -502,18 +503,37 @@ class TaskManager:
                 with open(setup_settings_path, 'r', encoding='utf-8') as f:
                     settings = json.load(f)
 
+                # Get the indexed directory from settings (check multiple sources)
+                indexed_directory = settings.get('codebase_path') or settings.get('last_directory')
                 task_storage_path = settings.get('task_storage_path')
-                if task_storage_path:
-                    # Handle cross-platform paths (Windows paths in Linux environment)
+
+                if indexed_directory and task_storage_path:
+                    # Convert to Path objects for easier manipulation
+                    indexed_path = Path(indexed_directory)
+
+                    # If task_storage_path is absolute, extract just the folder name
                     if os.path.isabs(task_storage_path) or (':\\' in task_storage_path) or (':/' in task_storage_path) or task_storage_path.startswith('/') or len(task_storage_path.split('\\')) > 1:
-                        # If it's an absolute path (Unix or Windows), use just the directory name
+                        if '\\' in task_storage_path:
+                            task_folder_name = task_storage_path.split('\\')[-1]
+                        else:
+                            task_folder_name = os.path.basename(task_storage_path)
+                    else:
+                        task_folder_name = task_storage_path
+
+                    # Calculate task folder relative to indexed directory
+                    return indexed_path / task_folder_name
+
+                elif task_storage_path:
+                    # Fallback to old behavior if no indexed directory is set
+                    if os.path.isabs(task_storage_path) or (':\\' in task_storage_path) or (':/' in task_storage_path) or task_storage_path.startswith('/') or len(task_storage_path.split('\\')) > 1:
                         if '\\' in task_storage_path:
                             task_storage_path = task_storage_path.split('\\')[-1]
                         else:
                             task_storage_path = os.path.basename(task_storage_path)
                     return self.project_root / task_storage_path
+
         except Exception as e:
-            logger.warning(f"Could not load task storage path from app_settings.json: {e}")
+            logger.warning(f"Could not load task storage path from .taskhero_setup.json: {e}")
 
         # Fallback to new default location
         return self.project_root / "theherotasks"
@@ -523,6 +543,75 @@ class TaskManager:
         for status in TaskStatus:
             dir_path = self.planning_dir / status.value
             dir_path.mkdir(parents=True, exist_ok=True)
+
+    def update_task_storage_path(self, new_path: str, migrate_tasks: bool = True) -> bool:
+        """Update the task storage path and optionally migrate existing tasks.
+
+        Args:
+            new_path: New path for task storage (relative to indexed directory)
+            migrate_tasks: Whether to migrate existing tasks to new location
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            import json
+            import shutil
+
+            # Get current settings
+            setup_settings_path = self.project_root / ".taskhero_setup.json"
+            settings = {}
+
+            if setup_settings_path.exists():
+                with open(setup_settings_path, 'r', encoding='utf-8') as f:
+                    settings = json.load(f)
+
+            # Get indexed directory (check multiple sources)
+            indexed_directory = settings.get('codebase_path') or settings.get('last_directory')
+            if not indexed_directory:
+                logger.error("No indexed directory found in settings. Cannot update task storage path.")
+                return False
+
+            # Calculate new absolute path
+            indexed_path = Path(indexed_directory)
+            new_absolute_path = indexed_path / new_path
+
+            # Store old planning directory for migration
+            old_planning_dir = self.planning_dir
+
+            # Update settings
+            settings['task_storage_path'] = new_path
+
+            # Save updated settings
+            with open(setup_settings_path, 'w', encoding='utf-8') as f:
+                json.dump(settings, f, indent=2)
+
+            # Update current instance
+            self.planning_dir = new_absolute_path
+            self._ensure_directories()
+
+            # Migrate tasks if requested and old directory exists
+            if migrate_tasks and old_planning_dir.exists() and old_planning_dir != new_absolute_path:
+                logger.info(f"Migrating tasks from {old_planning_dir} to {new_absolute_path}")
+
+                for status in TaskStatus:
+                    old_status_dir = old_planning_dir / status.value
+                    new_status_dir = new_absolute_path / status.value
+
+                    if old_status_dir.exists():
+                        # Copy all task files from old to new location
+                        for task_file in old_status_dir.glob("*.md"):
+                            shutil.copy2(task_file, new_status_dir)
+                            logger.info(f"Migrated task: {task_file.name}")
+
+                logger.info("Task migration completed successfully")
+
+            logger.info(f"Task storage path updated to: {new_absolute_path}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to update task storage path: {e}")
+            return False
 
     def _get_task_file_path(self, task_id: str, status: TaskStatus, title: str = "") -> Path:
         """Get the file path for a task."""
@@ -997,31 +1086,57 @@ class TaskManager:
         return None
 
     def _update_next_task_number_in_settings(self, next_number: int) -> None:
-        """Update the next task number in .taskhero_setup.json settings."""
+        """Update the next task number in .taskhero_setup.json settings using SettingsManager."""
         try:
-            settings_path = Path(".taskhero_setup.json")
-            settings = {}
+            # Try to get the global SettingsManager instance
+            settings_manager = None
 
-            # Load existing settings
-            if settings_path.exists():
-                with open(settings_path, 'r', encoding='utf-8') as f:
-                    settings = json.load(f)
+            # Look for SettingsManager in the application controller
+            try:
+                from ..core.app_controller import ApplicationController
+                # Try to get the current instance if it exists
+                import sys
+                for obj in gc.get_objects():
+                    if isinstance(obj, ApplicationController) and hasattr(obj, 'settings_manager'):
+                        settings_manager = obj.settings_manager
+                        break
+            except:
+                pass
 
-            # Ensure project_management section exists
-            if 'project_management' not in settings:
-                settings['project_management'] = {}
+            if settings_manager and settings_manager.is_initialized:
+                # Use SettingsManager to update settings safely
+                settings_manager.set_setting('project_management.next_task_number', next_number, save=False)
+                settings_manager.set_setting('last_updated', datetime.now().isoformat(), save=True)
+                logger.info(f"Updated next task number to {next_number} via SettingsManager")
+            else:
+                # Fallback to direct file manipulation (PRESERVE ALL EXISTING SETTINGS)
+                logger.warning("SettingsManager not available, using direct file access with preservation")
+                settings_path = Path(".taskhero_setup.json")
+                settings = {}
 
-            # Update next task number in project_management section
-            settings['project_management']['next_task_number'] = next_number
+                # Load existing settings - PRESERVE EVERYTHING
+                if settings_path.exists():
+                    with open(settings_path, 'r', encoding='utf-8') as f:
+                        settings = json.load(f)
 
-            # Update last_updated timestamp
-            settings['last_updated'] = datetime.now().isoformat()
+                # Ensure project_management section exists
+                if 'project_management' not in settings:
+                    settings['project_management'] = {}
 
-            # Save settings
-            with open(settings_path, 'w', encoding='utf-8') as f:
-                json.dump(settings, f, indent=2)
+                # Update ONLY the next task number - preserve all other settings
+                settings['project_management']['next_task_number'] = next_number
+
+                # Update last_updated timestamp
+                settings['last_updated'] = datetime.now().isoformat()
+
+                # Save settings - this now preserves ALL existing settings including setup-specific ones
+                with open(settings_path, 'w', encoding='utf-8') as f:
+                    json.dump(settings, f, indent=2)
+
+                logger.info(f"Updated next task number to {next_number} via direct file access (preserved all settings)")
 
         except Exception as e:
+            logger.error(f"Could not update next task number in settings: {e}")
             print(f"Warning: Could not update next task number in settings: {e}")
 
     def refresh_task_scan(self) -> Dict[str, Any]:

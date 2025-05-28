@@ -35,19 +35,25 @@ class SettingsManager(BaseManager):
 
     def load_settings(self) -> Dict[str, Any]:
         """
-        Load settings from the settings file.
+        Load settings from the settings file and merge with defaults.
 
         Returns:
-            Dict containing the loaded settings
+            Dict containing the loaded settings merged with defaults
         """
         try:
+            # Start with default settings
+            self.settings = self.get_default_settings()
+
             if self.settings_file.exists():
                 with open(self.settings_file, "r", encoding="utf-8") as f:
-                    self.settings = json.load(f)
-                self.logger.info(f"Settings loaded from {self.settings_file}")
+                    existing_settings = json.load(f)
+
+                # Merge existing settings with defaults (existing settings take precedence)
+                self.settings = self._merge_settings(self.settings, existing_settings)
+                self.logger.info(f"Settings loaded from {self.settings_file} and merged with defaults")
             else:
-                self.settings = self.get_default_settings()
-                self.logger.info("Using default settings")
+                self.logger.info("Using default settings (no existing settings file)")
+
             return self.settings
         except Exception as e:
             self.logger.error(f"Error loading settings: {e}")
@@ -244,6 +250,29 @@ class SettingsManager(BaseManager):
         """Get current timestamp as ISO string."""
         from datetime import datetime
         return datetime.now().isoformat()
+
+    def _merge_settings(self, defaults: Dict[str, Any], existing: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Recursively merge existing settings with defaults.
+
+        Args:
+            defaults: Default settings structure
+            existing: Existing settings from file
+
+        Returns:
+            Merged settings with existing values taking precedence
+        """
+        merged = defaults.copy()
+
+        for key, value in existing.items():
+            if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+                # Recursively merge nested dictionaries
+                merged[key] = self._merge_settings(merged[key], value)
+            else:
+                # Use existing value (takes precedence over default)
+                merged[key] = value
+
+        return merged
 
     def export_settings(self, file_path: str) -> bool:
         """
