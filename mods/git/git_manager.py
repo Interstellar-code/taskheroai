@@ -12,9 +12,12 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
+import fnmatch
+import glob
 
 from ..core import BaseManager
 from .version_manager import VersionManager
+from ..code.directory import GitIgnorePattern
 
 
 class GitManager(BaseManager):
@@ -31,6 +34,10 @@ class GitManager(BaseManager):
         self.settings_manager = settings_manager
         self.version_manager = None
 
+        # GitIgnore patterns for smart backup filtering
+        self.gitignore_patterns = []
+        self.gitignore_loaded = False
+
         # Default settings
         self.default_settings = {
             "auto_check_enabled": True,
@@ -42,23 +49,27 @@ class GitManager(BaseManager):
             "update_history": []
         }
 
-        # Files and directories to preserve during updates
-        self.preserve_patterns = [
+        # Essential files and directories to preserve during updates (regardless of .gitignore)
+        self.essential_preserve_patterns = [
             "theherotasks/",
             ".env",
             ".taskhero_setup.json",
-            "logs/",
-            "*.log",
             # User-created files
             "user_*",
             "custom_*",
-            # Virtual environment
+        ]
+
+        # Additional files to preserve if not ignored by .gitignore
+        self.conditional_preserve_patterns = [
+            "logs/",
+            "*.log",
+            # Virtual environment (usually ignored, but preserve if tracked)
             "venv/",
             ".venv/",
-            # IDE files
+            # IDE files (usually ignored, but preserve if tracked)
             ".vscode/",
             ".idea/",
-            # OS files
+            # OS files (usually ignored, but preserve if tracked)
             ".DS_Store",
             "Thumbs.db"
         ]
@@ -105,6 +116,9 @@ class GitManager(BaseManager):
             repository_url = git_settings.get("repository_url", self.default_settings["repository_url"])
             self.version_manager = VersionManager(repository_url, self.settings_manager)
 
+            # Load .gitignore patterns for smart backup filtering
+            self._load_gitignore_patterns()
+
             # Ensure Git settings exist in app settings
             self._ensure_git_settings()
 
@@ -140,6 +154,70 @@ class GitManager(BaseManager):
                 self.logger.info("Added Git settings to app settings")
         except Exception as e:
             self.logger.error(f"Error ensuring Git settings: {e}")
+
+    def _load_gitignore_patterns(self) -> None:
+        """Load and parse .gitignore patterns for smart backup filtering."""
+        try:
+            gitignore_path = Path(".gitignore")
+            if not gitignore_path.exists():
+                self.logger.info("No .gitignore file found - backup will use default patterns")
+                self.gitignore_loaded = True
+                return
+
+            self.gitignore_patterns = []
+            base_dir = str(Path.cwd())
+
+            with open(gitignore_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, 1):
+                    pattern_str = line.strip()
+                    if not pattern_str or pattern_str.startswith("#"):
+                        continue
+                    try:
+                        self.gitignore_patterns.append(
+                            GitIgnorePattern(pattern_str, base_dir)
+                        )
+                    except Exception as e:
+                        self.logger.warning(
+                            f"Error compiling gitignore pattern '{pattern_str}' from "
+                            f".gitignore:{line_num} - {e}"
+                        )
+
+            self.gitignore_loaded = True
+            self.logger.info(f"Loaded {len(self.gitignore_patterns)} .gitignore patterns for smart backup")
+
+        except Exception as e:
+            self.logger.error(f"Error loading .gitignore patterns: {e}")
+            self.gitignore_loaded = True  # Continue without gitignore filtering
+
+    def _is_ignored_by_gitignore(self, file_path: str) -> bool:
+        """
+        Check if a file path is ignored by .gitignore patterns.
+
+        Args:
+            file_path: Path to check (relative or absolute)
+
+        Returns:
+            True if file should be ignored, False otherwise
+        """
+        if not self.gitignore_loaded or not self.gitignore_patterns:
+            return False
+
+        try:
+            # Convert to absolute path for gitignore matching
+            abs_path = str(Path(file_path).resolve())
+            is_dir = Path(file_path).is_dir()
+
+            # Check against all gitignore patterns
+            ignored_status = False
+            for pattern in self.gitignore_patterns:
+                if pattern.matches(abs_path, is_dir):
+                    ignored_status = not pattern.is_negation
+
+            return ignored_status
+
+        except Exception as e:
+            self.logger.debug(f"Error checking gitignore for {file_path}: {e}")
+            return False
 
     def update_git_setting(self, key: str, value: Any) -> bool:
         """
@@ -506,45 +584,43 @@ class GitManager(BaseManager):
             }
 
     def _backup_user_files(self) -> Dict[str, Any]:
-        """Create backup of user files."""
+        """Create gitignore-aware backup of user files."""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_dir = Path(f".backup_{timestamp}")
             backup_dir.mkdir(exist_ok=True)
 
             backed_up_files = []
+            skipped_files = []
+            essential_files = []
 
-            for pattern in self.preserve_patterns:
-                # Handle directory patterns
-                if pattern.endswith("/"):
-                    dir_path = Path(pattern.rstrip("/"))
-                    if dir_path.exists() and dir_path.is_dir():
-                        backup_path = backup_dir / dir_path
-                        shutil.copytree(dir_path, backup_path)
-                        backed_up_files.append(str(dir_path))
-                else:
-                    # Handle file patterns
-                    if "*" in pattern:
-                        import glob
-                        for file_path in glob.glob(pattern):
-                            if Path(file_path).exists():
-                                backup_path = backup_dir / file_path
-                                backup_path.parent.mkdir(parents=True, exist_ok=True)
-                                shutil.copy2(file_path, backup_path)
-                                backed_up_files.append(file_path)
-                    else:
-                        file_path = Path(pattern)
-                        if file_path.exists():
-                            backup_path = backup_dir / file_path
-                            backup_path.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(file_path, backup_path)
-                            backed_up_files.append(str(file_path))
+            # Process essential files first (always backup regardless of .gitignore)
+            for pattern in self.essential_preserve_patterns:
+                files_backed_up = self._backup_pattern(pattern, backup_dir, force_backup=True)
+                backed_up_files.extend(files_backed_up)
+                essential_files.extend(files_backed_up)
+
+            # Process conditional files (only backup if not ignored by .gitignore)
+            for pattern in self.conditional_preserve_patterns:
+                files_backed_up, files_skipped = self._backup_pattern_conditional(pattern, backup_dir)
+                backed_up_files.extend(files_backed_up)
+                skipped_files.extend(files_skipped)
+
+            # Log backup summary
+            self.logger.info(f"Backup summary: {len(backed_up_files)} files backed up, {len(skipped_files)} files skipped (gitignore)")
+            if essential_files:
+                self.logger.info(f"Essential files backed up: {', '.join(essential_files[:5])}")
+            if skipped_files:
+                self.logger.info(f"Files skipped due to .gitignore: {', '.join(skipped_files[:5])}")
 
             return {
                 "success": True,
                 "backup_path": str(backup_dir),
                 "backed_up_files": backed_up_files,
-                "file_count": len(backed_up_files)
+                "skipped_files": skipped_files,
+                "essential_files": essential_files,
+                "file_count": len(backed_up_files),
+                "skipped_count": len(skipped_files)
             }
 
         except Exception as e:
@@ -552,6 +628,106 @@ class GitManager(BaseManager):
                 "success": False,
                 "error": str(e)
             }
+
+    def _backup_pattern(self, pattern: str, backup_dir: Path, force_backup: bool = False) -> List[str]:
+        """
+        Backup files matching a pattern.
+
+        Args:
+            pattern: File pattern to match
+            backup_dir: Backup directory
+            force_backup: If True, backup regardless of .gitignore
+
+        Returns:
+            List of backed up file paths
+        """
+        backed_up_files = []
+
+        try:
+            # Handle directory patterns
+            if pattern.endswith("/"):
+                dir_path = Path(pattern.rstrip("/"))
+                if dir_path.exists() and dir_path.is_dir():
+                    if force_backup or not self._is_ignored_by_gitignore(str(dir_path)):
+                        backup_path = backup_dir / dir_path
+                        shutil.copytree(dir_path, backup_path)
+                        backed_up_files.append(str(dir_path))
+            else:
+                # Handle file patterns
+                if "*" in pattern:
+                    for file_path in glob.glob(pattern):
+                        if Path(file_path).exists():
+                            if force_backup or not self._is_ignored_by_gitignore(file_path):
+                                backup_path = backup_dir / file_path
+                                backup_path.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.copy2(file_path, backup_path)
+                                backed_up_files.append(file_path)
+                else:
+                    file_path = Path(pattern)
+                    if file_path.exists():
+                        if force_backup or not self._is_ignored_by_gitignore(str(file_path)):
+                            backup_path = backup_dir / file_path
+                            backup_path.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(file_path, backup_path)
+                            backed_up_files.append(str(file_path))
+
+        except Exception as e:
+            self.logger.warning(f"Error backing up pattern '{pattern}': {e}")
+
+        return backed_up_files
+
+    def _backup_pattern_conditional(self, pattern: str, backup_dir: Path) -> Tuple[List[str], List[str]]:
+        """
+        Backup files matching a pattern only if not ignored by .gitignore.
+
+        Args:
+            pattern: File pattern to match
+            backup_dir: Backup directory
+
+        Returns:
+            Tuple of (backed_up_files, skipped_files)
+        """
+        backed_up_files = []
+        skipped_files = []
+
+        try:
+            # Handle directory patterns
+            if pattern.endswith("/"):
+                dir_path = Path(pattern.rstrip("/"))
+                if dir_path.exists() and dir_path.is_dir():
+                    if self._is_ignored_by_gitignore(str(dir_path)):
+                        skipped_files.append(str(dir_path))
+                    else:
+                        backup_path = backup_dir / dir_path
+                        shutil.copytree(dir_path, backup_path)
+                        backed_up_files.append(str(dir_path))
+            else:
+                # Handle file patterns
+                if "*" in pattern:
+                    for file_path in glob.glob(pattern):
+                        if Path(file_path).exists():
+                            if self._is_ignored_by_gitignore(file_path):
+                                skipped_files.append(file_path)
+                            else:
+                                backup_path = backup_dir / file_path
+                                backup_path.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.copy2(file_path, backup_path)
+                                backed_up_files.append(file_path)
+                else:
+                    file_path = Path(pattern)
+                    if file_path.exists():
+                        if self._is_ignored_by_gitignore(str(file_path)):
+                            skipped_files.append(str(file_path))
+                        else:
+                            backup_path = backup_dir / file_path
+                            backup_path.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(file_path, backup_path)
+                            backed_up_files.append(str(file_path))
+
+        except Exception as e:
+            self.logger.warning(f"Error processing pattern '{pattern}': {e}")
+
+        return backed_up_files, skipped_files
 
     def _perform_git_update(self) -> Dict[str, Any]:
         """Perform the actual Git update with smart user file handling."""
