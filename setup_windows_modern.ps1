@@ -1176,8 +1176,15 @@ Write-Host ""
 Write-SectionHeader "Configuration 3/5: Task Files Storage Location" "[CONFIG]"
 Write-Info "Where would you like to store project task files?"
 Write-Host ""
-Write-Info "1. Present folder ($PWD)"
-Write-Info "2. TaskHero tasks folder (/theherotasks) [RECOMMENDED]"
+
+# Get the configured codebase path for display
+$displayCodebasePath = Get-ConfigValue "codebase_path"
+if (-not $displayCodebasePath) {
+    $displayCodebasePath = $PWD
+}
+
+Write-Info "1. Codebase root folder ($displayCodebasePath)"
+Write-Info "2. TaskHero tasks folder (/theherotasks in codebase) [RECOMMENDED]"
 Write-Info "3. Custom path (you will specify)"
 Write-ColoredLine "===============================================================================" $Colors.Primary
 
@@ -1191,19 +1198,31 @@ if (-not $Force) {
 }
 
 if (-not $skipTaskStorage) {
+    # Get the configured codebase path for proper task storage location
+    $configuredCodebasePath = Get-ConfigValue "codebase_path"
+    if (-not $configuredCodebasePath) {
+        $configuredCodebasePath = $PWD
+        Write-Warning "No codebase path configured, using current directory"
+    }
+
     $taskStorageChoice = Get-UserInput "Please select task storage option (1, 2, or 3):" "option" "2" @("1", "2", "3")
     switch ($taskStorageChoice) {
         "1" {
-            $taskStoragePath = $PWD
-            Write-Success "Task storage set to: Present folder"
+            $taskStoragePath = $configuredCodebasePath
+            Write-Success "Task storage set to: Codebase root folder ($configuredCodebasePath)"
         }
         "2" {
-            $taskStoragePath = Join-Path $PWD "theherotasks"
-            Write-Success "Task storage set to: TaskHero tasks folder"
+            $taskStoragePath = Join-Path $configuredCodebasePath "theherotasks"
+            Write-Success "Task storage set to: TaskHero tasks folder in codebase ($taskStoragePath)"
             # Create the directory if it doesn't exist
             if (-not (Test-Path $taskStoragePath)) {
-                New-Item -Path $taskStoragePath -ItemType Directory -Force | Out-Null
-                Write-Info "Created theherotasks directory"
+                try {
+                    New-Item -Path $taskStoragePath -ItemType Directory -Force | Out-Null
+                    Write-Info "Created theherotasks directory at: $taskStoragePath"
+                } catch {
+                    Write-Warning "Could not create theherotasks directory. Using codebase root instead."
+                    $taskStoragePath = $configuredCodebasePath
+                }
             }
         }
         "3" {
@@ -1215,8 +1234,8 @@ if (-not $skipTaskStorage) {
                     New-Item -Path $taskStoragePath -ItemType Directory -Force | Out-Null
                     Write-Info "Created custom task storage directory"
                 } catch {
-                    Write-Warning "Could not create custom directory. Using current directory instead."
-                    $taskStoragePath = $PWD
+                    Write-Warning "Could not create custom directory. Using codebase root instead."
+                    $taskStoragePath = $configuredCodebasePath
                 }
             }
         }

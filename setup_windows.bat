@@ -773,8 +773,16 @@ echo.
 call :show_section "Configuration 3/5: Task Files Storage Location                         "
 echo   Where would you like to store project task files?
 echo.
-echo   1. Present folder (%CD%)
-echo   2. TaskHero tasks folder (/theherotasks) [RECOMMENDED]
+
+:: Get the configured codebase path for display and use
+call :get_config_value "codebase_path" CONFIGURED_CODEBASE_PATH
+if "!CONFIGURED_CODEBASE_PATH!"=="" (
+    set CONFIGURED_CODEBASE_PATH=%CD%
+    echo [WARNING] No codebase path configured, using current directory
+)
+
+echo   1. Codebase root folder (!CONFIGURED_CODEBASE_PATH!)
+echo   2. TaskHero tasks folder (/theherotasks in codebase) [RECOMMENDED]
 echo   3. Custom path (you will specify)
 echo ================================================================================
 
@@ -789,43 +797,53 @@ if %FORCE_SETUP% equ 0 (
 call :get_user_input "Please select storage location (1, 2, or 3, default 2):" STORAGE_CHOICE "option"
 if "!STORAGE_CHOICE!"=="" set STORAGE_CHOICE=2
 if "!STORAGE_CHOICE!"=="1" (
-    set TASK_STORAGE=%CD%
-    echo [SUCCESS] Selected: Present folder
+    set TASK_STORAGE=!CONFIGURED_CODEBASE_PATH!
+    echo [SUCCESS] Selected: Codebase root folder (!CONFIGURED_CODEBASE_PATH!)
 ) else if "!STORAGE_CHOICE!"=="2" (
-    set TASK_STORAGE=%CD%\theherotasks
-    echo [SUCCESS] Selected: TaskHero tasks folder (/theherotasks)
+    set TASK_STORAGE=!CONFIGURED_CODEBASE_PATH!\theherotasks
+    echo [SUCCESS] Selected: TaskHero tasks folder in codebase (!TASK_STORAGE!)
     if not exist "!TASK_STORAGE!" (
         echo [INFO] Creating TaskHero tasks directory: !TASK_STORAGE!
         mkdir "!TASK_STORAGE!" 2>nul
-        :: Create task status subdirectories
-        mkdir "!TASK_STORAGE!\todo" 2>nul
-        mkdir "!TASK_STORAGE!\inprogress" 2>nul
-        mkdir "!TASK_STORAGE!\testing" 2>nul
-        mkdir "!TASK_STORAGE!\devdone" 2>nul
-        mkdir "!TASK_STORAGE!\done" 2>nul
-        mkdir "!TASK_STORAGE!\backlog" 2>nul
-        mkdir "!TASK_STORAGE!\archive" 2>nul
-        echo [SUCCESS] Created task status subdirectories
+        if !errorlevel! equ 0 (
+            :: Create task status subdirectories
+            mkdir "!TASK_STORAGE!\todo" 2>nul
+            mkdir "!TASK_STORAGE!\inprogress" 2>nul
+            mkdir "!TASK_STORAGE!\testing" 2>nul
+            mkdir "!TASK_STORAGE!\devdone" 2>nul
+            mkdir "!TASK_STORAGE!\done" 2>nul
+            mkdir "!TASK_STORAGE!\backlog" 2>nul
+            mkdir "!TASK_STORAGE!\archive" 2>nul
+            echo [SUCCESS] Created task status subdirectories
+        ) else (
+            echo [WARNING] Could not create theherotasks directory. Using codebase root instead.
+            set TASK_STORAGE=!CONFIGURED_CODEBASE_PATH!
+        )
     )
 ) else (
     call :get_user_input "Enter custom path for task files:" TASK_STORAGE "path"
-    echo [SUCCESS] Selected: Custom path
+    echo [SUCCESS] Selected: Custom path (!TASK_STORAGE!)
     if not exist "!TASK_STORAGE!" (
         echo [INFO] Creating directory: !TASK_STORAGE!
         mkdir "!TASK_STORAGE!" 2>nul
-        :: Create task status subdirectories for custom path too
-        mkdir "!TASK_STORAGE!\todo" 2>nul
-        mkdir "!TASK_STORAGE!\inprogress" 2>nul
-        mkdir "!TASK_STORAGE!\testing" 2>nul
-        mkdir "!TASK_STORAGE!\devdone" 2>nul
-        mkdir "!TASK_STORAGE!\done" 2>nul
-        mkdir "!TASK_STORAGE!\backlog" 2>nul
-        mkdir "!TASK_STORAGE!\archive" 2>nul
-        echo [SUCCESS] Created task status subdirectories
+        if !errorlevel! equ 0 (
+            :: Create task status subdirectories for custom path too
+            mkdir "!TASK_STORAGE!\todo" 2>nul
+            mkdir "!TASK_STORAGE!\inprogress" 2>nul
+            mkdir "!TASK_STORAGE!\testing" 2>nul
+            mkdir "!TASK_STORAGE!\devdone" 2>nul
+            mkdir "!TASK_STORAGE!\done" 2>nul
+            mkdir "!TASK_STORAGE!\backlog" 2>nul
+            mkdir "!TASK_STORAGE!\archive" 2>nul
+            echo [SUCCESS] Created task status subdirectories
+        ) else (
+            echo [WARNING] Could not create custom directory. Using codebase root instead.
+            set TASK_STORAGE=!CONFIGURED_CODEBASE_PATH!
+        )
     )
 )
 call :save_config "task_storage_path" "!TASK_STORAGE!"
-echo [INFO] Task storage path saved to app_settings.json
+echo [INFO] Task storage path saved to .taskhero_setup.json
 
 :config_api_usage
 :: Configuration Step 4: API and MCP Functions

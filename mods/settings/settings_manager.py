@@ -264,6 +264,12 @@ class SettingsManager(BaseManager):
         """
         merged = defaults.copy()
 
+        # Setup-specific keys that should be preserved from existing settings
+        setup_specific_keys = {
+            'codebase_path', 'task_storage_path', 'repository_type',
+            'setup_completed', 'next_task_number'
+        }
+
         for key, value in existing.items():
             if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
                 # Recursively merge nested dictionaries
@@ -271,6 +277,12 @@ class SettingsManager(BaseManager):
             else:
                 # Use existing value (takes precedence over default)
                 merged[key] = value
+
+        # Special handling for last_directory: use codebase_path if last_directory is empty
+        if 'codebase_path' in existing and existing['codebase_path']:
+            if not merged.get('last_directory'):
+                merged['last_directory'] = existing['codebase_path']
+                self.logger.debug(f"Set last_directory from codebase_path: {existing['codebase_path']}")
 
         return merged
 
