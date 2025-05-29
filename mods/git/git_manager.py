@@ -359,9 +359,87 @@ class GitManager(BaseManager):
         except Exception as e:
             self.logger.debug(f"Error caching update result: {e}")
 
-    def perform_update(self, backup_user_files: bool = True) -> Dict[str, Any]:
+    def perform_update(self, use_stash: bool = True) -> Dict[str, Any]:
         """
-        Perform Git update while preserving user files.
+        Perform Git update using git stash for clean updates.
+
+        Args:
+            use_stash: Whether to use git stash (recommended: True)
+
+        Returns:
+            Update result
+        """
+        if use_stash:
+            return self.perform_stash_update()
+        else:
+            return self.perform_legacy_update()
+
+    def perform_stash_update(self) -> Dict[str, Any]:
+        """
+        Perform Git update using the new git stash strategy.
+
+        This is the recommended update method that uses:
+        1. git stash push (save uncommitted changes)
+        2. git fetch && git pull (update from remote)
+        3. git stash pop (restore uncommitted changes)
+
+        Returns:
+            Update result
+        """
+        try:
+            self.logger.info("Starting Git stash-based update process...")
+
+            # Pre-update checks (simplified for stash-based approach)
+            pre_check = self._pre_update_checks_stash()
+            if not pre_check["can_update"]:
+                return {
+                    "success": False,
+                    "error": pre_check["error"],
+                    "stage": "pre_check"
+                }
+
+            # Perform Git stash-based update
+            git_result = self._perform_stash_update()
+            if not git_result["success"]:
+                return {
+                    "success": False,
+                    "error": f"Git stash update failed: {git_result['error']}",
+                    "stage": "git_update",
+                    "details": git_result
+                }
+
+            # Post-update tasks
+            post_result = self._post_update_tasks(git_result)
+
+            # Record update in history
+            self._record_update_history(git_result)
+
+            result = {
+                "success": True,
+                "message": "Git stash update completed successfully",
+                "git_result": git_result,
+                "post_result": post_result,
+                "method": "git_stash",
+                "update_timestamp": datetime.now().isoformat()
+            }
+
+            self.logger.info("Git stash update completed successfully")
+            return result
+
+        except Exception as e:
+            self.logger.error(f"Error during stash update: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "stage": "unknown"
+            }
+
+    def perform_legacy_update(self, backup_user_files: bool = True) -> Dict[str, Any]:
+        """
+        Perform Git update using the legacy backup/restore strategy.
+
+        This method is kept for compatibility but is not recommended.
+        Use perform_stash_update() instead.
 
         Args:
             backup_user_files: Whether to backup user files before update
@@ -370,7 +448,7 @@ class GitManager(BaseManager):
             Update result
         """
         try:
-            self.logger.info("Starting Git update process...")
+            self.logger.info("Starting legacy Git update process...")
 
             # Pre-update checks
             pre_check = self._pre_update_checks()
@@ -418,18 +496,19 @@ class GitManager(BaseManager):
 
             result = {
                 "success": True,
-                "message": "Update completed successfully",
+                "message": "Legacy update completed successfully",
                 "git_result": git_result,
                 "post_result": post_result,
+                "method": "legacy_backup",
                 "backup_created": backup_info is not None,
                 "update_timestamp": datetime.now().isoformat()
             }
 
-            self.logger.info("Git update completed successfully")
+            self.logger.info("Legacy Git update completed successfully")
             return result
 
         except Exception as e:
-            self.logger.error(f"Error during update: {e}")
+            self.logger.error(f"Error during legacy update: {e}")
             return {
                 "success": False,
                 "error": str(e),
@@ -501,8 +580,77 @@ class GitManager(BaseManager):
             self.logger.error(f"Error categorizing uncommitted files: {e}")
             return {"user_files": [], "core_files": []}
 
+    def _pre_update_checks_stash(self) -> Dict[str, Any]:
+        """Simplified pre-update checks for stash-based updates."""
+        try:
+            # Check if Git is available
+            result = subprocess.run(["git", "--version"], capture_output=True, text=True)
+            if result.returncode != 0:
+                return {
+                    "can_update": False,
+                    "error": "Git is not installed or not available in PATH"
+                }
+
+            # Check if we're in a Git repository
+            result = subprocess.run(
+                ["git", "rev-parse", "--is-inside-work-tree"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
+            if result.returncode != 0:
+                return {
+                    "can_update": False,
+                    "error": "Not in a Git repository"
+                }
+
+            # Check network connectivity to remote
+            result = subprocess.run(
+                ["git", "ls-remote", "--heads", "origin"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd(),
+                timeout=30
+            )
+            if result.returncode != 0:
+                return {
+                    "can_update": False,
+                    "error": "Cannot connect to remote repository"
+                }
+
+            # Check for uncommitted changes (informational only)
+            status_result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
+
+            has_changes = bool(status_result.stdout.strip())
+            if has_changes:
+                # Count changes for logging
+                changes = status_result.stdout.strip().split('\n')
+                self.logger.info(f"Found {len(changes)} uncommitted changes - will use git stash")
+
+            return {
+                "can_update": True,
+                "has_uncommitted_changes": has_changes,
+                "changes_count": len(status_result.stdout.strip().split('\n')) if has_changes else 0
+            }
+
+        except subprocess.TimeoutExpired:
+            return {
+                "can_update": False,
+                "error": "Timeout connecting to remote repository"
+            }
+        except Exception as e:
+            return {
+                "can_update": False,
+                "error": f"Pre-update check failed: {str(e)}"
+            }
+
     def _pre_update_checks(self) -> Dict[str, Any]:
-        """Perform pre-update checks with smart uncommitted changes handling."""
+        """Legacy pre-update checks with smart uncommitted changes handling."""
         try:
             # Check if Git is available
             result = subprocess.run(["git", "--version"], capture_output=True, text=True)
@@ -726,8 +874,160 @@ class GitManager(BaseManager):
 
         return backed_up_files, skipped_files
 
+    def _perform_stash_update(self) -> Dict[str, Any]:
+        """Perform Git update using stash, pull, and stash pop strategy."""
+        stash_created = False
+        stash_name = f"TaskHero-auto-update-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+        try:
+            self.logger.info("Starting git stash-based update...")
+
+            # Check if there are any uncommitted changes
+            status_result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
+
+            has_changes = bool(status_result.stdout.strip())
+
+            # Step 1: Stash changes if any exist
+            if has_changes:
+                self.logger.info(f"Stashing {len(status_result.stdout.strip().split())} uncommitted changes...")
+                stash_result = subprocess.run(
+                    ["git", "stash", "push", "-m", stash_name],
+                    capture_output=True,
+                    text=True,
+                    cwd=Path.cwd()
+                )
+
+                if stash_result.returncode == 0:
+                    stash_created = True
+                    self.logger.info(f"✓ Successfully stashed changes as: {stash_name}")
+                else:
+                    return {
+                        "success": False,
+                        "error": f"Failed to stash changes: {stash_result.stderr}",
+                        "stage": "stash"
+                    }
+            else:
+                self.logger.info("No uncommitted changes to stash")
+
+            # Step 2: Fetch latest changes
+            self.logger.info("Fetching latest changes from remote...")
+            fetch_result = subprocess.run(
+                ["git", "fetch", "origin"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd(),
+                timeout=60
+            )
+
+            if fetch_result.returncode != 0:
+                if stash_created:
+                    self._restore_stash_by_name(stash_name)
+                return {
+                    "success": False,
+                    "error": f"Git fetch failed: {fetch_result.stderr}",
+                    "stage": "fetch"
+                }
+
+            self.logger.info("✓ Successfully fetched changes")
+
+            # Step 3: Get current branch
+            branch_result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
+            current_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else "master"
+            self.logger.info(f"Current branch: {current_branch}")
+
+            # Step 4: Pull changes
+            self.logger.info(f"Pulling changes from origin/{current_branch}...")
+            pull_result = subprocess.run(
+                ["git", "pull", "origin", current_branch],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd(),
+                timeout=60
+            )
+
+            if pull_result.returncode != 0:
+                if stash_created:
+                    self._restore_stash_by_name(stash_name)
+                return {
+                    "success": False,
+                    "error": f"Git pull failed: {pull_result.stderr}",
+                    "stage": "pull"
+                }
+
+            self.logger.info("✓ Successfully pulled changes")
+
+            # Step 5: Restore stashed changes if any
+            stash_conflicts = False
+            if stash_created:
+                self.logger.info("Restoring stashed changes...")
+                pop_result = self._restore_stash_by_name(stash_name)
+                if not pop_result["success"]:
+                    if "conflict" in pop_result.get("error", "").lower():
+                        stash_conflicts = True
+                        self.logger.warning("Stash pop resulted in conflicts - manual resolution required")
+                    else:
+                        self.logger.warning(f"Failed to restore stash: {pop_result['error']}")
+                else:
+                    self.logger.info("✓ Successfully restored stashed changes")
+
+            # Step 6: Get new commit info
+            commit_result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
+            new_commit = commit_result.stdout.strip() if commit_result.returncode == 0 else "unknown"
+
+            result = {
+                "success": True,
+                "method": "git_stash",
+                "branch": current_branch,
+                "new_commit": new_commit,
+                "stash_used": stash_created,
+                "stash_name": stash_name if stash_created else None,
+                "stash_restored": stash_created and not stash_conflicts,
+                "has_conflicts": stash_conflicts,
+                "fetch_output": fetch_result.stdout,
+                "pull_output": pull_result.stdout
+            }
+
+            if stash_conflicts:
+                result["warning"] = "Update completed but stash restoration had conflicts. Please resolve manually."
+                result["manual_action_required"] = True
+
+            self.logger.info("Git stash update completed successfully")
+            return result
+
+        except subprocess.TimeoutExpired:
+            if stash_created:
+                self._restore_stash_by_name(stash_name)
+            return {
+                "success": False,
+                "error": "Git operation timed out",
+                "stage": "timeout"
+            }
+        except Exception as e:
+            if stash_created:
+                self._restore_stash_by_name(stash_name)
+            return {
+                "success": False,
+                "error": str(e),
+                "stage": "exception"
+            }
+
     def _perform_git_update(self) -> Dict[str, Any]:
-        """Perform the actual Git update with smart user file handling."""
+        """Legacy Git update method with smart user file handling."""
         stash_created = False
         try:
             # Check if there are any uncommitted changes
@@ -842,8 +1142,66 @@ class GitManager(BaseManager):
                 "error": str(e)
             }
 
+    def _restore_stash_by_name(self, stash_name: str) -> Dict[str, Any]:
+        """Restore a specific stash by name."""
+        try:
+            # Find the stash by name
+            stash_list_result = subprocess.run(
+                ["git", "stash", "list"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
+
+            if not stash_list_result.stdout.strip():
+                return {
+                    "success": True,
+                    "message": "No stashes found"
+                }
+
+            # Find the stash index for our named stash
+            stash_index = None
+            for line in stash_list_result.stdout.strip().split('\n'):
+                if stash_name in line:
+                    # Extract stash index (e.g., "stash@{0}")
+                    stash_index = line.split(':')[0]
+                    break
+
+            if not stash_index:
+                return {
+                    "success": False,
+                    "error": f"Stash '{stash_name}' not found"
+                }
+
+            # Pop the specific stash
+            stash_pop_result = subprocess.run(
+                ["git", "stash", "pop", stash_index],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
+
+            if stash_pop_result.returncode == 0:
+                return {
+                    "success": True,
+                    "message": f"Successfully restored stash: {stash_name}",
+                    "output": stash_pop_result.stdout
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Failed to restore stash: {stash_pop_result.stderr}",
+                    "output": stash_pop_result.stdout
+                }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Error restoring stash: {str(e)}"
+            }
+
     def _restore_stash(self) -> bool:
-        """Restore the most recent stash."""
+        """Restore the most recent stash (legacy method)."""
         try:
             # Check if there are any stashes
             stash_list_result = subprocess.run(
