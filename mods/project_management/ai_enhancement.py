@@ -6,7 +6,9 @@ Extracted from ai_task_creator.py for better modularity and maintainability.
 """
 
 import logging
+import json
 from typing import Dict, List, Optional, Any, Tuple
+from pathlib import Path
 from ..ai.providers.provider_factory import ProviderFactory
 from ..ai.providers.base_provider import AIProvider
 from .context_analyzer_enhanced import EnhancedProjectContext
@@ -19,22 +21,226 @@ class AIEnhancementService:
 
     def __init__(self, provider_factory: ProviderFactory):
         """Initialize the AI Enhancement Service.
-        
+
         Args:
             provider_factory: Factory for creating AI providers
         """
         self.provider_factory = provider_factory
         self.ai_provider: Optional[AIProvider] = None
         self.ai_available = False
-        
-        # AI Enhancement Configuration
-        self.ai_config = {
-            'max_context_tokens': 8000,
-            'max_response_tokens': 2000,
-            'temperature': 0.7,
+
+        # Load AI Enhancement Configuration from setup file or use defaults
+        self.ai_config = self._load_ai_enhancement_config()
+
+        # Current model optimization profile
+        self.current_optimization = None
+
+    def _load_ai_enhancement_config(self) -> Dict[str, Any]:
+        """Load AI enhancement configuration from setup file or use defaults."""
+        try:
+            # Try to load from TaskHero setup file
+            setup_file = Path('.taskhero_setup.json')
+            if setup_file.exists():
+                with open(setup_file, 'r', encoding='utf-8') as f:
+                    setup_data = json.load(f)
+                    ai_enhancement_config = setup_data.get('ai_enhancement_config', {})
+                    if ai_enhancement_config:
+                        logger.info("Loaded AI enhancement config from .taskhero_setup.json")
+                        return ai_enhancement_config
+        except Exception as e:
+            logger.warning(f"Failed to load AI enhancement config from setup file: {e}")
+
+        # Return default configuration
+        return self._get_default_ai_config()
+
+    def _get_default_ai_config(self) -> Dict[str, Any]:
+        """Get default AI enhancement configuration."""
+        return {
+            'max_context_tokens': 6000,
+            'max_response_tokens': 1500,
+            'temperature': 0.6,
             'use_streaming': False,
             'fallback_enabled': True,
-            'context_selection_threshold': 0.6
+            'context_selection_threshold': 0.6,
+            'model_optimizations': self._get_model_optimizations()
+        }
+
+    def _get_model_optimizations(self) -> Dict[str, Dict[str, Any]]:
+        """Get model-specific optimization profiles."""
+        return {
+            # OpenAI Models
+            'gpt-4': {
+                'provider': 'openai',
+                'max_context_tokens': 8000,
+                'temperature': 0.7,
+                'description_tokens': 1200,
+                'requirements_tokens': 1000,
+                'implementation_tokens': 1500,
+                'technical_tokens': 1200,
+                'risks_tokens': 800,
+                'testing_tokens': 700,
+                'quality_tier': 'premium'
+            },
+            'gpt-4-turbo-preview': {
+                'provider': 'openai',
+                'max_context_tokens': 7000,
+                'temperature': 0.6,
+                'description_tokens': 1000,
+                'requirements_tokens': 800,
+                'implementation_tokens': 1200,
+                'technical_tokens': 1000,
+                'risks_tokens': 700,
+                'testing_tokens': 600,
+                'quality_tier': 'balanced'
+            },
+            'gpt-3.5-turbo': {
+                'provider': 'openai',
+                'max_context_tokens': 4000,
+                'temperature': 0.6,
+                'description_tokens': 600,
+                'requirements_tokens': 500,
+                'implementation_tokens': 800,
+                'technical_tokens': 600,
+                'risks_tokens': 400,
+                'testing_tokens': 400,
+                'quality_tier': 'cost_effective'
+            },
+            # Anthropic Models
+            'claude-opus-4-20250514': {
+                'provider': 'anthropic',
+                'max_context_tokens': 10000,
+                'temperature': 0.7,
+                'description_tokens': 1500,
+                'requirements_tokens': 1200,
+                'implementation_tokens': 1800,
+                'technical_tokens': 1500,
+                'risks_tokens': 1000,
+                'testing_tokens': 800,
+                'quality_tier': 'premium'
+            },
+            'claude-sonnet-4-20250514': {
+                'provider': 'anthropic',
+                'max_context_tokens': 8000,
+                'temperature': 0.6,
+                'description_tokens': 1000,
+                'requirements_tokens': 800,
+                'implementation_tokens': 1200,
+                'technical_tokens': 1000,
+                'risks_tokens': 700,
+                'testing_tokens': 600,
+                'quality_tier': 'balanced'
+            },
+            # Ollama Models
+            'gemma3:4b': {
+                'provider': 'ollama',
+                'max_context_tokens': 6000,
+                'temperature': 0.6,
+                'description_tokens': 800,
+                'requirements_tokens': 600,
+                'implementation_tokens': 1000,
+                'technical_tokens': 800,
+                'risks_tokens': 600,
+                'testing_tokens': 500,
+                'quality_tier': 'local_optimized'
+            },
+            'llama3.2:latest': {
+                'provider': 'ollama',
+                'max_context_tokens': 7000,
+                'temperature': 0.7,
+                'description_tokens': 900,
+                'requirements_tokens': 700,
+                'implementation_tokens': 1100,
+                'technical_tokens': 900,
+                'risks_tokens': 650,
+                'testing_tokens': 550,
+                'quality_tier': 'local_general'
+            },
+            'codellama:latest': {
+                'provider': 'ollama',
+                'max_context_tokens': 8000,
+                'temperature': 0.5,
+                'description_tokens': 1000,
+                'requirements_tokens': 800,
+                'implementation_tokens': 1400,
+                'technical_tokens': 1200,
+                'risks_tokens': 700,
+                'testing_tokens': 600,
+                'quality_tier': 'local_code_focused'
+            },
+            # DeepSeek Models
+            'deepseek-chat': {
+                'provider': 'deepseek',
+                'max_context_tokens': 7000,
+                'temperature': 0.6,
+                'description_tokens': 900,
+                'requirements_tokens': 700,
+                'implementation_tokens': 1100,
+                'technical_tokens': 900,
+                'risks_tokens': 650,
+                'testing_tokens': 550,
+                'quality_tier': 'cost_effective'
+            },
+            'deepseek-reasoner': {
+                'provider': 'deepseek',
+                'max_context_tokens': 8000,
+                'temperature': 0.7,
+                'description_tokens': 1100,
+                'requirements_tokens': 900,
+                'implementation_tokens': 1300,
+                'technical_tokens': 1100,
+                'risks_tokens': 800,
+                'testing_tokens': 700,
+                'quality_tier': 'reasoning_focused'
+            },
+            'deepseek-coder': {
+                'provider': 'deepseek',
+                'max_context_tokens': 8000,
+                'temperature': 0.5,
+                'description_tokens': 1000,
+                'requirements_tokens': 800,
+                'implementation_tokens': 1400,
+                'technical_tokens': 1200,
+                'risks_tokens': 700,
+                'testing_tokens': 600,
+                'quality_tier': 'code_specialist'
+            },
+            # OpenRouter Models
+            'google/gemini-2.5-flash-preview-05-20': {
+                'provider': 'openrouter',
+                'max_context_tokens': 7000,
+                'temperature': 0.6,
+                'description_tokens': 900,
+                'requirements_tokens': 700,
+                'implementation_tokens': 1100,
+                'technical_tokens': 900,
+                'risks_tokens': 650,
+                'testing_tokens': 550,
+                'quality_tier': 'balanced'
+            },
+            'google/gemini-2.5-pro-preview': {
+                'provider': 'openrouter',
+                'max_context_tokens': 9000,
+                'temperature': 0.7,
+                'description_tokens': 1200,
+                'requirements_tokens': 1000,
+                'implementation_tokens': 1500,
+                'technical_tokens': 1200,
+                'risks_tokens': 800,
+                'testing_tokens': 700,
+                'quality_tier': 'premium'
+            },
+            'google/gemma-3-12b-it:free': {
+                'provider': 'openrouter',
+                'max_context_tokens': 5000,
+                'temperature': 0.6,
+                'description_tokens': 700,
+                'requirements_tokens': 550,
+                'implementation_tokens': 900,
+                'technical_tokens': 700,
+                'risks_tokens': 500,
+                'testing_tokens': 450,
+                'quality_tier': 'free_tier'
+            }
         }
 
     async def initialize_provider(self) -> bool:
@@ -44,14 +250,26 @@ class AIEnhancementService:
                 # First try to use the configured task provider from environment
                 import os
                 preferred_provider = os.getenv('AI_TASK_PROVIDER', '').lower()
+                task_model = os.getenv('AI_TASK_MODEL', '')
 
                 if preferred_provider:
                     try:
-                        # Try to create the preferred provider
-                        self.ai_provider = await self.provider_factory.create_provider(preferred_provider)
+                        # Create provider with task-specific configuration
+                        config_override = {}
+                        if task_model and preferred_provider == 'ollama':
+                            config_override['model'] = task_model
+                            logger.info(f"Using task-specific model: {task_model}")
+
+                        self.ai_provider = await self.provider_factory.create_provider(
+                            preferred_provider, config_override if config_override else None
+                        )
+
                         if self.ai_provider and await self.ai_provider.check_health():
                             self.ai_available = True
-                            logger.info(f"AI provider initialized (preferred): {preferred_provider}")
+                            current_model = getattr(self.ai_provider, 'model', 'unknown')
+                            # Load model-specific optimization
+                            self._load_model_optimization(current_model)
+                            logger.info(f"AI provider initialized (preferred): {preferred_provider} with model: {current_model}")
                             return True
                         else:
                             logger.warning(f"Preferred provider {preferred_provider} failed health check, falling back")
@@ -61,9 +279,19 @@ class AIEnhancementService:
                 # Fallback to best available provider
                 best_provider = await self.provider_factory.get_best_available_provider()
                 if best_provider:
-                    self.ai_provider = await self.provider_factory.create_provider(best_provider)
+                    # Apply task model configuration for fallback too
+                    config_override = {}
+                    if task_model and best_provider == 'ollama':
+                        config_override['model'] = task_model
+
+                    self.ai_provider = await self.provider_factory.create_provider(
+                        best_provider, config_override if config_override else None
+                    )
                     self.ai_available = True
-                    logger.info(f"AI provider initialized (fallback): {best_provider}")
+                    current_model = getattr(self.ai_provider, 'model', 'unknown')
+                    # Load model-specific optimization
+                    self._load_model_optimization(current_model)
+                    logger.info(f"AI provider initialized (fallback): {best_provider} with model: {current_model}")
                     return True
                 else:
                     logger.warning("No AI providers available - using fallback mode")
@@ -75,7 +303,70 @@ class AIEnhancementService:
             self.ai_available = False
             return False
 
-    async def enhance_description_with_context(self, user_description: str, context: Dict[str, Any], 
+    def _load_model_optimization(self, model_name: str) -> None:
+        """Load optimization profile for the current model."""
+        try:
+            model_optimizations = self.ai_config.get('model_optimizations', {})
+            if model_name in model_optimizations:
+                self.current_optimization = model_optimizations[model_name]
+                logger.info(f"Loaded optimization profile for model: {model_name} (tier: {self.current_optimization.get('quality_tier', 'unknown')})")
+            else:
+                # Use default optimization for unknown models
+                self.current_optimization = {
+                    'description_tokens': 800,
+                    'requirements_tokens': 600,
+                    'implementation_tokens': 1000,
+                    'technical_tokens': 800,
+                    'risks_tokens': 600,
+                    'testing_tokens': 500,
+                    'temperature': 0.6,
+                    'quality_tier': 'default'
+                }
+                logger.warning(f"No optimization profile found for model: {model_name}, using defaults")
+        except Exception as e:
+            logger.warning(f"Failed to load model optimization: {e}")
+            self.current_optimization = None
+
+    def _get_optimized_tokens(self, token_type: str) -> int:
+        """Get optimized token count for the current model."""
+        if self.current_optimization:
+            return self.current_optimization.get(token_type, 800)
+        return self.ai_config.get('gemma_optimizations', {}).get(token_type, 800)
+
+    def _get_optimized_temperature(self) -> float:
+        """Get optimized temperature for the current model."""
+        if self.current_optimization:
+            return self.current_optimization.get('temperature', 0.6)
+        return self.ai_config.get('temperature', 0.6)
+
+    def save_ai_enhancement_config(self) -> bool:
+        """Save current AI enhancement configuration to TaskHero setup file."""
+        try:
+            setup_file = Path('.taskhero_setup.json')
+            setup_data = {}
+
+            # Load existing setup data
+            if setup_file.exists():
+                with open(setup_file, 'r', encoding='utf-8') as f:
+                    setup_data = json.load(f)
+
+            # Update AI enhancement configuration
+            setup_data['ai_enhancement_config'] = self.ai_config
+            setup_data['ai_enhancement_config']['last_updated'] = '2025-05-29'
+            setup_data['ai_enhancement_config']['version'] = '1.0'
+
+            # Save updated configuration
+            with open(setup_file, 'w', encoding='utf-8') as f:
+                json.dump(setup_data, f, indent=2, ensure_ascii=False)
+
+            logger.info("AI enhancement configuration saved to .taskhero_setup.json")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to save AI enhancement config: {e}")
+            return False
+
+    async def enhance_description_with_context(self, user_description: str, context: Dict[str, Any],
                                              enhanced_context: EnhancedProjectContext) -> str:
         """Enhance description with AI while preserving user's original intent."""
         try:
@@ -99,27 +390,39 @@ class AIEnhancementService:
                 for rec in enhanced_context.contextual_recommendations[:3]:
                     context_info += f"\n- {rec.description}"
 
-            prompt = f"""You are enhancing a task description while preserving the user's original intent and requirements.
+            prompt = f"""You are an expert technical writer creating comprehensive task descriptions for development teams.
 
-User's original description: {user_description}
+ORIGINAL USER REQUEST: {user_description}
 
-Task type: {task_type}
-Task title: {title}
-
+TASK CONTEXT:
+- Task Type: {task_type}
+- Task Title: {title}
 {context_info}
 
-Please enhance the description by:
-1. Keeping the user's original requirements and intent unchanged
-2. Adding technical context based on the identified files
-3. Providing specific implementation guidance
-4. Maintaining clarity and actionability
+INSTRUCTIONS:
+Create a detailed, comprehensive task description that:
 
-The enhanced description should start with the user's original intent and add contextual details that help with implementation."""
+1. PRESERVES the user's original intent and requirements completely
+2. EXPANDS with technical implementation details and context
+3. INCLUDES specific technical considerations and architectural notes
+4. PROVIDES clear implementation guidance with concrete steps
+5. ADDRESSES potential challenges and solutions
+6. MAINTAINS professional, actionable language
+
+ENHANCED DESCRIPTION STRUCTURE:
+- Start with the user's original intent
+- Add technical context and implementation details
+- Include architectural considerations
+- Mention integration points and dependencies
+- Address potential risks and mitigation strategies
+- Provide specific acceptance criteria
+
+Generate a comprehensive description that would enable any developer to understand and implement this task effectively."""
 
             response = await self.ai_provider.generate_response(
                 prompt,
-                max_tokens=self.ai_config['max_response_tokens'],
-                temperature=self.ai_config['temperature']
+                max_tokens=self._get_optimized_tokens('description_tokens'),
+                temperature=self._get_optimized_temperature()
             )
 
             return response.strip()
@@ -128,7 +431,7 @@ The enhanced description should start with the user's original intent and add co
             logger.error(f"AI description enhancement with context failed: {e}")
             return user_description  # Return original description on failure
 
-    async def generate_requirements_with_context(self, user_description: str, context: Dict[str, Any], 
+    async def generate_requirements_with_context(self, user_description: str, context: Dict[str, Any],
                                                 enhanced_context: EnhancedProjectContext) -> List[str]:
         """Generate requirements with enhanced context awareness."""
         try:
@@ -148,36 +451,46 @@ The enhanced description should start with the user's original intent and add co
                 if primary_file.configuration_items:
                     context_info += f"\nConfiguration items: {len(primary_file.configuration_items)} found"
 
-            prompt = f"""Generate highly specific, measurable, and testable functional requirements for this task:
+            prompt = f"""You are a senior business analyst creating comprehensive functional requirements for a development task.
 
-Task: {title}
-Description: {user_description}
-Task Type: {task_type}
+TASK DETAILS:
+- Title: {title}
+- Description: {user_description}
+- Type: {task_type}
 
+TECHNICAL CONTEXT:
 {context_info}
 
-CRITICAL: Requirements must be:
-- SPECIFIC with exact criteria (use numbers, percentages, timeframes)
-- MEASURABLE with clear success criteria
-- TECHNICALLY DETAILED with implementation specifics
-- TESTABLE with verifiable outcomes
-- ACTIONABLE for developers
+REQUIREMENTS GENERATION INSTRUCTIONS:
 
-IMPORTANT: Format as a numbered list with each requirement on a new line. Each requirement MUST start with "The system must" or "The script must" and include specific criteria.
+Generate 6-8 comprehensive functional requirements that are:
+✅ SPECIFIC: Include exact criteria, numbers, percentages, timeframes
+✅ MEASURABLE: Clear success criteria that can be verified
+✅ TECHNICALLY DETAILED: Implementation specifics and constraints
+✅ TESTABLE: Verifiable outcomes with clear pass/fail criteria
+✅ ACTIONABLE: Developers can implement directly from these requirements
 
-ENHANCED EXAMPLES:
-1. The system must validate user input within 100ms and reject inputs exceeding 255 characters
-2. The script must create timestamped backup files before making changes and verify backup integrity
-3. The system must provide specific error messages with error codes (ERR-001 to ERR-999) for each failure type
-4. The script must process files in batches of 50 items and display progress percentage every 10%
-5. The system must maintain 99.9% uptime during normal operations and log all downtime events
+REQUIREMENT FORMAT:
+Each requirement must start with "The system must" or "The component must" or "The application must"
 
-Generate 6-8 highly specific requirements with measurable criteria. DO NOT use Python list format or quotes around requirements:"""
+ENHANCED REQUIREMENT EXAMPLES:
+1. The system must validate user input within 100ms and reject inputs exceeding 255 characters with specific error messages
+2. The component must create timestamped backup files before making changes and verify backup integrity using SHA-256 checksums
+3. The application must provide specific error messages with error codes (ERR-001 to ERR-999) for each failure type and log all errors
+4. The system must process files in batches of 50 items and display progress percentage updates every 10% completion
+5. The component must maintain 99.9% uptime during normal operations and log all downtime events with timestamps
+6. The application must support concurrent users up to 100 simultaneous connections with response times under 200ms
+7. The system must implement role-based access control with at least 3 permission levels (read, write, admin)
+8. The component must provide comprehensive audit logging with user actions, timestamps, and data changes
+
+CRITICAL: Generate requirements that are specific to this task's context and technical needs. Include performance criteria, error handling, security considerations, and integration requirements where applicable.
+
+Generate 6-8 requirements now:"""
 
             response = await self.ai_provider.generate_response(
                 prompt,
-                max_tokens=800,
-                temperature=0.6
+                max_tokens=self._get_optimized_tokens('requirements_tokens'),
+                temperature=self._get_optimized_temperature()
             )
 
             # Parse and structure requirements
@@ -188,7 +501,7 @@ Generate 6-8 highly specific requirements with measurable criteria. DO NOT use P
             logger.error(f"AI requirements generation with context failed: {e}")
             return self._generate_fallback_requirements(user_description, context)
 
-    async def generate_implementation_steps_with_context(self, user_description: str, context: Dict[str, Any], 
+    async def generate_implementation_steps_with_context(self, user_description: str, context: Dict[str, Any],
                                                        enhanced_context: EnhancedProjectContext) -> List[Dict[str, Any]]:
         """Generate implementation steps with enhanced context awareness."""
         try:
@@ -214,34 +527,58 @@ Generate 6-8 highly specific requirements with measurable criteria. DO NOT use P
                 if primary_file.specific_patterns:
                     context_info += f"\nCode patterns: {', '.join(primary_file.specific_patterns)}"
 
-            prompt = f"""Generate detailed implementation steps for this {task_type} task:
+            prompt = f"""You are a senior technical architect creating a comprehensive implementation plan for a development task.
 
-Task: {context.get('title', 'Task')}
-Description: {user_description}
-Task Type: {task_type}
+TASK OVERVIEW:
+- Title: {context.get('title', 'Task')}
+- Description: {user_description}
+- Type: {task_type}
 
+TECHNICAL CONTEXT:
 {context_info}
 
-Requirements:
-- Create 4-5 implementation phases with specific sub-steps
-- Each phase should have clear deliverables and estimated timeline
-- Include specific technical details based on the codebase context
-- Make steps actionable for developers
-- Consider existing code patterns and architecture
+IMPLEMENTATION PLAN REQUIREMENTS:
 
-Template for each phase:
+Create a detailed 4-5 phase implementation plan with:
+🎯 SPECIFIC PHASES: Each phase has clear objectives and scope
+📋 DETAILED SUB-STEPS: 3-4 actionable sub-steps per phase
+⏱️ REALISTIC TIMELINES: Estimated duration for each phase
+🎁 CLEAR DELIVERABLES: Specific outputs and artifacts
+🔧 TECHNICAL DETAILS: Code patterns, architecture considerations
+✅ VALIDATION CRITERIA: How to verify phase completion
+
+PHASE TEMPLATE FORMAT:
 Phase X: [Clear Phase Name] - Estimated: [Duration]
-- [Specific actionable step with technical details]
-- [Specific actionable step with technical details]
-- [Specific actionable step with technical details]
-Deliverables: [Clear deliverable items]
+- [Specific actionable step with technical implementation details]
+- [Specific actionable step with file/component references]
+- [Specific actionable step with testing/validation approach]
+- [Specific actionable step with integration considerations]
+Deliverables: [Specific deliverable items with acceptance criteria]
 
-Generate 4-5 implementation phases:"""
+ENHANCED PHASE EXAMPLES:
+
+Phase 1: Requirements Analysis & Design - Estimated: 1-2 days
+- Analyze existing codebase structure and identify integration points in [specific files]
+- Create detailed technical specification document with API contracts and data models
+- Design component architecture with clear separation of concerns and dependency injection
+- Validate design with stakeholders and document approval criteria
+Deliverables: Technical specification document, architecture diagrams, approved design review
+
+Phase 2: Core Implementation - Estimated: 3-4 days
+- Implement core business logic in [specific modules] following established patterns
+- Create data access layer with proper error handling and transaction management
+- Develop API endpoints with input validation, authentication, and rate limiting
+- Write comprehensive unit tests achieving 90%+ code coverage
+Deliverables: Core functionality implementation, unit test suite, API documentation
+
+CRITICAL: Generate phases that are specific to this task's technical requirements and existing codebase context.
+
+Generate 4-5 comprehensive implementation phases:"""
 
             response = await self.ai_provider.generate_response(
                 prompt,
-                max_tokens=1200,
-                temperature=0.6
+                max_tokens=self._get_optimized_tokens('implementation_tokens'),
+                temperature=self._get_optimized_temperature()
             )
 
             # Parse response into structured format
@@ -257,25 +594,25 @@ Generate 4-5 implementation phases:"""
         try:
             requirements = []
             lines = response.strip().split('\n')
-            
+
             for line in lines:
                 line = line.strip()
                 if not line:
                     continue
-                    
+
                 # Remove numbering and clean up
                 if line[0].isdigit() and '.' in line[:5]:
                     line = line.split('.', 1)[1].strip()
                 elif line.startswith('-'):
                     line = line[1:].strip()
-                
+
                 # Ensure it starts with proper format
-                if line and (line.startswith('The system must') or line.startswith('The script must') or 
+                if line and (line.startswith('The system must') or line.startswith('The script must') or
                            line.startswith('The application must') or line.startswith('The component must')):
                     requirements.append(line)
-            
+
             return requirements[:8]  # Limit to 8 requirements
-            
+
         except Exception as e:
             logger.warning(f"Failed to parse requirements response: {e}")
             return []
@@ -286,27 +623,27 @@ Generate 4-5 implementation phases:"""
             steps = []
             current_phase = None
             current_substeps = []
-            
+
             lines = response.strip().split('\n')
-            
+
             for line in lines:
                 line = line.strip()
                 if not line:
                     continue
-                
+
                 # Check for phase header
                 if line.startswith('Phase') and ':' in line:
                     # Save previous phase if exists
                     if current_phase:
                         current_phase['substeps'] = [{'description': step, 'completed': False} for step in current_substeps]
                         steps.append(current_phase)
-                    
+
                     # Start new phase
                     phase_parts = line.split(':', 1)
                     phase_name = phase_parts[1].strip()
                     if ' - Estimated:' in phase_name:
                         phase_name = phase_name.split(' - Estimated:')[0].strip()
-                    
+
                     current_phase = {
                         'title': phase_name,
                         'completed': False,
@@ -315,20 +652,20 @@ Generate 4-5 implementation phases:"""
                         'substeps': []
                     }
                     current_substeps = []
-                
+
                 # Check for substeps
                 elif line.startswith('-') and current_phase:
                     substep = line[1:].strip()
                     if substep:
                         current_substeps.append(substep)
-            
+
             # Add final phase
             if current_phase:
                 current_phase['substeps'] = [{'description': step, 'completed': False} for step in current_substeps]
                 steps.append(current_phase)
-            
+
             return steps if steps else []
-            
+
         except Exception as e:
             logger.warning(f"Failed to parse implementation steps response: {e}")
             return []
@@ -336,26 +673,26 @@ Generate 4-5 implementation phases:"""
     def _generate_fallback_requirements(self, description: str, context: Dict[str, Any]) -> List[str]:
         """Generate fallback requirements when AI is not available."""
         task_type = context.get('task_type', 'Development')
-        
+
         base_requirements = [
             f"The system must implement {description.lower()} according to specifications",
             "The system must handle errors gracefully and provide meaningful error messages",
             "The system must maintain data integrity and consistency",
             "The system must be tested with comprehensive unit and integration tests"
         ]
-        
+
         if task_type.lower() == 'development':
             base_requirements.extend([
                 "The system must follow established coding standards and best practices",
                 "The system must be documented with clear API documentation"
             ])
-        
+
         return base_requirements
 
     def _generate_fallback_implementation_steps(self, description: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Generate fallback implementation steps when AI is not available."""
         due_date = context.get('due_date')
-        
+
         return [
             {
                 'title': 'Requirements Analysis',

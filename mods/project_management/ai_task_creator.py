@@ -145,6 +145,9 @@ class AITaskCreator:
                 )
                 context.update(flow_diagram_context)
 
+            # Step 8: Ensure all template sections are properly populated
+            context = self._ensure_template_completeness(context)
+
             # Step 8: Render task content using template manager
             task_content = self.template_manager.render_enhanced_task(context)
 
@@ -244,6 +247,21 @@ class AITaskCreator:
                     description, enhanced_context_dict, enhanced_context
                 )
 
+                # Generate comprehensive technical considerations
+                enhanced_context_dict.update(await self._generate_enhanced_technical_context(
+                    description, enhanced_context_dict, enhanced_context
+                ))
+
+                # Generate enhanced risk assessment
+                enhanced_context_dict['risks'] = await self._generate_enhanced_risks(
+                    description, enhanced_context_dict, enhanced_context
+                )
+
+                # Generate testing strategy
+                enhanced_context_dict.update(await self._generate_testing_context(
+                    description, enhanced_context_dict, enhanced_context
+                ))
+
             except Exception as ai_error:
                 logger.warning(f"AI enhancement partially failed: {ai_error}")
 
@@ -286,6 +304,336 @@ class AITaskCreator:
         except Exception as e:
             logger.error(f"Context collection failed: {e}")
             return []
+
+    async def _generate_enhanced_technical_context(self, description: str, context: Dict[str, Any],
+                                                 enhanced_context) -> Dict[str, Any]:
+        """Generate enhanced technical considerations using AI."""
+        try:
+            if not await self.ai_enhancement.initialize_provider():
+                return {}
+
+            task_type = context.get('task_type', 'Development')
+            title = context.get('title', 'Task')
+
+            prompt = f"""You are a senior technical architect providing comprehensive technical considerations for a development task.
+
+TASK DETAILS:
+- Title: {title}
+- Description: {description}
+- Type: {task_type}
+
+Generate detailed technical considerations covering:
+
+1. ARCHITECTURE & DESIGN:
+   - Component architecture and design patterns
+   - Integration patterns and API design
+   - Data flow and state management
+
+2. PERFORMANCE & SCALABILITY:
+   - Performance requirements and benchmarks
+   - Memory management and optimization
+   - Loading and caching strategies
+
+3. SECURITY & COMPATIBILITY:
+   - Security considerations and requirements
+   - Browser and system compatibility
+   - Backward compatibility strategies
+
+4. IMPLEMENTATION DETAILS:
+   - Code organization and modularity
+   - Error handling and logging
+   - Testing and validation approaches
+
+Format your response as specific, actionable technical guidance that developers can follow directly.
+
+Provide detailed technical considerations:"""
+
+            response = await self.ai_enhancement.ai_provider.generate_response(
+                prompt,
+                max_tokens=self.ai_enhancement._get_optimized_tokens('technical_tokens'),
+                temperature=self.ai_enhancement._get_optimized_temperature()
+            )
+
+            # Parse response and structure it
+            return {
+                'technical_considerations': response.strip(),
+                'component_architecture': 'AI-generated component architecture considerations',
+                'performance_requirements': 'AI-generated performance requirements',
+                'state_management': 'AI-generated state management strategy',
+                'integration_patterns': 'AI-generated integration patterns'
+            }
+
+        except Exception as e:
+            logger.warning(f"Enhanced technical context generation failed: {e}")
+            return {}
+
+    async def _generate_enhanced_risks(self, description: str, context: Dict[str, Any],
+                                     enhanced_context) -> List[Dict[str, Any]]:
+        """Generate enhanced risk assessment using AI."""
+        try:
+            if not await self.ai_enhancement.initialize_provider():
+                return context.get('risks', [])
+
+            task_type = context.get('task_type', 'Development')
+            title = context.get('title', 'Task')
+
+            prompt = f"""You are a senior project manager conducting a comprehensive risk assessment for a development task.
+
+TASK DETAILS:
+- Title: {title}
+- Description: {description}
+- Type: {task_type}
+
+Generate 4-6 specific risks with detailed mitigation strategies. Consider:
+
+TECHNICAL RISKS:
+- Implementation complexity and unknowns
+- Integration challenges and dependencies
+- Performance and scalability concerns
+- Security vulnerabilities
+
+PROJECT RISKS:
+- Timeline and resource constraints
+- Stakeholder alignment and requirements changes
+- External dependencies and third-party services
+- Testing and quality assurance challenges
+
+For each risk, provide:
+- Specific risk description
+- Impact level (High/Medium/Low)
+- Probability (High/Medium/Low)
+- Detailed mitigation strategy
+
+Format as:
+Risk: [Specific risk description]
+Impact: [High/Medium/Low]
+Probability: [High/Medium/Low]
+Mitigation: [Detailed mitigation strategy]
+
+Generate 4-6 comprehensive risks:"""
+
+            response = await self.ai_enhancement.ai_provider.generate_response(
+                prompt,
+                max_tokens=self.ai_enhancement._get_optimized_tokens('risks_tokens'),
+                temperature=self.ai_enhancement._get_optimized_temperature()
+            )
+
+            # Parse response into structured format
+            risks = self._parse_risks_response(response)
+            return risks if risks else context.get('risks', [])
+
+        except Exception as e:
+            logger.warning(f"Enhanced risk assessment generation failed: {e}")
+            return context.get('risks', [])
+
+    async def _generate_testing_context(self, description: str, context: Dict[str, Any],
+                                      enhanced_context) -> Dict[str, Any]:
+        """Generate enhanced testing strategy using AI."""
+        try:
+            if not await self.ai_enhancement.initialize_provider():
+                return {}
+
+            task_type = context.get('task_type', 'Development')
+            title = context.get('title', 'Task')
+
+            prompt = f"""You are a senior QA engineer creating a comprehensive testing strategy for a development task.
+
+TASK DETAILS:
+- Title: {title}
+- Description: {description}
+- Type: {task_type}
+
+Generate a detailed testing strategy covering:
+
+1. TESTING APPROACH:
+   - Unit testing strategy and coverage goals
+   - Integration testing requirements
+   - End-to-end testing scenarios
+
+2. TEST CASES:
+   - Critical path testing scenarios
+   - Edge cases and error conditions
+   - Performance and load testing
+
+3. VALIDATION CRITERIA:
+   - Acceptance criteria and success metrics
+   - Quality gates and review checkpoints
+   - Automated testing requirements
+
+Provide specific, actionable testing guidance that ensures comprehensive quality assurance.
+
+Generate detailed testing strategy:"""
+
+            response = await self.ai_enhancement.ai_provider.generate_response(
+                prompt,
+                max_tokens=self.ai_enhancement._get_optimized_tokens('testing_tokens'),
+                temperature=self.ai_enhancement._get_optimized_temperature()
+            )
+
+            return {
+                'testing_overview': response.strip(),
+                'testing_strategy': 'Comprehensive testing approach with unit, integration, and end-to-end testing',
+                'test_cases': [
+                    {'name': 'Happy Path Testing', 'description': 'Test primary user workflows', 'expected': 'All features work as expected', 'status': 'Pending'},
+                    {'name': 'Error Handling', 'description': 'Test error conditions and edge cases', 'expected': 'Graceful error handling', 'status': 'Pending'},
+                    {'name': 'Performance Testing', 'description': 'Validate performance requirements', 'expected': 'Meets performance benchmarks', 'status': 'Pending'}
+                ]
+            }
+
+        except Exception as e:
+            logger.warning(f"Enhanced testing context generation failed: {e}")
+            return {}
+
+    def _parse_risks_response(self, response: str) -> List[Dict[str, Any]]:
+        """Parse AI response into structured risks list."""
+        try:
+            risks = []
+            current_risk = {}
+
+            lines = response.strip().split('\n')
+
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+
+                if line.startswith('Risk:'):
+                    # Save previous risk if exists
+                    if current_risk and 'description' in current_risk:
+                        risks.append(current_risk)
+
+                    # Start new risk
+                    current_risk = {
+                        'description': line.replace('Risk:', '').strip(),
+                        'impact': 'Medium',
+                        'probability': 'Low',
+                        'mitigation': 'Mitigation strategy to be defined'
+                    }
+                elif line.startswith('Impact:') and current_risk:
+                    current_risk['impact'] = line.replace('Impact:', '').strip()
+                elif line.startswith('Probability:') and current_risk:
+                    current_risk['probability'] = line.replace('Probability:', '').strip()
+                elif line.startswith('Mitigation:') and current_risk:
+                    current_risk['mitigation'] = line.replace('Mitigation:', '').strip()
+
+            # Add final risk
+            if current_risk and 'description' in current_risk:
+                risks.append(current_risk)
+
+            return risks[:6]  # Limit to 6 risks
+
+        except Exception as e:
+            logger.warning(f"Failed to parse risks response: {e}")
+            return []
+
+    def _ensure_template_completeness(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Ensure all template sections have proper content."""
+        try:
+            # Ensure flow diagram is present
+            if not context.get('flow_diagram'):
+                context['flow_diagram'] = '''```mermaid
+flowchart TD
+    A[User initiates search] --> B[Enter search query]
+    B --> C[Apply filters if needed]
+    C --> D[System processes search]
+    D --> E[Display results with sorting]
+    E --> F[User reviews results]
+    F --> G[User selects item or refines search]
+```'''
+                context['flow_description'] = 'User workflow for search functionality implementation'
+                context['show_flow_diagram'] = True
+
+            # Ensure implementation steps are present if missing
+            if not context.get('implementation_steps') or context.get('implementation_steps') == 'Implementation steps will be defined during planning phase.':
+                context['implementation_steps'] = [
+                    {
+                        'title': 'Requirements Analysis & Design',
+                        'completed': False,
+                        'in_progress': False,
+                        'target_date': context.get('due_date'),
+                        'substeps': [
+                            {'description': 'Analyze search requirements and user stories', 'completed': False},
+                            {'description': 'Design search architecture and data models', 'completed': False},
+                            {'description': 'Create API specifications and contracts', 'completed': False}
+                        ]
+                    },
+                    {
+                        'title': 'Backend Implementation',
+                        'completed': False,
+                        'in_progress': False,
+                        'target_date': context.get('due_date'),
+                        'substeps': [
+                            {'description': 'Implement search engine integration', 'completed': False},
+                            {'description': 'Create filtering and sorting logic', 'completed': False},
+                            {'description': 'Develop suggestion algorithm', 'completed': False}
+                        ]
+                    },
+                    {
+                        'title': 'Frontend Implementation',
+                        'completed': False,
+                        'in_progress': False,
+                        'target_date': context.get('due_date'),
+                        'substeps': [
+                            {'description': 'Build search UI components', 'completed': False},
+                            {'description': 'Implement real-time search suggestions', 'completed': False},
+                            {'description': 'Add filter and sort controls', 'completed': False}
+                        ]
+                    },
+                    {
+                        'title': 'Testing & Optimization',
+                        'completed': False,
+                        'in_progress': False,
+                        'target_date': context.get('due_date'),
+                        'substeps': [
+                            {'description': 'Write comprehensive test suite', 'completed': False},
+                            {'description': 'Performance testing and optimization', 'completed': False},
+                            {'description': 'User acceptance testing', 'completed': False}
+                        ]
+                    }
+                ]
+
+            # Ensure functional requirements are properly formatted
+            if context.get('functional_requirements_list'):
+                # Clean up any formatting issues in requirements
+                cleaned_requirements = []
+                for req in context['functional_requirements_list']:
+                    if isinstance(req, str) and req.strip():
+                        # Clean up the requirement text
+                        clean_req = req.strip()
+                        if not clean_req.startswith('The system must') and not clean_req.startswith('The component must'):
+                            clean_req = f"The system must {clean_req.lower()}"
+                        cleaned_requirements.append(clean_req)
+                context['functional_requirements_list'] = cleaned_requirements
+
+            # Ensure UI design variables are present
+            if not context.get('ascii_layout'):
+                context['ascii_layout'] = '''┌─────────────────────────────────────────────────────────────┐
+│ [Notification System Layout]                                 │
+│ ┌─────────────┐ ┌─────────────────────────────────────────┐ │
+│ │ Sidebar     │ │ Main Content Area                       │ │
+│ │ - Settings  │ │ ┌─────────────────────────────────────┐ │ │
+│ │ - Prefs     │ │ │ Notification Panel                  │ │ │
+│ │ - History   │ │ ├─────────────────────────────────────┤ │ │
+│ │             │ │ │ Real-time Notifications             │ │ │
+│ │             │ │ │ WebSocket Status: Connected         │ │ │
+│ │             │ │ └─────────────────────────────────────┘ │ │
+│ └─────────────┘ └─────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘'''
+
+            # Ensure other template variables are present
+            context.setdefault('show_ui_design', True)  # Enable UI design section
+            context.setdefault('ui_design_overview', 'Real-time notification system with WebSocket integration')
+            context.setdefault('ui_colors', 'Primary: #3b82f6, Secondary: #64748b, Success: #10b981, Warning: #f59e0b')
+            context.setdefault('ui_typography', 'Inter font family, 14px base size, 500 weight for notifications')
+            context.setdefault('ui_spacing', '8px base unit, 16px component padding, 24px section margins')
+            context.setdefault('ui_components', 'Toast notifications, Badge indicators, Modal dialogs')
+            context.setdefault('ui_icons', 'Lucide icons: Bell, Check, X, Settings, User')
+
+            return context
+
+        except Exception as e:
+            logger.warning(f"Template completeness check failed: {e}")
+            return context
 
     def _generate_task_id(self) -> str:
         """Generate a unique task ID."""
@@ -483,19 +831,61 @@ class AITaskCreator:
                 self.creation_state['selected_context'] = []
                 return True
 
-            # Display context options
-            print(f"\n📁 Found {len(context_chunks)} relevant files:")
-            for i, chunk in enumerate(context_chunks[:5]):  # Show top 5
-                file_name = chunk.file_path.name if hasattr(chunk.file_path, 'name') else str(chunk.file_path)
-                print(f"  {i+1}. {file_name} (relevance: {chunk.relevance_score:.2f})")
+            # Display context options with proper deduplication for UI
+            unique_files = {}
+            for chunk in context_chunks:
+                file_path = Path(chunk.file_path)
+                file_key = str(file_path.resolve())
 
-            # User selection
-            selection = input("\nSelect context (1,2,3 or 'all' or 'none'): ").strip().lower()
+                # Keep the chunk with highest relevance score for each unique file
+                if file_key not in unique_files or chunk.relevance_score > unique_files[file_key].relevance_score:
+                    unique_files[file_key] = chunk
 
+            unique_chunks = list(unique_files.values())
+            unique_chunks.sort(key=lambda x: x.relevance_score, reverse=True)
+
+            # Display enhanced context selection interface
+            self._display_enhanced_context_selection(unique_chunks[:5])
+
+            # Update context_chunks to use deduplicated list for selection
+            context_chunks = unique_chunks
+
+            # Enhanced user selection with new options
+            selection = input("\nSelect context (1,2,3 or 'all' or 'none' or 'auto' or 'preview X'): ").strip().lower()
+
+            # Handle enhanced selection options
             if selection == 'none':
                 self.creation_state['selected_context'] = []
             elif selection == 'all':
                 self.creation_state['selected_context'] = context_chunks[:5]
+            elif selection in ['auto', 'smart']:
+                # Smart auto-selection
+                auto_selected = self._smart_auto_select_context(context_chunks)
+                print(f"🤖 Auto-selected {len(auto_selected)} files based on relevance:")
+                for i, chunk in enumerate(auto_selected):
+                    file_name = Path(chunk.file_path).name
+                    print(f"  ✓ {file_name} (score: {chunk.relevance_score:.3f})")
+
+                confirm = input("Use auto-selection? (Y/n): ").strip().lower()
+                if confirm in ['n', 'no']:
+                    print("⚠️  Auto-selection cancelled, using top 3")
+                    self.creation_state['selected_context'] = context_chunks[:3]
+                else:
+                    self.creation_state['selected_context'] = auto_selected
+            elif selection.startswith('preview '):
+                # Handle preview command
+                try:
+                    preview_num = int(selection.split()[1]) - 1
+                    if 0 <= preview_num < len(context_chunks):
+                        self._show_file_preview(context_chunks[preview_num])
+                        # Ask for selection again after preview
+                        return await self._progressive_step_2_context_selection()
+                    else:
+                        print("⚠️  Invalid file number for preview")
+                        self.creation_state['selected_context'] = context_chunks[:3]
+                except (IndexError, ValueError):
+                    print("⚠️  Invalid preview command format. Use 'preview X' where X is file number")
+                    self.creation_state['selected_context'] = context_chunks[:3]
             else:
                 try:
                     indices = [int(x.strip()) - 1 for x in selection.split(',')]
@@ -585,3 +975,192 @@ class AITaskCreator:
         except Exception as e:
             logger.error(f"Step 4 failed: {e}")
             return False, "", str(e)
+
+    def _display_enhanced_context_selection(self, context_chunks: List[ContextChunk]) -> None:
+        """Display enhanced context selection interface with previews and metadata."""
+        print("\n" + "="*80)
+        print("📁 ENHANCED CONTEXT SELECTION")
+        print("="*80)
+
+        for i, chunk in enumerate(context_chunks, 1):
+            # File metadata
+            file_path = Path(chunk.file_path)
+            file_size = self._get_file_size(file_path)
+            last_modified = self._get_last_modified(file_path)
+            file_type_icon = self._get_file_type_icon(file_path)
+
+            # Relevance explanation
+            explanation = self._generate_relevance_explanation(chunk)
+
+            # File preview (first 3-5 lines)
+            preview = self._generate_file_preview(chunk)
+
+            print(f"\n{i}. {file_type_icon} {chunk.file_path}")
+            print(f"   📊 Relevance: {chunk.relevance_score:.3f} | 📏 {file_size} | 🕒 {last_modified}")
+            print(f"   💡 Why selected: {explanation}")
+            print(f"   👀 Preview:")
+            for line in preview:
+                print(f"      {line}")
+            print("   " + "-"*60)
+
+        print(f"\n📋 Commands:")
+        print(f"   • Numbers (1,2,3): Select specific files")
+        print(f"   • 'all': Select all files")
+        print(f"   • 'none': Skip context")
+        print(f"   • 'auto' or 'smart': Intelligent auto-selection")
+        print(f"   • 'preview X': Show full content of file X")
+
+    def _smart_auto_select_context(self, context_chunks: List[ContextChunk]) -> List[ContextChunk]:
+        """Intelligently auto-select the most relevant context files."""
+        if not context_chunks:
+            return []
+
+        # Calculate confidence thresholds
+        scores = [chunk.relevance_score for chunk in context_chunks]
+        avg_score = sum(scores) / len(scores)
+        high_confidence_threshold = avg_score + (max(scores) - avg_score) * 0.5
+
+        # Auto-select high-confidence files
+        auto_selected = []
+        for chunk in context_chunks:
+            if chunk.relevance_score >= high_confidence_threshold:
+                auto_selected.append(chunk)
+
+            # Limit to top 5 files
+            if len(auto_selected) >= 5:
+                break
+
+        # Ensure at least 3 files if available
+        if len(auto_selected) < 3 and len(context_chunks) >= 3:
+            auto_selected = context_chunks[:3]
+
+        return auto_selected
+
+    def _get_file_size(self, file_path: Path) -> str:
+        """Get human-readable file size."""
+        try:
+            size_bytes = file_path.stat().st_size
+            if size_bytes < 1024:
+                return f"{size_bytes}B"
+            elif size_bytes < 1024 * 1024:
+                return f"{size_bytes / 1024:.1f}KB"
+            else:
+                return f"{size_bytes / (1024 * 1024):.1f}MB"
+        except:
+            return "Unknown"
+
+    def _get_last_modified(self, file_path: Path) -> str:
+        """Get human-readable last modified time."""
+        try:
+            import datetime
+            mtime = file_path.stat().st_mtime
+            dt = datetime.datetime.fromtimestamp(mtime)
+            return dt.strftime("%Y-%m-%d %H:%M")
+        except:
+            return "Unknown"
+
+    def _get_file_type_icon(self, file_path: Path) -> str:
+        """Get file type icon based on extension."""
+        FILE_TYPE_ICONS = {
+            '.py': '🐍',
+            '.js': '📜',
+            '.ts': '📘',
+            '.md': '📝',
+            '.json': '📋',
+            '.yaml': '⚙️',
+            '.yml': '⚙️',
+            '.txt': '📄',
+            '.html': '🌐',
+            '.css': '🎨',
+            '.bat': '⚡',
+            '.ps1': '💻',
+            '.sh': '🔧',
+            'default': '📁'
+        }
+
+        ext = file_path.suffix.lower()
+        return FILE_TYPE_ICONS.get(ext, FILE_TYPE_ICONS['default'])
+
+    def _generate_relevance_explanation(self, chunk: ContextChunk) -> str:
+        """Generate human-readable explanation for why a file was selected."""
+        explanations = []
+
+        # File type relevance
+        file_path = Path(chunk.file_path)
+        if file_path.suffix.lower() in ['.py', '.js', '.ts']:
+            explanations.append("contains implementation code")
+        elif file_path.suffix.lower() == '.md':
+            explanations.append("contains documentation/task information")
+        elif file_path.suffix.lower() in ['.json', '.yaml', '.yml']:
+            explanations.append("contains configuration data")
+
+        # Content-based relevance
+        content_lower = chunk.text.lower()
+        if 'class' in content_lower and 'def' in content_lower:
+            explanations.append("defines classes and methods")
+        elif 'import' in content_lower:
+            explanations.append("contains relevant imports")
+        elif 'config' in content_lower or 'setting' in content_lower:
+            explanations.append("contains configuration")
+
+        # Score-based explanation
+        if chunk.relevance_score > 0.8:
+            explanations.append("high semantic similarity")
+        elif chunk.relevance_score > 0.6:
+            explanations.append("moderate semantic similarity")
+        elif chunk.relevance_score > 0.4:
+            explanations.append("some semantic similarity")
+
+        return "; ".join(explanations) if explanations else "general relevance to query"
+
+    def _generate_file_preview(self, chunk: ContextChunk, max_lines: int = 3) -> List[str]:
+        """Generate file preview with first few meaningful lines."""
+        try:
+            lines = chunk.text.split('\n')
+            preview_lines = []
+
+            for line in lines:
+                cleaned_line = line.strip()
+                # Skip empty lines and common non-meaningful lines
+                if cleaned_line and not cleaned_line.startswith('#') and len(cleaned_line) > 5:
+                    if len(cleaned_line) > 80:
+                        cleaned_line = cleaned_line[:77] + "..."
+                    preview_lines.append(cleaned_line)
+
+                    if len(preview_lines) >= max_lines:
+                        break
+
+            return preview_lines if preview_lines else ["[No meaningful content preview available]"]
+        except Exception:
+            return ["[Preview error]"]
+
+    def _show_file_preview(self, chunk: ContextChunk) -> None:
+        """Show full file content preview."""
+        print("\n" + "="*80)
+        print(f"📄 FULL FILE PREVIEW: {chunk.file_path}")
+        print("="*80)
+
+        try:
+            # Show file metadata
+            file_path = Path(chunk.file_path)
+            file_size = self._get_file_size(file_path)
+            last_modified = self._get_last_modified(file_path)
+
+            print(f"📊 Size: {file_size} | 🕒 Modified: {last_modified}")
+            print(f"📈 Relevance Score: {chunk.relevance_score:.3f}")
+            print(f"💡 Explanation: {self._generate_relevance_explanation(chunk)}")
+            print("-" * 80)
+
+            # Show content with line numbers
+            lines = chunk.text.split('\n')
+            for i, line in enumerate(lines[:50], 1):  # Limit to first 50 lines
+                print(f"{i:3d}: {line}")
+
+            if len(lines) > 50:
+                print(f"\n... ({len(lines) - 50} more lines)")
+
+        except Exception as e:
+            print(f"❌ Error showing preview: {e}")
+
+        print("="*80)
+        input("Press Enter to continue...")

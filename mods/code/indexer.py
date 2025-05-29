@@ -29,6 +29,10 @@ from .directory import (
     HASH_ALGORITHM,
     HASH_BUFFER_SIZE,
 )
+from .analyzers import (
+    BaseAnalyzer, PythonAnalyzer, JavaScriptAnalyzer, TypeScriptAnalyzer,
+    PHPAnalyzer, HTMLAnalyzer, CSSAnalyzer, SQLAnalyzer, MarkdownAnalyzer
+)
 from .embed import CodeEmbedding, SimilaritySearch
 
 logger = logging.getLogger("TaskHeroAI.Indexer")
@@ -84,6 +88,57 @@ class FileSignature:
 
 
 @dataclass
+class EnhancedFileInfo:
+    """Enhanced file information for metadata."""
+    language: str = "unknown"
+    file_type: str = "unknown"
+    encoding: str = "utf-8"
+    complexity_score: float = 0.0
+    lines_of_code: int = 0
+
+
+@dataclass
+class CodeAnalysis:
+    """Code analysis results."""
+    functions: List[Dict[str, Any]] = None
+    classes: List[Dict[str, Any]] = None
+    imports: List[Dict[str, Any]] = None
+    exports: List[Dict[str, Any]] = None
+    patterns: List[str] = None
+
+    def __post_init__(self):
+        if self.functions is None:
+            self.functions = []
+        if self.classes is None:
+            self.classes = []
+        if self.imports is None:
+            self.imports = []
+        if self.exports is None:
+            self.exports = []
+        if self.patterns is None:
+            self.patterns = []
+
+
+@dataclass
+class FileRelationships:
+    """File relationship information."""
+    dependencies: List[str] = None
+    dependents: List[str] = None
+    related_files: List[Dict[str, Any]] = None
+    strength_scores: Dict[str, float] = None
+
+    def __post_init__(self):
+        if self.dependencies is None:
+            self.dependencies = []
+        if self.dependents is None:
+            self.dependents = []
+        if self.related_files is None:
+            self.related_files = []
+        if self.strength_scores is None:
+            self.strength_scores = {}
+
+
+@dataclass
 class FileMetadata:
     """Represents metadata and analysis results for a single file."""
 
@@ -107,6 +162,16 @@ class FileMetadata:
     """A list of code chunks extracted from the file."""
     embeddings: List[List[float]]
     """A list of embeddings for each code chunk."""
+
+    # Enhanced metadata fields
+    enhanced_info: Optional[EnhancedFileInfo] = None
+    """Enhanced file information including language and type detection."""
+    code_analysis: Optional[CodeAnalysis] = None
+    """Detailed code analysis results."""
+    relationships: Optional[FileRelationships] = None
+    """File relationship and dependency information."""
+    metadata_version: int = 2
+    """Version of the metadata format for migration purposes."""
 
 
 class FileIndexer:
@@ -337,6 +402,44 @@ class FileIndexer:
             direct_logger.log("Initialized empty metadata_cache")
 
             self.similarity_search: Optional[SimilaritySearch] = None
+
+            # Enhanced metadata functionality
+            self.enable_enhanced_metadata: bool = True
+            self.analyzers: List[BaseAnalyzer] = []
+            if self.enable_enhanced_metadata:
+                self.analyzers = [
+                    PythonAnalyzer(),
+                    JavaScriptAnalyzer(),
+                    TypeScriptAnalyzer(),
+                    PHPAnalyzer(),
+                    HTMLAnalyzer(),
+                    CSSAnalyzer(),
+                    SQLAnalyzer(),
+                    MarkdownAnalyzer()
+                ]
+                direct_logger.log("Enhanced metadata analyzers initialized")
+
+            # Language detection mapping
+            self.language_map = {
+                # Python
+                '.py': 'python', '.pyw': 'python',
+                # JavaScript/TypeScript
+                '.js': 'javascript', '.jsx': 'javascript', '.mjs': 'javascript',
+                '.ts': 'typescript', '.tsx': 'typescript',
+                # PHP
+                '.php': 'php', '.phtml': 'php', '.php3': 'php', '.php4': 'php', '.php5': 'php', '.phps': 'php',
+                # HTML
+                '.html': 'html', '.htm': 'html', '.xhtml': 'html', '.shtml': 'html',
+                # CSS and preprocessors
+                '.css': 'css', '.scss': 'scss', '.sass': 'sass', '.less': 'less', '.styl': 'stylus', '.stylus': 'stylus',
+                # SQL
+                '.sql': 'sql', '.ddl': 'sql', '.dml': 'sql', '.pgsql': 'postgresql', '.mysql': 'mysql', '.sqlite': 'sqlite',
+                # Markdown
+                '.md': 'markdown', '.markdown': 'markdown', '.mdown': 'markdown', '.mkd': 'markdown',
+                # Other common formats
+                '.json': 'json', '.yaml': 'yaml', '.yml': 'yaml', '.xml': 'xml',
+                '.sh': 'bash', '.bash': 'bash', '.dockerfile': 'dockerfile', '.makefile': 'makefile'
+            }
 
             direct_logger.log("Calling _create_index_structure()")
             self._create_index_structure()
@@ -614,6 +717,219 @@ class FileIndexer:
 
         return signatures
 
+    def _analyze_enhanced_metadata(self, file_path: str, content: str) -> tuple[EnhancedFileInfo, CodeAnalysis, FileRelationships]:
+        """Analyze file content to extract enhanced metadata.
+
+        Args:
+            file_path: Path to the file being analyzed
+            content: File content as string
+
+        Returns:
+            Tuple of (EnhancedFileInfo, CodeAnalysis, FileRelationships)
+        """
+        file_path_obj = Path(file_path)
+
+        # Initialize enhanced metadata objects
+        enhanced_info = EnhancedFileInfo()
+        code_analysis = CodeAnalysis()
+        relationships = FileRelationships()
+
+        try:
+            # Detect language and file type
+            enhanced_info.language = self._detect_language(file_path_obj, content)
+            enhanced_info.file_type = self._determine_file_type(file_path_obj.suffix)
+            enhanced_info.encoding = 'utf-8'  # Default, could be enhanced
+            enhanced_info.lines_of_code = len([line for line in content.split('\n') if line.strip()])
+
+            # Find appropriate analyzer
+            analyzer = self._get_analyzer_for_file(file_path_obj)
+            if analyzer:
+                analysis_result = analyzer.analyze_content(content, file_path_obj)
+
+                # Populate code analysis
+                code_analysis.functions = analysis_result.get('functions', [])
+                code_analysis.classes = analysis_result.get('classes', [])
+                code_analysis.imports = analysis_result.get('imports', [])
+                code_analysis.exports = analysis_result.get('exports', [])
+                code_analysis.patterns = analysis_result.get('patterns', [])
+
+                # Calculate complexity
+                enhanced_info.complexity_score = analyzer.calculate_complexity(content)
+
+                # Extract relationships from imports
+                relationships.dependencies = self._extract_dependencies_from_imports(
+                    code_analysis.imports, file_path_obj
+                )
+
+            logger.debug(f"Enhanced metadata analysis completed for {file_path}")
+
+        except Exception as e:
+            logger.error(f"Error in enhanced metadata analysis for {file_path}: {e}")
+
+        return enhanced_info, code_analysis, relationships
+
+    def _detect_language(self, file_path: Path, content: str) -> str:
+        """Detect programming language from file extension and content."""
+        extension = file_path.suffix.lower()
+
+        # Check extension mapping first
+        if extension in self.language_map:
+            base_language = self.language_map[extension]
+
+            # For JavaScript files, check if it's actually TypeScript
+            if base_language == 'javascript' and extension in {'.js', '.jsx'}:
+                # Check for TypeScript-specific syntax
+                ts_indicators = [
+                    r':\s*\w+\s*[=;]',  # Type annotations
+                    r'interface\s+\w+',  # Interface declarations
+                    r'type\s+\w+\s*=',   # Type aliases
+                    r'<\w+>',            # Generic types
+                ]
+
+                for pattern in ts_indicators:
+                    if re.search(pattern, content):
+                        return 'typescript'
+
+            return base_language
+
+        # Fallback to generic detection
+        return 'unknown'
+
+    def _determine_file_type(self, extension: str) -> str:
+        """Determine file type category from extension."""
+        extension = extension.lower()
+
+        code_extensions = {'.py', '.js', '.jsx', '.ts', '.tsx', '.java', '.cpp', '.c', '.h', '.cs', '.php', '.rb', '.go', '.rs'}
+        config_extensions = {'.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf'}
+        doc_extensions = {'.md', '.markdown', '.rst', '.txt'}
+        web_extensions = {'.html', '.htm', '.css', '.scss', '.sass'}
+
+        if extension in code_extensions:
+            return 'code'
+        elif extension in config_extensions:
+            return 'config'
+        elif extension in doc_extensions:
+            return 'documentation'
+        elif extension in web_extensions:
+            return 'web'
+        else:
+            return 'unknown'
+
+    def _get_analyzer_for_file(self, file_path: Path) -> Optional[BaseAnalyzer]:
+        """Get the appropriate analyzer for a file."""
+        for analyzer in self.analyzers:
+            if analyzer.can_analyze(file_path):
+                return analyzer
+        return None
+
+    def _extract_dependencies_from_imports(self, imports: List[Dict[str, Any]], file_path: Path) -> List[str]:
+        """Extract file dependencies from import statements."""
+        dependencies = []
+        project_root = Path(self.root_path)
+
+        for import_info in imports:
+            module = import_info.get('module', '')
+            if not module:
+                continue
+
+            # Try to resolve relative imports to actual file paths
+            if module.startswith('.'):
+                # Relative import
+                try:
+                    current_dir = file_path.parent
+                    resolved_path = self._resolve_relative_import(module, current_dir, project_root)
+                    if resolved_path:
+                        dependencies.append(str(resolved_path))
+                except Exception:
+                    pass
+            else:
+                # Absolute import - try to find in project
+                try:
+                    resolved_path = self._resolve_absolute_import(module, project_root)
+                    if resolved_path:
+                        dependencies.append(str(resolved_path))
+                except Exception:
+                    pass
+
+        return dependencies
+
+    def _resolve_relative_import(self, module: str, current_dir: Path, project_root: Path) -> Optional[str]:
+        """Resolve relative import to actual file path."""
+        # Simple resolution for Python-style relative imports
+        parts = module.split('.')
+        level = 0
+
+        # Count leading dots
+        for part in parts:
+            if part == '':
+                level += 1
+            else:
+                break
+
+        # Go up directories based on level
+        target_dir = current_dir
+        for _ in range(level):
+            target_dir = target_dir.parent
+            if not target_dir.is_relative_to(project_root):
+                return None
+
+        # Add remaining path parts
+        remaining_parts = [p for p in parts if p]
+        if remaining_parts:
+            target_path = target_dir / '/'.join(remaining_parts)
+
+            # Try different extensions
+            for ext in ['.py', '.js', '.ts', '.jsx', '.tsx']:
+                candidate = target_path.with_suffix(ext)
+                if candidate.exists():
+                    return str(candidate.relative_to(project_root))
+
+        return None
+
+    def _resolve_absolute_import(self, module: str, project_root: Path) -> Optional[str]:
+        """Resolve absolute import to actual file path within project."""
+        # Convert module path to file path
+        parts = module.split('.')
+
+        # Try to find the file in the project
+        for ext in ['.py', '.js', '.ts', '.jsx', '.tsx']:
+            candidate = project_root / '/'.join(parts)
+            candidate = candidate.with_suffix(ext)
+
+            if candidate.exists():
+                return str(candidate.relative_to(project_root))
+
+        return None
+
+    def _serialize_enhanced_info(self, enhanced_info: EnhancedFileInfo) -> Dict[str, Any]:
+        """Serialize EnhancedFileInfo to dictionary."""
+        return {
+            'language': enhanced_info.language,
+            'file_type': enhanced_info.file_type,
+            'encoding': enhanced_info.encoding,
+            'complexity_score': enhanced_info.complexity_score,
+            'lines_of_code': enhanced_info.lines_of_code
+        }
+
+    def _serialize_code_analysis(self, code_analysis: CodeAnalysis) -> Dict[str, Any]:
+        """Serialize CodeAnalysis to dictionary."""
+        return {
+            'functions': code_analysis.functions,
+            'classes': code_analysis.classes,
+            'imports': code_analysis.imports,
+            'exports': code_analysis.exports,
+            'patterns': code_analysis.patterns
+        }
+
+    def _serialize_relationships(self, relationships: FileRelationships) -> Dict[str, Any]:
+        """Serialize FileRelationships to dictionary."""
+        return {
+            'dependencies': relationships.dependencies,
+            'dependents': relationships.dependents,
+            'related_files': relationships.related_files,
+            'strength_scores': relationships.strength_scores
+        }
+
     def _get_function_signature(self, node: ast.FunctionDef) -> str:
         """Get a string representation of a function's signature.
 
@@ -816,16 +1132,37 @@ END OF FILE:
                 embedding_path = os.path.join(embeddings_dir, f"{safe_path}.json")
                 logger.debug(f"CHECKPOINT: [SAVE.28] Saving embeddings to: {embedding_path}")
 
+                # Enhanced embedding format with Graphiti-compatible metadata
+                embedding_data = {
+                    "path": metadata.path,
+                    "chunks": metadata.chunks,
+                    "embeddings": metadata.embeddings,
+                    "metadata": {
+                        "version": metadata.metadata_version,
+                        "timestamp": time.time(),
+                        "file_path": metadata.path,
+                        "file_name": metadata.name,
+                        "file_extension": metadata.extension,
+                        "file_size": metadata.size,
+                        "file_hash": metadata.hash,
+                        "modified_time": metadata.modified_time,
+                        "description": metadata.description,
+                        "chunks_count": len(metadata.chunks),
+                        "embeddings_count": len(metadata.embeddings),
+                        "signatures_count": len(metadata.signatures),
+                        "file_type": self._determine_file_type(metadata.extension),
+                        "language": self._determine_language(metadata.extension),
+                        "graphiti_compatible": True,
+                        # Enhanced metadata fields
+                        "enhanced_metadata": metadata.metadata_version >= 2,
+                        "enhanced_info": self._serialize_enhanced_info(metadata.enhanced_info) if metadata.enhanced_info else None,
+                        "code_analysis": self._serialize_code_analysis(metadata.code_analysis) if metadata.code_analysis else None,
+                        "relationships": self._serialize_relationships(metadata.relationships) if metadata.relationships else None
+                    }
+                }
+
                 with open(embedding_path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        {
-                            "path": metadata.path,
-                            "chunks": metadata.chunks,
-                            "embeddings": metadata.embeddings,
-                        },
-                        f,
-                        indent=2,
-                    )
+                    json.dump(embedding_data, f, indent=2)
                 logger.debug(f"CHECKPOINT: [SAVE.29] Saved embeddings to {embedding_path}")
 
                 if os.path.exists(embedding_path):
@@ -1211,6 +1548,23 @@ END OF FILE:
                 logger.error(f"CHECKPOINT: [FILE.24] Failed to process file content for {entry.path}: {str(e)}", exc_info=True)
                 return None
 
+            # Enhanced metadata analysis
+            enhanced_info = None
+            code_analysis = None
+            relationships = None
+
+            if self.enable_enhanced_metadata:
+                try:
+                    logger.debug(f"CHECKPOINT: [FILE.24.5] Performing enhanced metadata analysis for {entry.path}")
+                    with open(entry.path, "r", encoding="utf-8", errors="replace") as f:
+                        content = f.read()
+
+                    enhanced_info, code_analysis, relationships = self._analyze_enhanced_metadata(entry.path, content)
+                    logger.debug(f"CHECKPOINT: [FILE.24.6] Enhanced metadata analysis completed for {entry.path}")
+                except Exception as e:
+                    logger.warning(f"CHECKPOINT: [FILE.24.7] Enhanced metadata analysis failed for {entry.path}: {e}")
+                    # Continue with basic metadata
+
             try:
                 logger.debug(f"CHECKPOINT: [FILE.25] Creating FileMetadata object for {entry.path}")
                 metadata: FileMetadata = FileMetadata(
@@ -1224,6 +1578,10 @@ END OF FILE:
                     signatures=signatures,
                     chunks=chunks,
                     embeddings=embeddings.tolist(),
+                    enhanced_info=enhanced_info,
+                    code_analysis=code_analysis,
+                    relationships=relationships,
+                    metadata_version=2
                 )
                 logger.debug(f"CHECKPOINT: [FILE.26] FileMetadata object created successfully")
 
@@ -1299,6 +1657,46 @@ END OF FILE:
                 except Exception:
                     pass
 
+            # Load enhanced metadata if available
+            enhanced_info = None
+            code_analysis = None
+            relationships = None
+            metadata_version = 1
+
+            metadata_info = embedding_data.get("metadata", {})
+            if metadata_info.get("enhanced_metadata", False):
+                metadata_version = metadata_info.get("version", 2)
+
+                # Deserialize enhanced metadata
+                if metadata_info.get("enhanced_info"):
+                    enhanced_info_data = metadata_info["enhanced_info"]
+                    enhanced_info = EnhancedFileInfo(
+                        language=enhanced_info_data.get("language", "unknown"),
+                        file_type=enhanced_info_data.get("file_type", "unknown"),
+                        encoding=enhanced_info_data.get("encoding", "utf-8"),
+                        complexity_score=enhanced_info_data.get("complexity_score", 0.0),
+                        lines_of_code=enhanced_info_data.get("lines_of_code", 0)
+                    )
+
+                if metadata_info.get("code_analysis"):
+                    code_analysis_data = metadata_info["code_analysis"]
+                    code_analysis = CodeAnalysis(
+                        functions=code_analysis_data.get("functions", []),
+                        classes=code_analysis_data.get("classes", []),
+                        imports=code_analysis_data.get("imports", []),
+                        exports=code_analysis_data.get("exports", []),
+                        patterns=code_analysis_data.get("patterns", [])
+                    )
+
+                if metadata_info.get("relationships"):
+                    relationships_data = metadata_info["relationships"]
+                    relationships = FileRelationships(
+                        dependencies=relationships_data.get("dependencies", []),
+                        dependents=relationships_data.get("dependents", []),
+                        related_files=relationships_data.get("related_files", []),
+                        strength_scores=relationships_data.get("strength_scores", {})
+                    )
+
             return FileMetadata(
                 name=data["name"],
                 path=data["path"],
@@ -1312,12 +1710,71 @@ END OF FILE:
                 ],
                 chunks=embedding_data.get("chunks", []),
                 embeddings=embedding_data.get("embeddings", []),
+                enhanced_info=enhanced_info,
+                code_analysis=code_analysis,
+                relationships=relationships,
+                metadata_version=metadata_version
             )
         except FileNotFoundError:
             return None
         except Exception as e:
             logger.error(f"Error loading metadata for {file_path}: {e}")
             return None
+
+    def _determine_file_type(self, extension: str) -> str:
+        """Determine the file type category based on extension."""
+        extension = extension.lower()
+
+        code_extensions = {'.py', '.js', '.ts', '.java', '.cpp', '.c', '.h', '.cs', '.php', '.rb', '.go', '.rs', '.swift', '.kt'}
+        config_extensions = {'.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf'}
+        doc_extensions = {'.md', '.txt', '.rst', '.adoc'}
+        web_extensions = {'.html', '.htm', '.css', '.scss', '.sass', '.less'}
+        data_extensions = {'.csv', '.xml', '.sql'}
+
+        if extension in code_extensions:
+            return 'code'
+        elif extension in config_extensions:
+            return 'config'
+        elif extension in doc_extensions:
+            return 'documentation'
+        elif extension in web_extensions:
+            return 'web'
+        elif extension in data_extensions:
+            return 'data'
+        else:
+            return 'other'
+
+    def _determine_language(self, extension: str) -> str:
+        """Determine the programming language based on extension."""
+        extension = extension.lower()
+
+        language_map = {
+            '.py': 'python',
+            '.js': 'javascript',
+            '.ts': 'typescript',
+            '.java': 'java',
+            '.cpp': 'cpp',
+            '.c': 'c',
+            '.h': 'c',
+            '.cs': 'csharp',
+            '.php': 'php',
+            '.rb': 'ruby',
+            '.go': 'go',
+            '.rs': 'rust',
+            '.swift': 'swift',
+            '.kt': 'kotlin',
+            '.html': 'html',
+            '.css': 'css',
+            '.scss': 'scss',
+            '.json': 'json',
+            '.yaml': 'yaml',
+            '.yml': 'yaml',
+            '.md': 'markdown',
+            '.sql': 'sql',
+            '.xml': 'xml'
+        }
+
+        return language_map.get(extension, 'unknown')
 
     def force_reindex_all(self, cancel_check_callback: Optional[Callable[[], bool]] = None) -> List[FileMetadata]:
         """Force reindex all files in the directory, regardless of their current state.

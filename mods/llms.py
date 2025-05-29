@@ -767,16 +767,8 @@ def generate_embed(text: Union[str, List[str]]) -> List[List[float]]:
             if is_small_batch:
                 logger.debug("Using Ollama provider for embeddings")
             try:
-                if not hasattr(generate_embed, '_model_pulled'):
-                    try:
-                        logger.debug(f"Pulling Ollama model {EMBEDDING_MODEL}")
-                        ollama.pull(EMBEDDING_MODEL)
-                        logger.debug(f"Successfully pulled Ollama model {EMBEDDING_MODEL}")
-                        generate_embed._model_pulled = True
-                    except ollama.ResponseError as pull_error:
-                        logger.error(f"Error pulling Ollama model: {str(pull_error)}")
-                        if pull_error.status_code != 404:
-                            raise pull_error
+                # Skip model checking - just try to use the model directly
+                # If it doesn't exist, Ollama will handle the error
 
                 if is_small_batch:
                     logger.debug("Calling Ollama API for embeddings")

@@ -64,7 +64,7 @@ class ProviderFactory:
             },
             ProviderType.OLLAMA.value: {
                 'host': get_env('OLLAMA_HOST', 'http://localhost:11434'),
-                'model': get_env('OLLAMA_MODEL', 'llama2'),
+                'model': get_env('AI_TASK_MODEL', get_env('OLLAMA_MODEL', 'llama2')),
                 'max_tokens': int(get_env('OLLAMA_MAX_TOKENS', '4000')),
                 'temperature': float(get_env('OLLAMA_TEMPERATURE', '0.7')),
                 'top_p': float(get_env('OLLAMA_TOP_P', '0.95')),

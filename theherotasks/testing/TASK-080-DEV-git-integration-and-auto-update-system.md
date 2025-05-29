@@ -1,235 +1,157 @@
-# TASK-080-DEV: Git Integration and Auto-Update System
+# Task: TASK-080 - Git Integration and Auto-Update System
 
-## Task Information
-- **Task ID**: TASK-080-DEV
-- **Title**: Git Integration and Auto-Update System
-- **Status**: completed
-- **Priority**: medium
-- **Created Date**: 2025-01-27
-- **Due Date**: 2025-02-03
-- **Assignee**: Developer
-- **Task Type**: Development
-- **Tags**: [git, integration, auto-update, version-control]
+## Metadata
+- **Created:** 2025-05-26
+- **Due:** 2025-06-15
+- **Priority:** High
+- **Status:** Todo
+- **Assigned to:** Developer
+- **Task Type:** Development
+- **Sequence:** 80
+- **Tags:** git, integration, auto-update, version-control, notifications, setup, repository
 
 ## Overview
-Implement a Git integration and auto-update system for TaskHero AI that allows users to:
-- Check for updates from the master branch of https://github.com/Interstellar-code/taskheroai
-- Receive notifications when new versions are available
-- Update the application while preserving user files and settings
-- Manage Git integration settings through the application interface
+Implement comprehensive Git integration functionality for TaskHero AI that allows users to directly clone the repository, receive update notifications, and seamlessly update their local installation when new versions are available.
 
-## Requirements
+## Implementation Status
+| Step | Status | Notes |
+|------|--------|-------|
+| Git repository cloning in setup | Pending | Integrate with setup scripts |
+| Version checking on app start | Pending | Check once per app launch |
+| Main menu notifications | Pending | Display update availability |
+| Settings menu update option | Pending | Manual update trigger |
+| Selective file update system | Pending | Update code files only |
 
-### Core Functionality
-1. **Version Checking**
-   - Check current local version against remote master branch
-   - Single version check on application startup (no continuous polling)
-   - Display update notifications in home menu when available
-   - Cache version check results to avoid excessive API calls
+## Detailed Description
+Develop a simplified Git integration system that enhances the TaskHero AI user experience by providing:
 
-2. **Update Notifications**
-   - Show update available indicator in main menu
-   - Display version information (current vs. available)
-   - Provide clear call-to-action for updating
+### Core Features:
+1. **Repository Cloning Integration**
+   - Modify setup scripts (setup_windows.ps1, setup_windows.bat, setup_linux.sh) to clone repository directly
+   - Use HTTPS cloning (no authentication needed for public repo)
+   - Automatic dependency installation after cloning
+   - Integration with existing setup workflow
 
-3. **Git Update Process**
-   - Pull latest changes from master branch
-   - Preserve user files during updates:
-     - Task files (theherotasks directory)
-     - Settings files (app_settings.json, .env)
-     - User-created content
-   - Handle merge conflicts gracefully
-   - Provide rollback option if update fails
+2. **Version Update Detection**
+   - Check against GitHub repository on app startup only (https://github.com/Interstellar-code/taskheroai)
+   - Compare local version with latest commit/release
+   - Simple once-per-launch check (no periodic scheduling)
+   - Graceful handling when network unavailable
 
-4. **Settings Integration**
-   - Add Git settings to existing app_settings.json (no separate git_settings.json)
-   - Settings include:
-     - Auto-check enabled/disabled
-     - Last check timestamp
-     - Update notifications enabled/disabled
-     - Repository URL (default: https://github.com/Interstellar-code/taskheroai)
+3. **Main Menu Notifications**
+   - Display update availability status in main menu header
+   - Simple notification: "New version available" or "Up to date"
+   - Non-intrusive notification system
+   - Quick access to update functionality
 
-### User Interface Integration
-1. **Home Menu Integration**
-   - Add update notification banner when updates available
-   - Show current version information
-   - Quick access to update process
+4. **Settings Menu Integration**
+   - Add "Update TaskHero AI" option in settings menu
+   - View current version and latest available version
+   - Manual update trigger option
+   - Simple enable/disable update notifications
 
-2. **Settings Menu Integration**
-   - Add "Git & Updates" option to AI Settings menu (option 15)
-   - Configure auto-update preferences
-   - Manual version check option
-   - View update history
+5. **Selective Update Mechanism**
+   - Update only code-related files (.py, .md documentation, requirements.txt)
+   - Preserve user files: tasks folder, app_settings.json, .env files
+   - No backup/rollback needed (user data preserved)
+   - Progress indication during update process
 
-### Technical Implementation
-1. **Git Integration Manager**
-   - Handle Git operations (fetch, pull, status)
-   - Version comparison logic
-   - File preservation during updates
-   - Error handling and recovery
+## Acceptance Criteria
+- [ ] Setup scripts clone Git repository directly and continue with installation
+- [ ] Version checking works on app startup (once per launch)
+- [ ] Main menu displays simple update notifications
+- [ ] Settings menu includes "Update TaskHero AI" option
+- [ ] Update process preserves user files (tasks, settings, .env)
+- [ ] Selective update only touches code files (.py, .md, requirements.txt)
+- [ ] Network connectivity issues handled gracefully
+- [ ] Update process includes progress indicators
+- [ ] Users can download and run setup scripts directly from GitHub
 
-2. **Version Management**
-   - Semantic version comparison
-   - Git commit hash tracking
-   - Update history logging
+## Implementation Steps
 
-3. **Windows PowerShell Compatibility**
-   - Ensure all Git commands work in Windows PowerShell environment
-   - Handle Windows-specific path issues
-   - Proper error handling for Windows Git installations
+### Phase 1: Setup Script Integration (Days 1-2)
+1. Modify `setup_windows.ps1` to clone repository first, then continue setup
+2. Update `setup_windows.bat` with Git cloning integration
+3. Enhance `setup_linux.sh` for repository cloning
+4. Add Git availability checks (install if missing)
+5. Test setup scripts with direct repository cloning
 
-## Simplified Approach (Based on Previous Discussions)
-- **Single version check on startup** (no continuous polling)
-- **No rollback functionality** (keep it simple)
-- **Selective updates** that preserve user files
-- **Integration with existing app_settings.json** (no new config files)
+### Phase 2: Version Management System (Days 3-4)
+1. Create `mods/git/version_manager.py` module
+2. Implement simple GitHub API check for latest commit/release
+3. Add local version tracking in app_settings.json
+4. Check version once on app startup only
+5. Handle offline mode gracefully
 
-## Implementation Plan
+### Phase 3: UI Integration (Days 5-6)
+1. Modify main menu to display simple update notifications
+2. Add "Update TaskHero AI" option in settings menu
+3. Store update preferences in app_settings.json
+4. Add manual update trigger functionality
 
-### Phase 1: Core Git Integration
-1. Create GitManager class in `mods/git/git_manager.py`
-2. Implement version checking functionality
-3. Add Git settings to app_settings.json structure
-4. Create basic update mechanism
+### Phase 4: Selective Update Mechanism (Days 7-8)
+1. Create `mods/git/update_manager.py` module
+2. Implement selective file update (code files only)
+3. Preserve user files (tasks, app_settings.json, .env)
+4. Implement progress tracking and user feedback
 
-### Phase 2: UI Integration
-1. Modify MenuManager to show update notifications
-2. Add Git settings to AI Settings menu
-3. Create update confirmation dialogs
-4. Implement progress indicators
+### Phase 5: Testing and Documentation (Days 9-10)
+1. Test setup scripts with Git cloning on clean systems
+2. Test update scenarios (successful, failed, network issues)
+3. Verify user files are preserved during updates
+4. Update documentation for new Git integration workflow
 
-### Phase 3: File Preservation
-1. Implement user file detection and backup
-2. Create selective update process
-3. Add error handling and recovery
-4. Test with various update scenarios
+## Dependencies
+### Required By This Task
+- Git installation on user system (auto-install if missing)
+- Network connectivity for version checking
+- GitHub public repository access
 
-### Phase 4: Testing and Polish
-1. Test in Windows PowerShell environment
-2. Verify file preservation works correctly
-3. Test error scenarios and recovery
-4. Update documentation
+### Dependent On This Task
+- Enhanced user experience with simple updates
+- Easier installation process
+- Improved adoption through direct repository access
 
-## Files to Modify/Create
+## Testing Strategy
+- Test Git cloning on systems with and without Git installed
+- Verify version checking with various network conditions
+- Test selective update preserves user files correctly
+- Cross-platform testing (Windows, Linux, macOS)
+- Test setup scripts with direct repository cloning
+- Simulate network failures during update process
 
-### New Files
-- `mods/git/__init__.py`
-- `mods/git/git_manager.py`
-- `mods/git/version_manager.py`
-- `mods/ui/git_settings_ui.py`
+## Technical Considerations
 
-### Modified Files
-- `app_settings.json` (add git settings structure)
-- `mods/ui/menu_manager.py` (add update notifications)
-- `mods/ui/ai_settings_ui.py` (add Git settings option)
-- `mods/cli/cli_manager.py` (add Git settings handler)
-- `mods/core/app_controller.py` (integrate Git manager)
+### Security
+- Use HTTPS cloning only (no authentication needed)
+- Validate repository URL matches expected GitHub repo
+- Verify file integrity after updates
 
-## Settings Structure
-Add to app_settings.json:
-```json
-{
-  "git": {
-    "auto_check_enabled": true,
-    "last_check_timestamp": "2025-01-27T10:00:00",
-    "notifications_enabled": true,
-    "repository_url": "https://github.com/Interstellar-code/taskheroai",
-    "current_version": "1.0.0",
-    "last_update_timestamp": "2025-01-27T09:00:00",
-    "update_history": []
-  }
-}
-```
+### Performance
+- Efficient version checking without blocking UI
+- Minimal network usage for version checks
+- Fast selective file updates
 
-## Success Criteria
-- [x] Version checking works on application startup
-- [x] Update notifications appear in main menu when updates available
-- [x] Git settings accessible through AI Settings menu
-- [x] Update process preserves user files (tasks, settings, env)
-- [x] System works correctly in Windows PowerShell environment
-- [x] Error handling prevents data loss during updates
-- [x] Integration with existing app_settings.json works seamlessly
+### Compatibility
+- Support for different Git versions
+- Cross-platform path handling
+- Handle existing installations gracefully
 
-## Testing Checklist
-- [x] Test version checking with various Git states
-- [x] Verify update notifications display correctly
-- [x] Test update process with user files present
-- [x] Verify settings persistence across updates
-- [x] Test error scenarios (no Git, network issues, conflicts)
-- [x] Confirm Windows PowerShell compatibility
-- [x] Test with different repository states (ahead, behind, diverged)
+## Database Changes
+No database changes required - uses existing file-based configuration system.
 
-## Implementation Summary
+## Configuration Files
+- `app_settings.json`: Add Git integration settings (version tracking, update preferences)
 
-### ✅ Completed Features
+## Time Tracking
+- **Estimated hours:** 20
+- **Actual hours:** TBD
 
-1. **Core Git Integration**
-   - `mods/git/version_manager.py` - Version checking and comparison logic
-   - `mods/git/git_manager.py` - Git operations and update management
-   - `mods/git/__init__.py` - Module initialization
+## References
+- GitHub API Documentation: https://docs.github.com/en/rest
+- Git Documentation: https://git-scm.com/docs
+- TaskHero AI Repository: https://github.com/Interstellar-code/taskheroai
 
-2. **UI Integration**
-   - `mods/ui/git_settings_ui.py` - Complete Git settings interface
-   - Updated `mods/ui/menu_manager.py` - Update notifications in main menu
-   - Updated `mods/ui/ai_settings_ui.py` - Added Git & Updates option (option 15)
-
-3. **Settings Integration**
-   - Updated `mods/settings/settings_manager.py` - Added Git settings to default structure
-   - Git settings integrated into existing app_settings.json (no separate config file)
-
-4. **CLI Integration**
-   - Updated `mods/cli/cli_manager.py` - Git manager initialization and startup checks
-   - Automatic version checking on application startup
-   - Update status passed to UI for notifications
-
-5. **File Preservation System**
-   - Automatic backup of user files before updates
-   - Selective update process that preserves:
-     - Task files (theherotasks/)
-     - Settings (app_settings.json, .env)
-     - User-created content
-     - Logs and cache files
-
-6. **Error Handling & Recovery**
-   - Comprehensive pre-update checks
-   - Automatic backup restoration on update failure
-   - Graceful degradation when Git is not available
-   - Network timeout handling
-
-### 🧪 Testing Results
-
-- ✅ Version checking works correctly with GitHub API
-- ✅ Git Settings UI displays and functions properly
-- ✅ Update notifications integrate with main menu
-- ✅ File preservation patterns work correctly
-- ✅ Error scenarios handled gracefully
-- ✅ Windows PowerShell compatibility confirmed
-
-### 📋 Usage Instructions
-
-1. **Access Git Settings**: Main Menu → AI Settings (14) → Git & Updates (15)
-2. **Check for Updates**: Git Settings → Check for Updates Now (4)
-3. **Perform Update**: Git Settings → Download & Install Updates (5)
-4. **View Status**: Update notifications appear automatically in main menu
-
-### 🔧 Configuration
-
-Git settings are stored in `app_settings.json`:
-```json
-{
-  "git": {
-    "auto_check_enabled": true,
-    "notifications_enabled": true,
-    "repository_url": "https://github.com/Interstellar-code/taskheroai",
-    "last_check_timestamp": "2025-01-27T...",
-    "update_history": [...]
-  }
-}
-```
-
-## Notes
-- Focus on simplicity and reliability over advanced features
-- Preserve user data at all costs during updates
-- Provide clear feedback during all operations
-- Ensure graceful degradation when Git is not available
-- Follow existing TaskHero AI architectural patterns
+## Updates
+- **2025-05-26:** Task created with simplified Git integration and auto-update specifications
+- **2025-05-26:** Simplified features - removed periodic checks, rollback, authentication, separate config files
