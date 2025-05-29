@@ -359,9 +359,30 @@ class GitManager(BaseManager):
         except Exception as e:
             self.logger.debug(f"Error caching update result: {e}")
 
-    def perform_update(self, backup_user_files: bool = True) -> Dict[str, Any]:
+    def perform_update(self, use_stash: bool = True, backup_user_files: bool = None) -> Dict[str, Any]:
         """
-        Perform Git update while preserving user files.
+        Perform Git update using git stash or legacy backup method.
+
+        Args:
+            use_stash: Whether to use git stash (recommended: True)
+            backup_user_files: Legacy parameter for backward compatibility
+
+        Returns:
+            Update result
+        """
+        # Handle backward compatibility
+        if backup_user_files is not None and use_stash is True:
+            # If backup_user_files is explicitly set, use legacy method
+            use_stash = False
+
+        if use_stash:
+            return self._perform_stash_update()
+        else:
+            return self._perform_legacy_update(backup_user_files if backup_user_files is not None else True)
+
+    def _perform_legacy_update(self, backup_user_files: bool = True) -> Dict[str, Any]:
+        """
+        Legacy Git update method with backup/restore functionality.
 
         Args:
             backup_user_files: Whether to backup user files before update
@@ -434,6 +455,65 @@ class GitManager(BaseManager):
                 "success": False,
                 "error": str(e),
                 "stage": "unknown"
+            }
+
+    def _perform_stash_update(self) -> Dict[str, Any]:
+        """Perform Git update using stash, pull, and stash pop strategy."""
+        self.logger.info("Using git stash-based update")
+
+        # Get remote version info before update
+        remote_version = None
+        if self.version_manager:
+            remote_info = self.version_manager.get_remote_version(use_cache=False)
+            if remote_info.get("success"):
+                remote_version = remote_info.get("version")
+
+        # Use existing git update logic but with stash approach
+        git_result = self._perform_git_update()
+
+        if git_result["success"]:
+            # Update local version after successful update
+            if self.version_manager and remote_version:
+                version_updated = self.version_manager.update_local_version(remote_version)
+                if version_updated:
+                    self.logger.info(f"Local version updated to: {remote_version}")
+                else:
+                    self.logger.warning("Failed to update local version number")
+
+            # Add method and remote version info to result
+            git_result["method"] = "git_stash"
+            git_result["remote_version"] = remote_version
+
+        return git_result
+
+    def _restore_stash_by_name(self, stash_name: str) -> Dict[str, Any]:
+        """Restore a specific stash by name (simplified implementation)."""
+        try:
+            # Simple stash pop for now
+            stash_pop_result = subprocess.run(
+                ["git", "stash", "pop"],
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
+
+            if stash_pop_result.returncode == 0:
+                return {
+                    "success": True,
+                    "message": f"Successfully restored stash",
+                    "output": stash_pop_result.stdout
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Failed to restore stash: {stash_pop_result.stderr}",
+                    "output": stash_pop_result.stdout
+                }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Error restoring stash: {str(e)}"
             }
 
     def _categorize_uncommitted_files(self) -> Dict[str, List[str]]:

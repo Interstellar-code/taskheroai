@@ -336,9 +336,9 @@ class GitSettingsUI(BaseManager):
             print(f"Current: {Fore.YELLOW}{current.get('version', 'unknown')} ({current.get('commit_hash', 'unknown')[:8]}){Style.RESET_ALL}")
             print(f"New:     {Fore.GREEN}{remote.get('version', 'unknown')} ({remote.get('commit_hash', 'unknown')[:8]}){Style.RESET_ALL}")
 
-            # Warning about backup
+            # Warning about stash process
             print(f"\n{Fore.YELLOW}⚠️ Important:{Style.RESET_ALL}")
-            print(f"  • User files will be backed up automatically")
+            print(f"  • Uncommitted changes will be stashed automatically")
             print(f"  • Settings and tasks will be preserved")
             print(f"  • The application will restart after update")
 
@@ -353,17 +353,28 @@ class GitSettingsUI(BaseManager):
 
             # Perform update
             print(f"\n{Fore.CYAN}🚀 Starting update process...{Style.RESET_ALL}")
-            update_result = self.git_manager.perform_update(backup_user_files=True)
+            update_result = self.git_manager.perform_update(use_stash=True)
 
             if update_result.get("success"):
                 print(f"\n{Fore.GREEN}🎉 Update completed successfully!{Style.RESET_ALL}")
                 print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
 
                 git_result = update_result.get("git_result", {})
+                method = update_result.get("method", "unknown")
+                print(f"Method: {Fore.CYAN}{method}{Style.RESET_ALL}")
                 print(f"Updated to commit: {Fore.GREEN}{git_result.get('new_commit', 'unknown')[:8]}{Style.RESET_ALL}")
 
-                if update_result.get("backup_created"):
-                    print(f"Backup created: {Fore.CYAN}✓{Style.RESET_ALL}")
+                # Show stash information if used
+                if git_result.get("stash_used"):
+                    stash_name = git_result.get("stash_name", "unnamed")
+                    stash_restored = git_result.get("stash_restored", False)
+                    print(f"Stash used: {Fore.CYAN}{stash_name}{Style.RESET_ALL}")
+                    print(f"Stash restored: {Fore.GREEN if stash_restored else Fore.YELLOW}{'Yes' if stash_restored else 'Partial'}{Style.RESET_ALL}")
+
+                    if git_result.get("has_conflicts"):
+                        print(f"{Fore.YELLOW}⚠️ Some conflicts may need manual resolution{Style.RESET_ALL}")
+                else:
+                    print(f"No uncommitted changes - stash not needed")
 
                 print(f"\n{Fore.YELLOW}⚠️ Please restart TaskHero AI to use the updated version{Style.RESET_ALL}")
 
@@ -372,8 +383,12 @@ class GitSettingsUI(BaseManager):
                 print(f"Error: {Fore.YELLOW}{update_result.get('error', 'Unknown error')}{Style.RESET_ALL}")
                 print(f"Stage: {Fore.YELLOW}{update_result.get('stage', 'unknown')}{Style.RESET_ALL}")
 
-                if update_result.get("backup_restored"):
-                    print(f"Backup restored: {Fore.GREEN}✓{Style.RESET_ALL}")
+                # Show recovery information for stash-based updates
+                git_result = update_result.get("git_result", {})
+                if git_result.get("stash_used") and not git_result.get("stash_restored"):
+                    stash_name = git_result.get("stash_name", "unknown")
+                    print(f"{Fore.YELLOW}⚠️ Your changes are safely stashed as: {stash_name}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}You can restore them manually with: git stash pop{Style.RESET_ALL}")
 
         except Exception as e:
             print(f"\n{Fore.RED}Error: {e}{Style.RESET_ALL}")

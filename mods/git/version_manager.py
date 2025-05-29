@@ -482,6 +482,40 @@ class VersionManager:
 
         return "Version status unclear - manual check recommended"
 
+    def update_local_version(self, new_version: str = None) -> bool:
+        """Update the local version after a successful update.
+
+        Args:
+            new_version: The new version string. If None, will try to get from remote.
+
+        Returns:
+            True if version was updated successfully
+        """
+        try:
+            # If no version provided, try to get it from the latest commit or remote
+            if not new_version:
+                # Try to get version from remote info
+                remote_info = self.get_remote_version(use_cache=False)
+                if remote_info.get("success"):
+                    new_version = remote_info.get("version", "unknown")
+                else:
+                    # Fallback: use current date-based version
+                    new_version = datetime.now().strftime("%Y.%m.%d")
+
+            # Create/update version.txt file
+            version_file = Path("version.txt")
+            version_file.write_text(new_version, encoding='utf-8')
+
+            # Clear cache to force refresh
+            self.clear_cache()
+
+            self.logger.info(f"Updated local version to: {new_version}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error updating local version: {e}")
+            return False
+
     def clear_cache(self) -> None:
         """Clear the version cache from consolidated settings and old files."""
         try:
