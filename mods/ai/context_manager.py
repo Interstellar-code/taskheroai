@@ -333,6 +333,23 @@ class CodebaseContextManager:
 
         return detected
 
+    def get_file_type_counts(self) -> Dict[str, int]:
+        """
+        Returns a dictionary of file extensions and their counts in the indexed files.
+        """
+        if not self.indexer:
+            return {}
+        
+        file_types = {}
+        try:
+            indexed_files = self.indexer.get_indexed_files()
+            for file_path in indexed_files:
+                ext = os.path.splitext(file_path)[1].lower()
+                file_types[ext] = file_types.get(ext, 0) + 1
+        except Exception as e:
+            self.logger.warning(f"Error getting file type counts: {e}")
+        return file_types
+
     async def _generate_file_structure(self) -> str:
         """Generate an elegant file structure overview."""
         if not self.indexer:

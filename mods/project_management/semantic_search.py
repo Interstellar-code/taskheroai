@@ -1161,3 +1161,19 @@ class SemanticSearchEngine:
         self._vectors_cache = None
         self._last_cache_time = 0
         logger.info("Cache cleared")
+
+    def get_indexed_file_type_counts(self) -> Dict[str, int]:
+        """
+        Returns a dictionary of file types and their counts from the currently loaded chunks.
+        If chunks are not loaded, it will load them.
+        """
+        chunks, _ = self._get_cached_data()
+        if chunks is None:
+            chunks = self._load_chunks_from_embeddings()
+            # No need to update cache here, _load_chunks_from_embeddings already does it
+            # or it's handled by the search method.
+
+        file_type_counts = {}
+        for chunk in chunks:
+            file_type_counts[chunk.file_type] = file_type_counts.get(chunk.file_type, 0) + 1
+        return file_type_counts

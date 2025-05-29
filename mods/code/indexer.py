@@ -1849,8 +1849,11 @@ END OF FILE:
 
         return valid_files
 
-    def get_outdated_files(self) -> List[str]:
+    def get_outdated_files(self, cleanup_deleted: bool = True) -> List[str]:
         """Get a list of files that need to be updated.
+
+        Args:
+            cleanup_deleted (bool): Whether to also cleanup deleted files from index.
 
         Returns:
             List[str]: List of absolute paths to files that need updating.
@@ -1866,6 +1869,12 @@ END OF FILE:
                 logger.warning(f"Index directory does not exist, will need to create it: {self.index_dir}")
                 print(f"{Fore.YELLOW}📁 No existing index found - will index all eligible files{Style.RESET_ALL}")
                 return self._get_all_indexable_files()
+
+            # First, cleanup deleted files if requested
+            if cleanup_deleted:
+                deleted_count = self.cleanup_deleted_files()
+                if deleted_count > 0:
+                    print(f"{Fore.GREEN}🗑️  Cleaned up {deleted_count} deleted files from index{Style.RESET_ALL}")
 
             try:
                 logger.debug(f"Creating DirectoryParser")
@@ -2030,60 +2039,107 @@ END OF FILE:
 
         for file_path in indexed_files:
             if file_path.startswith(index_dir_abs):
-                self.metadata_cache.pop(file_path, None)
+                self._remove_file_from_index(file_path)
                 removed_count += 1
-
-                try:
-                    rel_path: str = os.path.relpath(file_path, self.root_path)
-                    safe_path: str = re.sub(r"[^\w\-_\.]", "_", rel_path)
-
-                    metadata_path: str = os.path.join(
-                        self.index_dir, "metadata", f"{safe_path}.json"
-                    )
-                    if os.path.exists(metadata_path):
-                        os.remove(metadata_path)
-
-                    embedding_path: str = os.path.join(
-                        self.index_dir, "embeddings", f"{safe_path}.json"
-                    )
-                    if os.path.exists(embedding_path):
-                        os.remove(embedding_path)
-
-                    description_path: str = os.path.join(
-                        self.index_dir, "descriptions", f"{safe_path}.txt"
-                    )
-                    if os.path.exists(description_path):
-                        os.remove(description_path)
-                except Exception as e:
-                    logger.error(f"Error removing index files for {file_path}: {e}")
-
             elif os.path.relpath(file_path, self.root_path).startswith(".index"):
-                self.metadata_cache.pop(file_path, None)
+                self._remove_file_from_index(file_path)
                 removed_count += 1
 
-                try:
-                    rel_path = os.path.relpath(file_path, self.root_path)
-                    safe_path = re.sub(r"[^\w\-_\.]", "_", rel_path)
+        return removed_count
 
-                    metadata_path = os.path.join(
-                        self.index_dir, "metadata", f"{safe_path}.json"
-                    )
-                    if os.path.exists(metadata_path):
-                        os.remove(metadata_path)
+    def _remove_file_from_index(self, file_path: str) -> bool:
+        """Remove a specific file from the index and clean up all associated files.
 
-                    embedding_path = os.path.join(
-                        self.index_dir, "embeddings", f"{safe_path}.json"
-                    )
-                    if os.path.exists(embedding_path):
-                        os.remove(embedding_path)
+        Args:
+            file_path (str): Path to the file to remove from index.
 
-                    description_path = os.path.join(
-                        self.index_dir, "descriptions", f"{safe_path}.txt"
-                    )
-                    if os.path.exists(description_path):
-                        os.remove(description_path)
-                except Exception as e:
-                    logger.error(f"Error removing index files for {file_path}: {e}")
+        Returns:
+            bool: True if removal was successful, False otherwise.
+        """
+        try:
+            # Remove from metadata cache
+            self.metadata_cache.pop(file_path, None)
+
+            # Generate safe path for file operations
+            rel_path: str = os.path.relpath(file_path, self.root_path)
+            safe_path: str = re.sub(r"[^\w\-_\.]", "_", rel_path)
+
+            # Remove metadata file
+            metadata_path: str = os.path.join(
+                self.index_dir, "metadata", f"{safe_path}.json"
+            )
+            if os.path.exists(metadata_path):
+                os.remove(metadata_path)
+                logger.debug(f"Removed metadata file: {metadata_path}")
+
+            # Remove embedding file
+            embedding_path: str = os.path.join(
+                self.index_dir, "embeddings", f"{safe_path}.json"
+            )
+            if os.path.exists(embedding_path):
+                os.remove(embedding_path)
+                logger.debug(f"Removed embedding file: {embedding_path}")
+
+            # Remove description file
+            description_path: str = os.path.join(
+                self.index_dir, "descriptions", f"{safe_path}.txt"
+            )
+            if os.path.exists(description_path):
+                os.remove(description_path)
+                logger.debug(f"Removed description file: {description_path}")
+
+            logger.info(f"Successfully removed file from index: {file_path}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error removing file from index {file_path}: {e}")
+            return False
+
+    def cleanup_deleted_files(self) -> int:
+        """Remove deleted files from the index.
+
+        Scans the metadata cache for files that no longer exist on disk
+        and removes them from the index.
+
+        Returns:
+            int: Number of deleted files removed from the index.
+        """
+        from colorama import Fore, Style
+
+        logger.info("Starting cleanup of deleted files from index")
+        indexed_files: List[str] = list(self.metadata_cache.keys())
+        deleted_files: List[str] = []
+
+        print(f"{Fore.YELLOW}🔍 Checking {len(indexed_files)} indexed files for deletions...{Style.RESET_ALL}")
+
+        # Check each indexed file to see if it still exists
+        for i, file_path in enumerate(indexed_files):
+            if i % 100 == 0 and i > 0:
+                print(f"\r{Fore.CYAN}📊 Checked {i}/{len(indexed_files)} files, found {len(deleted_files)} deleted{Style.RESET_ALL}", end="", flush=True)
+
+            if not os.path.exists(file_path):
+                deleted_files.append(file_path)
+                logger.debug(f"Found deleted file: {file_path}")
+
+        print(f"\r{Fore.GREEN}✅ Scan complete - found {len(deleted_files)} deleted files to remove{Style.RESET_ALL}")
+
+        if not deleted_files:
+            logger.info("No deleted files found in index")
+            return 0
+
+        # Remove deleted files from index
+        removed_count: int = 0
+        print(f"{Fore.YELLOW}🗑️  Removing {len(deleted_files)} deleted files from index...{Style.RESET_ALL}")
+
+        for i, file_path in enumerate(deleted_files):
+            if i % 10 == 0 and i > 0:
+                print(f"\r{Fore.CYAN}🗑️  Removed {i}/{len(deleted_files)} deleted files{Style.RESET_ALL}", end="", flush=True)
+
+            if self._remove_file_from_index(file_path):
+                removed_count += 1
+
+        print(f"\r{Fore.GREEN}✅ Successfully removed {removed_count} deleted files from index{Style.RESET_ALL}")
+        logger.info(f"Cleanup complete: removed {removed_count} deleted files from index")
 
         return removed_count
 
@@ -2094,6 +2150,7 @@ END OF FILE:
         1. If an index exists
         2. If all files in the directory are indexed
         3. If all indexed files are up-to-date (no hash mismatches)
+        4. If there are any deleted files in the index
 
         Returns:
             Dict[str, Any]: Dictionary containing:
@@ -2101,6 +2158,7 @@ END OF FILE:
             - 'reason' (str): Reason why index is not complete (if applicable)
             - 'outdated_count' (int): Number of outdated files (if applicable)
             - 'missing_count' (int): Number of files missing from index (if applicable)
+            - 'deleted_count' (int): Number of deleted files in index (if applicable)
             - 'ignored_count' (int): Number of files ignored due to gitignore/exclusions
         """
         logger.debug(f"Checking if index is complete for {self.root_path}")
@@ -2109,6 +2167,7 @@ END OF FILE:
             "reason": "",
             "outdated_count": 0,
             "missing_count": 0,
+            "deleted_count": 0,
             "ignored_count": 0,
         }
 
@@ -2215,6 +2274,23 @@ END OF FILE:
             sample_files = outdated_files[:5]
             logger.debug(f"Sample outdated files: {', '.join(os.path.basename(f) for f in sample_files)}")
             result['reason'] = f"{len(outdated_files)} files are outdated"
+            return result
+
+        # Check for deleted files in the index
+        logger.debug(f"Checking for deleted files in index")
+        deleted_files = []
+        indexed_files = list(self.metadata_cache.keys())
+
+        for file_path in indexed_files:
+            if not os.path.exists(file_path):
+                deleted_files.append(file_path)
+
+        result['deleted_count'] = len(deleted_files)
+        if deleted_files:
+            logger.info(f"Found {len(deleted_files)} deleted files in index")
+            sample_files = deleted_files[:5]
+            logger.debug(f"Sample deleted files: {', '.join(os.path.basename(f) for f in sample_files)}")
+            result['reason'] = f"{len(deleted_files)} deleted files in index"
             return result
 
         logger.info(f"Index is complete!")

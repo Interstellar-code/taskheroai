@@ -933,6 +933,7 @@ class GraphitiContextRetriever:
             boost = 0.0
             chunk_text_lower = chunk.text.lower()
             file_path_lower = chunk.file_path.lower()
+            query_lower = query.lower()  # Add missing variable
 
             # Task type specific boosts
             task_type = task_context['type']
@@ -1003,8 +1004,14 @@ class GraphitiContextRetriever:
 
             # PRIORITY BOOST: Task files (.md files in task directories)
             if file_ext == '.md' and any(task_dir in str(file_path).lower() for task_dir in ['task', 'theherotasks', 'todo', 'inprogress', 'done']):
+                # SEMANTIC BOOST: Check for query-relevant content in task files
+                query_terms = query_lower.split()
+                content_matches = sum(1 for term in query_terms if term in chunk_text_lower)
+                if content_matches >= 2:  # Multiple query terms found
+                    boost += 0.4  # Very high boost for semantically relevant task files
+                    logger.info(f"Applied semantic relevance boost to {file_name} ({content_matches} matches)")
                 # Extra boost for task files with relevant content
-                if any(keyword in chunk_text_lower for keyword in ['graphiti', 'phase', 'implementation', 'context', 'retrieval']):
+                elif any(keyword in chunk_text_lower for keyword in ['graphiti', 'phase', 'implementation', 'context', 'retrieval']):
                     boost += 0.25  # High boost for relevant task files
                 else:
                     boost += 0.15  # Medium boost for any task files
@@ -1039,16 +1046,32 @@ class GraphitiContextRetriever:
             if not chunks:
                 return []
 
-            # File-level deduplication: Keep only the best chunk per file
+            # Enhanced file-level deduplication: Handle same filename in different directories
             file_chunks = {}
 
             for chunk in chunks:
-                # Use resolved file path as the key (ignore line numbers)
-                resolved_path = str(Path(chunk.file_path).resolve())
+                # Create a unique key that includes directory context for task files
+                file_path = Path(chunk.file_path)
+                file_name = file_path.name
 
-                # Keep the chunk with the highest relevance score for each file
-                if resolved_path not in file_chunks or chunk.relevance_score > file_chunks[resolved_path].relevance_score:
-                    file_chunks[resolved_path] = chunk
+                # For task files, include the parent directory to distinguish versions
+                if file_name.startswith('TASK-') and file_name.endswith('.md'):
+                    # Use filename + parent directory as key to distinguish /done vs /testing versions
+                    parent_dir = file_path.parent.name if file_path.parent else ''
+                    unique_key = f"{parent_dir}/{file_name}"
+
+                    # Prioritize /done folder over /testing for completed tasks
+                    if parent_dir == 'done':
+                        chunk.relevance_score += 0.1  # Boost for completed tasks
+                    elif parent_dir == 'testing':
+                        chunk.relevance_score -= 0.05  # Slight penalty for testing tasks
+                else:
+                    # For non-task files, use resolved path as before
+                    unique_key = str(Path(chunk.file_path).resolve())
+
+                # Keep the chunk with the highest relevance score for each unique key
+                if unique_key not in file_chunks or chunk.relevance_score > file_chunks[unique_key].relevance_score:
+                    file_chunks[unique_key] = chunk
 
             # Convert back to list and sort by relevance
             deduplicated_chunks = list(file_chunks.values())
@@ -1380,9 +1403,17 @@ class GraphitiContextRetriever:
 
                     # PRIORITY BOOST: Task files (.md files in task directories)
                     if file_ext == '.md' and any(task_dir in str(file_path).lower() for task_dir in ['task', 'theherotasks', 'todo', 'inprogress', 'done']):
-                        # Extra boost for task files with relevant content
                         chunk_text_lower = chunk.text.lower()
-                        if any(keyword in chunk_text_lower for keyword in ['graphiti', 'phase', 'implementation', 'context', 'retrieval']):
+                        query_lower = query.lower()
+
+                        # SEMANTIC BOOST: Check for query-relevant content in task files
+                        query_terms = query_lower.split()
+                        content_matches = sum(1 for term in query_terms if term in chunk_text_lower)
+                        if content_matches >= 2:  # Multiple query terms found
+                            chunk.relevance_score = chunk.relevance_score + 0.4  # Very high boost for semantically relevant task files
+                            logger.info(f"Applied semantic relevance boost to {file_name} in fallback ({content_matches} matches)")
+                        # Extra boost for task files with relevant content
+                        elif any(keyword in chunk_text_lower for keyword in ['graphiti', 'phase', 'implementation', 'context', 'retrieval']):
                             chunk.relevance_score = chunk.relevance_score + 0.25  # High boost for relevant task files
                         else:
                             chunk.relevance_score = chunk.relevance_score + 0.15  # Medium boost for any task files

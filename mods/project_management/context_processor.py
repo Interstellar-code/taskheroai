@@ -155,43 +155,33 @@ class ContextProcessor:
                 'style_files': []
             }
 
-            # Check if we have access to project analysis data
+            # Check if we have access to project analysis data from semantic search engine
             try:
-                from ..ai.context_manager import ContextManager
-                context_manager = ContextManager(str(self.project_root))
+                # Get file type counts directly from the semantic search engine's loaded chunks
+                file_types = self.semantic_search.get_indexed_file_type_counts()
 
-                # Get project info which includes file type analysis
-                project_info = context_manager.get_project_info()
-
-                if project_info and 'file_types' in project_info:
-                    file_types = project_info['file_types']
-
+                if file_types:
                     # Categorize file types based on actual project data
                     for ext, count in file_types.items():
                         if count > 0:  # Only include file types that actually exist
-                            ext_lower = ext.lower()
+                            # Convert internal file type names to common extensions for mapping
+                            common_ext = self._map_internal_file_type_to_extension(ext)
 
-                            # Code files (prioritize by count)
-                            if ext_lower in ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.php', '.rb']:
-                                dynamic_types['code_files'].append(ext_lower)
-
-                            # Configuration files
-                            elif ext_lower in ['.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.env']:
-                                dynamic_types['config_files'].append(ext_lower)
-
-                            # Documentation files
-                            elif ext_lower in ['.md', '.rst', '.txt', '.doc', '.docx']:
-                                dynamic_types['doc_files'].append(ext_lower)
-
-                            # Style files
-                            elif ext_lower in ['.css', '.scss', '.sass', '.less']:
-                                dynamic_types['style_files'].append(ext_lower)
+                            if common_ext:
+                                if common_ext in ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.php', '.rb']:
+                                    dynamic_types['code_files'].append(common_ext)
+                                elif common_ext in ['.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.env']:
+                                    dynamic_types['config_files'].append(common_ext)
+                                elif common_ext in ['.md', '.rst', '.txt', '.doc', '.docx']:
+                                    dynamic_types['doc_files'].append(common_ext)
+                                elif common_ext in ['.css', '.scss', '.sass', '.less']:
+                                    dynamic_types['style_files'].append(common_ext)
 
                     # Sort by most common file types (prioritize what the project actually uses)
                     for category in dynamic_types:
                         dynamic_types[category] = sorted(
                             dynamic_types[category],
-                            key=lambda ext: file_types.get(ext, 0),
+                            key=lambda ext: file_types.get(self._map_extension_to_internal_file_type(ext), 0),
                             reverse=True
                         )
 
@@ -199,7 +189,7 @@ class ContextProcessor:
                     return dynamic_types
 
             except Exception as e:
-                logger.warning(f"Could not get dynamic file types from project analysis: {e}")
+                logger.warning(f"Could not get dynamic file types from semantic search engine: {e}")
 
             # Fallback to static defaults if dynamic discovery fails
             return {
@@ -219,26 +209,136 @@ class ContextProcessor:
                 'style_files': ['.css']
             }
 
+    def _map_internal_file_type_to_extension(self, internal_type: str) -> str:
+        """Maps internal file type names (from SemanticSearchEngine) to common file extensions."""
+        mapping = {
+            'python': '.py',
+            'javascript': '.js',
+            'markdown': '.md',
+            'task': '.md', # Tasks are markdown files
+            'template': '.md', # Templates are markdown files
+            'documentation': '.md', # Documentation can be markdown
+            'config': '.json', # Default config to json, could be .yaml, .yml
+            'script': '.sh', # Default script to .sh, could be .bat, .ps1
+            'html': '.html',
+            'stylesheet': '.css',
+            'java_family': '.java',
+            'cpp': '.cpp',
+            'rust': '.rs',
+            'go': '.go',
+            'php': '.php',
+            'ruby': '.rb',
+            'build': '.json', # Build files can be various, default to json for now
+            'dependency': '.txt', # requirements.txt, package.json, etc.
+            'setup': '.sh', # setup scripts
+            'test': '.py', # test files
+            'other': ''
+        }
+        return mapping.get(internal_type, '')
+
+    def _map_extension_to_internal_file_type(self, extension: str) -> str:
+        """Maps common file extensions to internal file type names (for reverse lookup)."""
+        reverse_mapping = {
+            '.py': 'python',
+            '.js': 'javascript',
+            '.ts': 'javascript',
+            '.jsx': 'javascript',
+            '.tsx': 'javascript',
+            '.mjs': 'javascript',
+            '.md': 'markdown',
+            '.markdown': 'markdown',
+            '.json': 'config',
+            '.yaml': 'config',
+            '.yml': 'config',
+            '.toml': 'config',
+            '.ini': 'config',
+            '.cfg': 'config',
+            '.conf': 'config',
+            '.sh': 'script',
+            '.bat': 'script',
+            '.cmd': 'script',
+            '.ps1': 'script',
+            '.bash': 'script',
+            '.html': 'html',
+            '.htm': 'html',
+            '.css': 'stylesheet',
+            '.scss': 'stylesheet',
+            '.sass': 'stylesheet',
+            '.less': 'stylesheet',
+            '.java': 'java_family',
+            '.kt': 'java_family',
+            '.scala': 'java_family',
+            '.cpp': 'cpp',
+            '.cc': 'cpp',
+            '.cxx': 'cpp',
+            '.c': 'cpp',
+            '.h': 'cpp',
+            '.hpp': 'cpp',
+            '.rs': 'rust',
+            '.rlib': 'rust',
+            '.go': 'go',
+            '.mod': 'go',
+            '.php': 'php',
+            '.phtml': 'php',
+            '.rb': 'ruby',
+            '.rake': 'ruby',
+            'makefile': 'build',
+            'dockerfile': 'build',
+            'docker-compose.yml': 'build',
+            'docker-compose.yaml': 'build',
+            '.gradle': 'build',
+            '.maven': 'build',
+            '.pom': 'build',
+            '.sbt': 'build',
+            'requirements.txt': 'dependency',
+            'package.json': 'dependency',
+            'pipfile': 'dependency',
+            'poetry.lock': 'dependency',
+            'cargo.toml': 'dependency',
+            'setup': 'setup',
+            'install': 'setup',
+            'deploy': 'setup',
+            'test': 'test',
+            'spec': 'test',
+            'unittest': 'test',
+            '.txt': 'documentation',
+            '.rst': 'documentation',
+            '.adoc': 'documentation',
+        }
+        # Handle cases where the extension might be a full filename (e.g., 'makefile')
+        if extension in reverse_mapping:
+            return reverse_mapping[extension]
+        # Handle extensions with leading dot
+        if extension.startswith('.') and extension in reverse_mapping:
+            return reverse_mapping[extension]
+        # Fallback for common extensions not explicitly mapped
+        if extension.startswith('.'):
+            return extension[1:] # Remove dot and return as is
+        return extension # Return as is if no dot
+
     def _filter_context_chunks(self, chunks: List[ContextChunk], query: str) -> List[ContextChunk]:
-        """Filter context chunks based on relevance and quality."""
+        """Filter context chunks based on enhanced relevance, quality, and task relationships."""
         filtered_chunks = []
         query_lower = query.lower()
 
-        for chunk in chunks:
-            # Basic relevance threshold
-            if chunk.relevance_score < self.config['context_selection_threshold']:
+        # Enhanced scoring with task relationship analysis
+        enhanced_chunks = self._enhance_chunk_scoring(chunks, query)
+
+        for chunk in enhanced_chunks:
+            # Enhanced relevance threshold (lowered to catch more relevant files)
+            if chunk.relevance_score < 0.4:
                 continue
 
             # Content quality assessment
             quality_score = self._assess_chunk_quality(chunk)
-            if quality_score < 0.5:
+            if quality_score < 0.3:  # Lowered threshold for better coverage
                 continue
 
             # Duplicate content detection
             if self._is_duplicate_content(chunk, filtered_chunks):
                 continue
 
-            # Update chunk with quality score
+            # Update chunk with enhanced scores
             chunk.quality_score = quality_score
             filtered_chunks.append(chunk)
 
@@ -347,6 +447,161 @@ class ContextProcessor:
             total_tokens += chunk_tokens
 
         return optimized_context
+
+    def _enhance_chunk_scoring(self, chunks: List[ContextChunk], query: str) -> List[ContextChunk]:
+        """Enhance chunk scoring with task relationship analysis and contextual relevance."""
+        try:
+            query_lower = query.lower()
+
+            # Extract key concepts from query
+            key_concepts = self._extract_key_concepts(query)
+
+            for chunk in chunks:
+                # Start with original relevance score
+                enhanced_score = chunk.relevance_score
+
+                # Task relationship bonus
+                task_relationship_bonus = self._calculate_task_relationship_score(chunk, query_lower, key_concepts)
+                enhanced_score += task_relationship_bonus * 0.3
+
+                # File type relevance bonus
+                file_type_bonus = self._calculate_file_type_relevance(chunk, query_lower)
+                enhanced_score += file_type_bonus * 0.2
+
+                # Recency bonus for recently modified files
+                recency_bonus = self._calculate_recency_bonus(chunk)
+                enhanced_score += recency_bonus * 0.1
+
+                # Foundational file bonus (important base files)
+                foundational_bonus = self._calculate_foundational_file_bonus(chunk, query_lower)
+                enhanced_score += foundational_bonus * 0.4
+
+                # Update the relevance score
+                chunk.relevance_score = min(enhanced_score, 1.0)  # Cap at 1.0
+
+            return chunks
+
+        except Exception as e:
+            logger.warning(f"Enhanced chunk scoring failed: {e}")
+            return chunks
+
+    def _extract_key_concepts(self, query: str) -> List[str]:
+        """Extract key concepts from the query for better matching."""
+        import re
+
+        # Remove common words and extract meaningful terms
+        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should'}
+
+        # Extract words and technical terms
+        words = re.findall(r'\b[a-zA-Z]+\b', query.lower())
+        concepts = [word for word in words if word not in stop_words and len(word) > 2]
+
+        # Add technical patterns
+        technical_patterns = re.findall(r'\b(?:api|ui|db|sql|js|py|css|html|json|xml|http|rest|graphql|ai|ml|engine|service|module|component|integration|search|retrieval|context|graphiti|task|hero)\b', query.lower())
+        concepts.extend(technical_patterns)
+
+        return list(set(concepts))
+
+    def _calculate_task_relationship_score(self, chunk: ContextChunk, query_lower: str, key_concepts: List[str]) -> float:
+        """Calculate how related this chunk is to the task being created."""
+        score = 0.0
+        file_path_lower = chunk.file_path.lower()
+        content_lower = chunk.text.lower()
+
+        # Check for direct concept matches in file path
+        for concept in key_concepts:
+            if concept in file_path_lower:
+                score += 0.3
+            if concept in content_lower:
+                score += 0.2
+
+        # Special bonuses for task-related files
+        if 'task' in file_path_lower and any(concept in file_path_lower for concept in key_concepts):
+            score += 0.4
+
+        # Bonus for completed tasks that might provide context
+        if '/done/' in file_path_lower or '/completed/' in file_path_lower:
+            score += 0.3
+
+        # SEMANTIC BOOST: Check for query-relevant content in task files
+        if 'task-' in file_path_lower:
+            query_terms = query_lower.split()
+            content_matches = sum(1 for term in query_terms if term in file_path_lower or term in content_lower)
+            if content_matches >= 2:  # Multiple query terms found
+                score += 0.5  # Very high boost for semantically relevant task files
+
+        # Bonus for core engine/service files
+        if any(term in file_path_lower for term in ['engine', 'service', 'core', 'main', 'base']):
+            score += 0.2
+
+        return min(score, 1.0)
+
+    def _calculate_file_type_relevance(self, chunk: ContextChunk, query_lower: str) -> float:
+        """Calculate relevance based on file type and query context."""
+        file_ext = chunk.file_type.lower() if chunk.file_type else ''
+
+        # Task files are highly relevant for task creation
+        if file_ext == '.md' and ('task' in chunk.file_path.lower() or 'todo' in chunk.file_path.lower()):
+            return 0.8
+
+        # Python files for development tasks
+        if file_ext == '.py' and any(term in query_lower for term in ['implement', 'develop', 'create', 'build']):
+            return 0.6
+
+        # Documentation files for understanding context
+        if file_ext == '.md' and any(term in query_lower for term in ['documentation', 'guide', 'readme']):
+            return 0.5
+
+        # Configuration files for setup/integration tasks
+        if file_ext in ['.json', '.yaml', '.yml'] and any(term in query_lower for term in ['config', 'setup', 'integration']):
+            return 0.4
+
+        return 0.0
+
+    def _calculate_recency_bonus(self, chunk: ContextChunk) -> float:
+        """Calculate bonus for recently modified files."""
+        try:
+            if not chunk.last_modified:
+                return 0.0
+
+            import time
+            current_time = time.time()
+            days_old = (current_time - chunk.last_modified) / (24 * 60 * 60)
+
+            # Bonus for files modified in the last 30 days
+            if days_old <= 7:
+                return 0.3
+            elif days_old <= 30:
+                return 0.2
+            elif days_old <= 90:
+                return 0.1
+            else:
+                return 0.0
+
+        except Exception:
+            return 0.0
+
+    def _calculate_foundational_file_bonus(self, chunk: ContextChunk, query_lower: str) -> float:
+        """Calculate bonus for foundational files that provide important context."""
+        file_path_lower = chunk.file_path.lower()
+
+        # Core engine files
+        if any(term in file_path_lower for term in ['ai_task_creator', 'task_manager', 'engine', 'core']):
+            return 0.5
+
+        # Integration and service files
+        if any(term in file_path_lower for term in ['integration', 'service', 'processor', 'retriever']):
+            return 0.4
+
+        # Important completed tasks that might be foundational
+        if '/done/' in file_path_lower and any(term in file_path_lower for term in ['engine', 'core', 'base', 'foundation']):
+            return 0.6
+
+        # Template and configuration files
+        if any(term in file_path_lower for term in ['template', 'config', 'setup']):
+            return 0.3
+
+        return 0.0
 
     def _assess_chunk_quality(self, chunk: ContextChunk) -> float:
         """Assess the quality of a context chunk."""

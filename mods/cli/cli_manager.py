@@ -2050,7 +2050,7 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
             while True:
                 self._display_cleanup_menu(cleanup_analysis)
 
-                choice = input(f"\n{Fore.GREEN}Select cleanup option (1-8 or 0 to cancel): {Style.RESET_ALL}").strip()
+                choice = input(f"\n{Fore.GREEN}Select cleanup option (1-9 or 0 to cancel): {Style.RESET_ALL}").strip()
 
                 if choice == "0":
                     print(f"{Fore.YELLOW}Cleanup cancelled.{Style.RESET_ALL}")
@@ -2058,22 +2058,24 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
                 elif choice == "1":
                     self._cleanup_index_data(project_root)
                 elif choice == "2":
-                    self._cleanup_logs(project_name)
+                    self._cleanup_deleted_files()
                 elif choice == "3":
-                    self._cleanup_temp_files(project_root)
+                    self._cleanup_logs(project_name)
                 elif choice == "4":
-                    self._cleanup_project_settings(project_root)
+                    self._cleanup_temp_files(project_root)
                 elif choice == "5":
-                    self._cleanup_ai_cache()
+                    self._cleanup_project_settings(project_root)
                 elif choice == "6":
-                    self._cleanup_task_data()
+                    self._cleanup_ai_cache()
                 elif choice == "7":
-                    self._selective_cleanup(cleanup_analysis)
+                    self._cleanup_task_data()
                 elif choice == "8":
+                    self._selective_cleanup(cleanup_analysis)
+                elif choice == "9":
                     self._complete_project_reset(project_root, project_name)
                     break  # Exit after complete reset
                 else:
-                    print(f"{Fore.RED}Invalid choice. Please enter 1-8 or 0.{Style.RESET_ALL}")
+                    print(f"{Fore.RED}Invalid choice. Please enter 1-9 or 0.{Style.RESET_ALL}")
 
                 # Refresh analysis after cleanup
                 cleanup_analysis = self._analyze_cleanup_targets(project_root, project_name)
@@ -2088,6 +2090,7 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
         """Analyze what can be cleaned up in the project."""
         analysis = {
             "index_data": {"exists": False, "size": 0, "files": 0},
+            "deleted_files": {"exists": False, "count": 0},
             "logs": {"exists": False, "size": 0, "files": 0},
             "temp_files": {"exists": False, "size": 0, "files": 0},
             "settings": {"exists": False, "size": 0, "files": 0},
@@ -2103,6 +2106,16 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
                 size, files = self._calculate_directory_size(index_dir)
                 analysis["index_data"] = {"exists": True, "size": size, "files": files}
                 analysis["total_size"] += size
+
+            # Check for deleted files in index (if indexer is available)
+            if self.indexer:
+                try:
+                    index_status = self.indexer.is_index_complete()
+                    deleted_count = index_status.get('deleted_count', 0)
+                    if deleted_count > 0:
+                        analysis["deleted_files"] = {"exists": True, "count": deleted_count}
+                except Exception as e:
+                    self.logger.debug(f"Error checking for deleted files: {e}")
 
             # Check logs directory
             logs_dir = "logs"
@@ -2224,50 +2237,58 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
         else:
             print(f"{Style.DIM}1. 🗂️ Delete Index Data - No index data found{Style.RESET_ALL}")
 
-        # Option 2: Logs
+        # Option 2: Deleted Files
+        deleted_info = analysis["deleted_files"]
+        if deleted_info["exists"]:
+            print(f"{Fore.GREEN}2. 🗑️ Clean Deleted Files{Style.RESET_ALL} - {deleted_info['count']} deleted files in index")
+            print(f"   {Fore.CYAN}   Removes index entries for files that no longer exist{Style.RESET_ALL}")
+        else:
+            print(f"{Style.DIM}2. 🗑️ Clean Deleted Files - No deleted files found in index{Style.RESET_ALL}")
+
+        # Option 3: Logs
         logs_info = analysis["logs"]
         if logs_info["exists"]:
             size_str = self._format_size(logs_info["size"])
-            print(f"{Fore.GREEN}2. 📋 Clear Project Logs{Style.RESET_ALL} - {size_str} ({logs_info['files']} files)")
+            print(f"{Fore.GREEN}3. 📋 Clear Project Logs{Style.RESET_ALL} - {size_str} ({logs_info['files']} files)")
             print(f"   {Fore.CYAN}   Removes indexing logs and project-specific log files{Style.RESET_ALL}")
         else:
-            print(f"{Style.DIM}2. 📋 Clear Project Logs - No logs found{Style.RESET_ALL}")
+            print(f"{Style.DIM}3. 📋 Clear Project Logs - No logs found{Style.RESET_ALL}")
 
-        # Option 3: Temp Files
+        # Option 4: Temp Files
         temp_info = analysis["temp_files"]
         if temp_info["exists"]:
             size_str = self._format_size(temp_info["size"])
-            print(f"{Fore.GREEN}3. 🗑️ Remove Temp Files{Style.RESET_ALL} - {size_str} ({temp_info['files']} files)")
+            print(f"{Fore.GREEN}4. 🗑️ Remove Temp Files{Style.RESET_ALL} - {size_str} ({temp_info['files']} files)")
             print(f"   {Fore.CYAN}   Removes .tmp, .bak, .old, and other temporary files{Style.RESET_ALL}")
         else:
-            print(f"{Style.DIM}3. 🗑️ Remove Temp Files - No temp files found{Style.RESET_ALL}")
+            print(f"{Style.DIM}4. 🗑️ Remove Temp Files - No temp files found{Style.RESET_ALL}")
 
-        # Option 4: Settings
+        # Option 5: Settings
         settings_info = analysis["settings"]
         if settings_info["exists"]:
             size_str = self._format_size(settings_info["size"])
-            print(f"{Fore.YELLOW}4. ⚙️ Reset Project Settings{Style.RESET_ALL} - {size_str} ({settings_info['files']} files)")
+            print(f"{Fore.YELLOW}5. ⚙️ Reset Project Settings{Style.RESET_ALL} - {size_str} ({settings_info['files']} files)")
             print(f"   {Fore.CYAN}   Removes app settings and backup configurations{Style.RESET_ALL}")
         else:
-            print(f"{Style.DIM}4. ⚙️ Reset Project Settings - No settings to reset{Style.RESET_ALL}")
+            print(f"{Style.DIM}5. ⚙️ Reset Project Settings - No settings to reset{Style.RESET_ALL}")
 
-        # Option 5: AI Cache
-        print(f"{Fore.GREEN}5. 🤖 Clear AI Cache{Style.RESET_ALL}")
+        # Option 6: AI Cache
+        print(f"{Fore.GREEN}6. 🤖 Clear AI Cache{Style.RESET_ALL}")
         print(f"   {Fore.CYAN}   Clears AI conversation history and cached responses{Style.RESET_ALL}")
 
-        # Option 6: Task Data
+        # Option 7: Task Data
         task_info = analysis["task_data"]
         if task_info["exists"]:
             size_str = self._format_size(task_info["size"])
-            print(f"{Fore.YELLOW}6. 📋 Clear Task Data{Style.RESET_ALL} - {size_str} ({task_info['files']} files)")
+            print(f"{Fore.YELLOW}7. 📋 Clear Task Data{Style.RESET_ALL} - {size_str} ({task_info['files']} files)")
             print(f"   {Fore.CYAN}   Removes task management data and project planning files{Style.RESET_ALL}")
         else:
-            print(f"{Style.DIM}6. 📋 Clear Task Data - No task data found{Style.RESET_ALL}")
+            print(f"{Style.DIM}7. 📋 Clear Task Data - No task data found{Style.RESET_ALL}")
 
         # Advanced options
         print(f"\n{Fore.YELLOW}Advanced Options:{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}7. 🎯 Selective Cleanup{Style.RESET_ALL} - Choose specific items to delete")
-        print(f"{Fore.RED}8. 💥 Complete Project Reset{Style.RESET_ALL} - Delete EVERYTHING and start fresh")
+        print(f"{Fore.GREEN}8. 🎯 Selective Cleanup{Style.RESET_ALL} - Choose specific items to delete")
+        print(f"{Fore.RED}9. 💥 Complete Project Reset{Style.RESET_ALL} - Delete EVERYTHING and start fresh")
 
         print(f"\n{Fore.CYAN}0. ❌ Cancel Cleanup{Style.RESET_ALL}")
 
@@ -2316,6 +2337,48 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
                 print(f"{Fore.RED}❌ Error deleting index data: {e}{Style.RESET_ALL}")
         else:
             print(f"{Fore.YELLOW}Index data deletion cancelled.{Style.RESET_ALL}")
+
+    def _cleanup_deleted_files(self) -> None:
+        """Clean up deleted files from the index."""
+        if not self.indexer:
+            print(f"{Fore.YELLOW}No indexer available - cannot clean deleted files.{Style.RESET_ALL}")
+            return
+
+        print(f"\n{Fore.CYAN}🗑️ Cleaning Deleted Files from Index{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'-'*50}{Style.RESET_ALL}")
+
+        try:
+            # Check for deleted files
+            index_status = self.indexer.is_index_complete()
+            deleted_count = index_status.get('deleted_count', 0)
+
+            if deleted_count == 0:
+                print(f"{Fore.GREEN}✅ No deleted files found in index.{Style.RESET_ALL}")
+                return
+
+            print(f"{Fore.YELLOW}Found {deleted_count} deleted files in index.{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}These are files that were indexed but no longer exist on disk.{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Cleaning them up will improve search accuracy and reduce index size.{Style.RESET_ALL}")
+
+            confirm = input(f"\n{Fore.GREEN}Clean up {deleted_count} deleted files? (y/N): {Style.RESET_ALL}").strip().lower()
+
+            if confirm in ['y', 'yes']:
+                print(f"\n{Fore.CYAN}🧹 Cleaning up deleted files...{Style.RESET_ALL}")
+
+                # Perform the cleanup
+                removed_count = self.indexer.cleanup_deleted_files()
+
+                if removed_count > 0:
+                    print(f"\n{Fore.GREEN}✅ Successfully cleaned up {removed_count} deleted files from index{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}💡 Index is now more accurate and up-to-date{Style.RESET_ALL}")
+                else:
+                    print(f"\n{Fore.YELLOW}No files were removed during cleanup.{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}Deleted files cleanup cancelled.{Style.RESET_ALL}")
+
+        except Exception as e:
+            self.logger.error(f"Error cleaning deleted files: {e}")
+            print(f"{Fore.RED}❌ Error cleaning deleted files: {e}{Style.RESET_ALL}")
 
     def _cleanup_logs(self, project_name: str) -> None:
         """Clean up project-specific log files."""
@@ -2551,30 +2614,43 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
         print(f"{Fore.YELLOW}Select items to delete (space-separated numbers):{Style.RESET_ALL}")
 
         options = []
+        option_num = 1
+
         if analysis["index_data"]["exists"]:
             size_str = self._format_size(analysis["index_data"]["size"])
             options.append(("Index Data", f"🗂️ Index Data ({size_str})", "index_data"))
-            print(f"   1. 🗂️ Index Data ({size_str})")
+            print(f"   {option_num}. 🗂️ Index Data ({size_str})")
+            option_num += 1
+
+        if analysis["deleted_files"]["exists"]:
+            count = analysis["deleted_files"]["count"]
+            options.append(("Deleted Files", f"🗑️ Deleted Files ({count} files)", "deleted_files"))
+            print(f"   {option_num}. 🗑️ Deleted Files ({count} files)")
+            option_num += 1
 
         if analysis["logs"]["exists"]:
             size_str = self._format_size(analysis["logs"]["size"])
             options.append(("Logs", f"📋 Project Logs ({size_str})", "logs"))
-            print(f"   2. 📋 Project Logs ({size_str})")
+            print(f"   {option_num}. 📋 Project Logs ({size_str})")
+            option_num += 1
 
         if analysis["temp_files"]["exists"]:
             size_str = self._format_size(analysis["temp_files"]["size"])
             options.append(("Temp Files", f"🗑️ Temporary Files ({size_str})", "temp_files"))
-            print(f"   3. 🗑️ Temporary Files ({size_str})")
+            print(f"   {option_num}. 🗑️ Temporary Files ({size_str})")
+            option_num += 1
 
         if analysis["settings"]["exists"]:
             size_str = self._format_size(analysis["settings"]["size"])
             options.append(("Settings", f"⚙️ Project Settings ({size_str})", "settings"))
-            print(f"   4. ⚙️ Project Settings ({size_str})")
+            print(f"   {option_num}. ⚙️ Project Settings ({size_str})")
+            option_num += 1
 
         if analysis["task_data"]["exists"]:
             size_str = self._format_size(analysis["task_data"]["size"])
             options.append(("Task Data", f"📋 Task Data ({size_str})", "task_data"))
-            print(f"   5. 📋 Task Data ({size_str})")
+            print(f"   {option_num}. 📋 Task Data ({size_str})")
+            option_num += 1
 
         if not options:
             print(f"{Fore.YELLOW}No cleanup options available.{Style.RESET_ALL}")
@@ -2607,13 +2683,22 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
             return
 
         # Show confirmation
-        total_size = sum(analysis[item[2]]["size"] for item in selected_items)
+        total_size = 0
+        for item in selected_items:
+            item_type = item[2]
+            if item_type == "deleted_files":
+                # Deleted files don't have a size, just count
+                continue
+            elif item_type in analysis and "size" in analysis[item_type]:
+                total_size += analysis[item_type]["size"]
+
         total_size_str = self._format_size(total_size)
 
         print(f"\n{Fore.YELLOW}⚠️  About to delete:{Style.RESET_ALL}")
         for _, description, _ in selected_items:
             print(f"   {description}")
-        print(f"\n{Fore.GREEN}Total space to recover: {total_size_str}{Style.RESET_ALL}")
+        if total_size > 0:
+            print(f"\n{Fore.GREEN}Total space to recover: {total_size_str}{Style.RESET_ALL}")
 
         confirm = input(f"\n{Fore.RED}Type 'DELETE' to confirm: {Style.RESET_ALL}").strip()
 
@@ -2625,6 +2710,8 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
 
                 if item_type == "index_data":
                     self._cleanup_index_data(os.getcwd())
+                elif item_type == "deleted_files":
+                    self._cleanup_deleted_files()
                 elif item_type == "logs":
                     project_name = os.path.basename(os.getcwd())
                     self._cleanup_logs(project_name)

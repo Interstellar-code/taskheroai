@@ -25,6 +25,43 @@ from ..ai.providers.provider_factory import ProviderFactory
 logger = logging.getLogger("TaskHeroAI.ProjectManagement.AITaskCreator")
 
 
+class AIEnhancementProgressTracker:
+    """Tracks progress of AI enhancement steps with detailed feedback."""
+
+    def __init__(self):
+        self.steps_completed = 0
+        self.total_steps = 0
+        self.current_step = ""
+        self.step_results = {}
+        self.start_time = None
+
+    def start_step(self, step_description: str) -> None:
+        """Start a new enhancement step."""
+        self.current_step = step_description
+        print(f"{step_description}")
+
+    def complete_step(self, completion_message: str) -> None:
+        """Complete the current step."""
+        self.steps_completed += 1
+        self.step_results[self.current_step] = "completed"
+        print(f"{completion_message}")
+
+    def fail_step(self, failure_message: str) -> None:
+        """Mark current step as failed."""
+        self.step_results[self.current_step] = "failed"
+        print(f"{failure_message}")
+
+    def update_progress(self, message: str) -> None:
+        """Update progress within a step."""
+        print(f"   {message}")
+
+    def get_completion_rate(self) -> float:
+        """Get completion rate as percentage."""
+        if self.total_steps == 0:
+            return 0.0
+        return (self.steps_completed / self.total_steps) * 100
+
+
 class AITaskCreator:
     """Optimized AI-enhanced task creation with modular delegation."""
 
@@ -168,36 +205,54 @@ class AITaskCreator:
 
     def _apply_ai_enhancements(self, context: Dict[str, Any], ai_enhancements: Dict[str, Any]) -> Dict[str, Any]:
         """Apply pre-generated AI enhancements to context (Phase 4C compatibility)."""
-        if ai_enhancements.get('description'):
-            context['description'] = ai_enhancements['description']
-        if ai_enhancements.get('requirements'):
+        # Enhanced description
+        if ai_enhancements.get('detailed_description'):
+            context['detailed_description'] = ai_enhancements['detailed_description']
+        elif ai_enhancements.get('description'):
+            context['detailed_description'] = ai_enhancements['description']
+
+        # Requirements (support both list and string formats)
+        if ai_enhancements.get('functional_requirements_list'):
+            context['functional_requirements_list'] = ai_enhancements['functional_requirements_list']
+            context['functional_requirements'] = ""  # Force template to use list
+        elif ai_enhancements.get('requirements'):
             context['functional_requirements'] = ai_enhancements['requirements']
+
+        # Implementation steps
         if ai_enhancements.get('implementation_steps'):
             context['implementation_steps'] = ai_enhancements['implementation_steps']
+
+        # Risk analysis
         if ai_enhancements.get('risks'):
             context['risks'] = ai_enhancements['risks']
 
-        # Handle visual elements and flow diagrams
-        if ai_enhancements.get('visual_elements'):
-            visual_elements = ai_enhancements['visual_elements']
-            if visual_elements.get('mermaid_diagram'):
-                mermaid_diagram = visual_elements['mermaid_diagram']
-                context['flow_diagram'] = f"```mermaid\n{mermaid_diagram.get('content', '')}\n```"
-                context['flow_description'] = mermaid_diagram.get('description', 'Task flow diagram')
+        # Visual elements
+        if ai_enhancements.get('mermaid_diagram'):
+            context['mermaid_diagram'] = ai_enhancements['mermaid_diagram']
+            context['has_mermaid_diagram'] = True
 
-        if ai_enhancements.get('flow_diagrams'):
-            flow_diagrams = ai_enhancements['flow_diagrams']
-            if flow_diagrams:
-                main_diagram = flow_diagrams[0]
-                if main_diagram.get('content'):
-                    content = main_diagram['content']
-                    if not content.startswith('```mermaid'):
-                        content = f"```mermaid\n{content}\n```"
-                    context['flow_diagram'] = content
-                    context['flow_description'] = main_diagram.get('title', 'Task flow diagram')
+        if ai_enhancements.get('ascii_art'):
+            context['ascii_art'] = ai_enhancements['ascii_art']
+            context['has_ascii_art'] = True
 
-        # Add Phase 4C metadata
+        # Flow diagrams
+        if ai_enhancements.get('flow_diagram'):
+            context['flow_diagram'] = ai_enhancements['flow_diagram']
+        if ai_enhancements.get('flow_diagram_list'):
+            context['flow_diagram_list'] = ai_enhancements['flow_diagram_list']
+
+        # AI enhancement metadata
+        if ai_enhancements.get('ai_context_used'):
+            context['ai_context_used'] = ai_enhancements['ai_context_used']
+        if ai_enhancements.get('graphiti_used'):
+            context['graphiti_used'] = ai_enhancements['graphiti_used']
+        if ai_enhancements.get('modular_enhanced'):
+            context['modular_enhanced'] = ai_enhancements['modular_enhanced']
+
+        # Mark as AI enhanced
+        context['ai_enhancement_applied'] = True
         context['phase4c_enhanced'] = True
+
         return context
 
     async def _enhance_with_modular_ai(self, context: Dict[str, Any], description: str) -> Dict[str, Any]:
@@ -527,67 +582,79 @@ Generate detailed testing strategy:"""
             return []
 
     def _ensure_template_completeness(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Ensure all template sections have proper content."""
+        """Ensure all template sections have proper content WITHOUT overriding AI enhancements."""
         try:
-            # Ensure flow diagram is present
-            if not context.get('flow_diagram'):
-                context['flow_diagram'] = '''```mermaid
-flowchart TD
-    A[User initiates search] --> B[Enter search query]
-    B --> C[Apply filters if needed]
-    C --> D[System processes search]
-    D --> E[Display results with sorting]
-    E --> F[User reviews results]
-    F --> G[User selects item or refines search]
-```'''
-                context['flow_description'] = 'User workflow for search functionality implementation'
-                context['show_flow_diagram'] = True
+            # CRITICAL: Do NOT override AI-enhanced content with generic templates
+            # Only add minimal fallbacks if absolutely nothing is present
 
-            # Ensure implementation steps are present if missing
-            if not context.get('implementation_steps') or context.get('implementation_steps') == 'Implementation steps will be defined during planning phase.':
+            # Only add basic flow diagram if completely missing AND no AI enhancement was attempted
+            if not context.get('flow_diagram') and not context.get('ai_enhanced', False):
+                # Generate task-specific flow diagram instead of generic search
+                task_type = context.get('task_type', 'Development')
+                title = context.get('title', 'Task')
+                description = context.get('description', '')
+
+                # Use template manager to generate appropriate flow diagram
+                try:
+                    flow_context = self.template_manager.generate_task_specific_flow_diagram(
+                        task_type, description, context
+                    )
+                    context.update(flow_context)
+                except Exception as e:
+                    logger.warning(f"Flow diagram generation failed: {e}")
+                    # Only use generic fallback as last resort
+                    context['flow_diagram'] = f'''```mermaid
+flowchart TD
+    A[Start {title}] --> B[Analyze Requirements]
+    B --> C[Design Solution]
+    C --> D[Implement Changes]
+    D --> E[Test Implementation]
+    E --> F[Deploy/Complete]
+```'''
+                    context['flow_description'] = f'Basic workflow for {title}'
+                    context['show_flow_diagram'] = True
+
+            # CRITICAL: Do NOT add hardcoded implementation steps
+            # Let AI enhancement handle this or fail transparently
+            # Only add minimal fallback if absolutely nothing exists AND no AI enhancement was attempted
+            if not context.get('implementation_steps') and not context.get('ai_enhanced', False):
+                # Generate task-specific implementation steps based on title and description
+                title = context.get('title', 'Task')
+                description = context.get('description', '')
+
+                # Create basic task-specific steps instead of hardcoded search steps
                 context['implementation_steps'] = [
                     {
-                        'title': 'Requirements Analysis & Design',
+                        'title': f'Analysis & Planning for {title}',
                         'completed': False,
                         'in_progress': False,
                         'target_date': context.get('due_date'),
                         'substeps': [
-                            {'description': 'Analyze search requirements and user stories', 'completed': False},
-                            {'description': 'Design search architecture and data models', 'completed': False},
-                            {'description': 'Create API specifications and contracts', 'completed': False}
+                            {'description': f'Analyze requirements for {title.lower()}', 'completed': False},
+                            {'description': f'Design architecture and approach', 'completed': False},
+                            {'description': f'Create implementation plan', 'completed': False}
                         ]
                     },
                     {
-                        'title': 'Backend Implementation',
+                        'title': f'Implementation of {title}',
                         'completed': False,
                         'in_progress': False,
                         'target_date': context.get('due_date'),
                         'substeps': [
-                            {'description': 'Implement search engine integration', 'completed': False},
-                            {'description': 'Create filtering and sorting logic', 'completed': False},
-                            {'description': 'Develop suggestion algorithm', 'completed': False}
+                            {'description': f'Implement core functionality', 'completed': False},
+                            {'description': f'Add supporting features', 'completed': False},
+                            {'description': f'Integrate with existing system', 'completed': False}
                         ]
                     },
                     {
-                        'title': 'Frontend Implementation',
+                        'title': f'Testing & Validation',
                         'completed': False,
                         'in_progress': False,
                         'target_date': context.get('due_date'),
                         'substeps': [
-                            {'description': 'Build search UI components', 'completed': False},
-                            {'description': 'Implement real-time search suggestions', 'completed': False},
-                            {'description': 'Add filter and sort controls', 'completed': False}
-                        ]
-                    },
-                    {
-                        'title': 'Testing & Optimization',
-                        'completed': False,
-                        'in_progress': False,
-                        'target_date': context.get('due_date'),
-                        'substeps': [
-                            {'description': 'Write comprehensive test suite', 'completed': False},
-                            {'description': 'Performance testing and optimization', 'completed': False},
-                            {'description': 'User acceptance testing', 'completed': False}
+                            {'description': f'Test {title.lower()} functionality', 'completed': False},
+                            {'description': f'Validate requirements are met', 'completed': False},
+                            {'description': f'Perform user acceptance testing', 'completed': False}
                         ]
                     }
                 ]
@@ -605,29 +672,37 @@ flowchart TD
                         cleaned_requirements.append(clean_req)
                 context['functional_requirements_list'] = cleaned_requirements
 
-            # Ensure UI design variables are present
-            if not context.get('ascii_layout'):
-                context['ascii_layout'] = '''┌─────────────────────────────────────────────────────────────┐
-│ [Notification System Layout]                                 │
+            # CRITICAL: Do NOT add hardcoded UI design content
+            # Let AI enhancement handle this or fail transparently
+            # Only add minimal task-specific fallback if absolutely nothing exists AND no AI enhancement was attempted
+            if not context.get('ascii_layout') and not context.get('ai_enhanced', False):
+                title = context.get('title', 'Task')
+                description = context.get('description', '')
+
+                # Generate basic task-specific layout instead of hardcoded notification system
+                context['ascii_layout'] = f'''┌─────────────────────────────────────────────────────────────┐
+│ [{title} Layout]                                             │
 │ ┌─────────────┐ ┌─────────────────────────────────────────┐ │
-│ │ Sidebar     │ │ Main Content Area                       │ │
-│ │ - Settings  │ │ ┌─────────────────────────────────────┐ │ │
-│ │ - Prefs     │ │ │ Notification Panel                  │ │ │
-│ │ - History   │ │ ├─────────────────────────────────────┤ │ │
-│ │             │ │ │ Real-time Notifications             │ │ │
-│ │             │ │ │ WebSocket Status: Connected         │ │ │
+│ │ Navigation  │ │ Main Content Area                       │ │
+│ │ - Menu      │ │ ┌─────────────────────────────────────┐ │ │
+│ │ - Options   │ │ │ {title} Interface                   │ │ │
+│ │ - Settings  │ │ ├─────────────────────────────────────┤ │ │
+│ │             │ │ │ Content and Controls                │ │ │
+│ │             │ │ │ Status: Ready                       │ │ │
 │ │             │ │ └─────────────────────────────────────┘ │ │
 │ └─────────────┘ └─────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘'''
 
-            # Ensure other template variables are present
-            context.setdefault('show_ui_design', True)  # Enable UI design section
-            context.setdefault('ui_design_overview', 'Real-time notification system with WebSocket integration')
-            context.setdefault('ui_colors', 'Primary: #3b82f6, Secondary: #64748b, Success: #10b981, Warning: #f59e0b')
-            context.setdefault('ui_typography', 'Inter font family, 14px base size, 500 weight for notifications')
-            context.setdefault('ui_spacing', '8px base unit, 16px component padding, 24px section margins')
-            context.setdefault('ui_components', 'Toast notifications, Badge indicators, Modal dialogs')
-            context.setdefault('ui_icons', 'Lucide icons: Bell, Check, X, Settings, User')
+            # Only add basic template variables if missing AND no AI enhancement was attempted
+            if not context.get('ai_enhanced', False):
+                title = context.get('title', 'Task')
+                context.setdefault('show_ui_design', True)  # Enable UI design section
+                context.setdefault('ui_design_overview', f'User interface design for {title.lower()}')
+                context.setdefault('ui_colors', 'Primary: #3b82f6, Secondary: #64748b, Success: #10b981, Warning: #f59e0b')
+                context.setdefault('ui_typography', 'Inter font family, 14px base size, 500 weight for readability')
+                context.setdefault('ui_spacing', '8px base unit, 16px component padding, 24px section margins')
+                context.setdefault('ui_components', 'Standard UI components and controls')
+                context.setdefault('ui_icons', 'Lucide icons: appropriate icons for functionality')
 
             return context
 
@@ -842,7 +917,47 @@ flowchart TD
                     unique_files[file_key] = chunk
 
             unique_chunks = list(unique_files.values())
-            unique_chunks.sort(key=lambda x: x.relevance_score, reverse=True)
+
+            # Enhanced sorting: prioritize foundational completed tasks, then by relevance score
+            def enhanced_sort_key(chunk):
+                score = chunk.relevance_score
+
+                # Boost completed tasks that are foundational
+                if '/done/' in chunk.file_path.lower():
+                    if any(term in chunk.file_path.lower() for term in ['engine', 'core', 'ai', 'task']):
+                        score += 0.5  # Significant boost for foundational completed tasks
+                    else:
+                        score += 0.2  # Moderate boost for other completed tasks
+
+                # Boost files that match key concepts from the query
+                description_lower = data.get('description', '').lower()
+                title_lower = data.get('title', '').lower()
+                file_path_lower = chunk.file_path.lower()
+
+                # Extract key terms from user input
+                user_terms = set()
+                for text in [description_lower, title_lower]:
+                    if 'kanban' in text:
+                        user_terms.update(['kanban', 'board', 'visualization', 'column'])
+                    if 'ai' in text or 'engine' in text:
+                        user_terms.update(['ai', 'engine', 'task', 'hero'])
+                    if 'git' in text:
+                        user_terms.update(['git', 'integration', 'update'])
+                    if 'graphiti' in text:
+                        user_terms.update(['graphiti', 'context', 'retrieval'])
+
+                # Boost files that match user's specific terms
+                matching_terms = sum(1 for term in user_terms if term in file_path_lower)
+                if matching_terms > 0:
+                    score += 0.4 * matching_terms  # Significant boost for term matches
+
+                # General boost for core files
+                if any(term in file_path_lower for term in ['ai', 'engine', 'task', 'hero']):
+                    score += 0.2
+
+                return score
+
+            unique_chunks.sort(key=enhanced_sort_key, reverse=True)
 
             # Display enhanced context selection interface
             self._display_enhanced_context_selection(unique_chunks[:5])
@@ -903,45 +1018,1166 @@ flowchart TD
             return False
 
     async def _progressive_step_3_ai_enhancement(self) -> bool:
-        """Step 3: AI enhancement and preview."""
+        """Step 3: Comprehensive AI enhancement with detailed progress tracking."""
         try:
             print("\n🧠 Step 3/4: AI Enhancement & Preview")
-            print("=" * 40)
+            print("=" * 60)
 
             data = self.creation_state['collected_data']
 
-            # Prepare context for AI enhancement
+            # Initialize progress tracker
+            progress_tracker = AIEnhancementProgressTracker()
+
+            # Step 1: AI Provider Initialization
+            progress_tracker.start_step("🚀 Initializing AI provider...")
+            ai_ready = await self._initialize_ai_provider()
+            if not ai_ready:
+                progress_tracker.fail_step("❌ AI provider initialization failed")
+                print("⚠️  Continuing with basic enhancement...")
+                return await self._progressive_step_3_basic_enhancement(data)
+            progress_tracker.complete_step("✅ AI provider ready")
+
+            # Step 2: Context Preparation
+            progress_tracker.start_step("📋 Preparing enhancement context...")
             context = self.template_manager.prepare_base_context(**data)
+            progress_tracker.complete_step("✅ Context prepared")
 
-            # Apply AI enhancement
-            print("🤖 Applying AI enhancement...")
-            enhanced_context = await self._enhance_with_modular_ai(context, data['description'])
+            # Step 3: AI Analysis
+            progress_tracker.start_step("🤖 AI is analyzing your task with selected context...")
+            enhanced_context = await self._comprehensive_ai_enhancement(
+                context, data['description'], progress_tracker
+            )
 
-            # Store enhancements
+            # Store enhancements and mark as AI-enhanced
+            enhanced_context['ai_enhanced'] = True
             self.creation_state['ai_enhancements'] = enhanced_context
 
-            # Show preview
-            print("\n📋 Enhanced Task Preview:")
-            print(f"Title: {enhanced_context.get('title', 'N/A')}")
-            print(f"Type: {enhanced_context.get('task_type', 'N/A')}")
+            # Step 4: Quality Assessment
+            progress_tracker.start_step("📊 Calculating quality metrics...")
+            quality_score = self._calculate_enhancement_quality_score(enhanced_context)
+            self.creation_state['quality_score'] = quality_score
+            progress_tracker.complete_step(f"✅ Quality assessment complete")
 
-            if enhanced_context.get('detailed_description'):
-                print(f"Enhanced Description: {enhanced_context['detailed_description'][:200]}...")
-
-            if enhanced_context.get('functional_requirements_list'):
-                print(f"Requirements: {len(enhanced_context['functional_requirements_list'])} generated")
+            # Display comprehensive enhancement summary
+            self._display_enhancement_summary(enhanced_context, quality_score, progress_tracker)
 
             # User confirmation
             proceed = input("\nProceed with this enhancement? (Y/n): ").strip().lower()
             if proceed in ['n', 'no']:
                 return False
 
-            print("✅ AI enhancement applied")
+            print("✅ AI enhancement applied successfully")
             return True
 
         except Exception as e:
-            logger.error(f"Step 3 failed: {e}")
+            logger.error(f"Step 3 comprehensive enhancement failed: {e}")
+            print(f"❌ Enhancement failed: {e}")
             return False
+
+    async def _comprehensive_ai_enhancement(self, context: Dict[str, Any], description: str,
+                                          progress_tracker: AIEnhancementProgressTracker) -> Dict[str, Any]:
+        """Perform comprehensive AI enhancement with detailed progress tracking."""
+        try:
+            enhanced_context = context.copy()
+
+            # Analyze context once for all steps
+            selected_context = self.creation_state.get('selected_context', [])
+            context_analysis = self._analyze_context_content(selected_context, context.get('title', ''), description)
+            
+            # Step 1: Description Enhancement
+            progress_tracker.start_step("🔄 Enhancing description...")
+            enhanced_description = await self._enhance_description_step(context, description, progress_tracker, context_analysis)
+            if enhanced_description:
+                enhanced_context['detailed_description'] = enhanced_description
+                progress_tracker.complete_step("✅ Description enhanced")
+            else:
+                progress_tracker.fail_step("⚠️  Description enhancement failed, using original")
+                enhanced_context['detailed_description'] = description
+
+            # Step 2: Requirements Generation
+            progress_tracker.start_step("🔄 Generating requirements...")
+            requirements = await self._generate_requirements_step(context, description, progress_tracker, context_analysis)
+            if requirements:
+                enhanced_context['functional_requirements_list'] = requirements
+                enhanced_context['functional_requirements'] = ""  # Force template to use list
+                progress_tracker.complete_step(f"✅ Generated {len(requirements)} requirements")
+            else:
+                progress_tracker.fail_step("⚠️  Requirements generation failed")
+
+            # Step 3: Implementation Steps Generation
+            progress_tracker.start_step("🔄 Generating implementation steps...")
+            implementation_steps = await self._generate_implementation_steps_step(context, description, progress_tracker, context_analysis)
+            if implementation_steps:
+                enhanced_context['implementation_steps'] = implementation_steps
+                progress_tracker.complete_step(f"✅ Generated {len(implementation_steps)} implementation steps")
+            else:
+                progress_tracker.fail_step("⚠️  Implementation steps generation failed")
+
+            # Step 4: Risk Analysis
+            progress_tracker.start_step("🔄 Analyzing risks...")
+            risks = await self._analyze_risks_step(context, description, progress_tracker)
+            if risks:
+                enhanced_context['risks'] = risks
+                progress_tracker.complete_step(f"✅ Identified {len(risks)} potential risks")
+            else:
+                progress_tracker.fail_step("⚠️  Risk analysis failed")
+
+            # Step 5: Visual Elements Generation
+            progress_tracker.start_step("🔄 Generating visual elements...")
+            visual_elements = await self._generate_visual_elements_step(context, description, progress_tracker)
+            if visual_elements:
+                enhanced_context.update(visual_elements)
+                progress_tracker.complete_step("✅ Generated visual elements (Mermaid diagrams, ASCII art)")
+            else:
+                progress_tracker.fail_step("⚠️  Visual elements generation failed")
+
+            # Step 6: Flow Diagrams Creation
+            progress_tracker.start_step("🔄 Creating flow diagrams...")
+            flow_diagrams = await self._create_flow_diagrams_step(context, description, progress_tracker)
+            if flow_diagrams:
+                enhanced_context.update(flow_diagrams)
+                progress_tracker.complete_step(f"✅ Created {len(flow_diagrams.get('flow_diagram_list', []))} flow diagrams")
+            else:
+                progress_tracker.fail_step("⚠️  Flow diagrams creation failed")
+
+            # Step 7: AI Self-Validation and Iteration
+            progress_tracker.start_step("🔍 AI validating content relevance...")
+            validated_context = await self._ai_self_validation_step(enhanced_context, context, description, progress_tracker)
+            if validated_context:
+                enhanced_context = validated_context
+                progress_tracker.complete_step("✅ Content validated and improved")
+            else:
+                progress_tracker.fail_step("⚠️  Content validation failed")
+
+            # Step 8: Template Structure Optimization
+            progress_tracker.start_step("🔄 Optimizing template structure...")
+            optimized_context = self._optimize_template_structure_step(enhanced_context, context.get('task_type', 'Development'), description, progress_tracker)
+            if optimized_context:
+                enhanced_context = optimized_context
+                progress_tracker.complete_step("✅ Template structure optimized")
+            else:
+                progress_tracker.fail_step("⚠️  Template optimization failed")
+
+            return enhanced_context
+
+        except Exception as e:
+            logger.error(f"Comprehensive AI enhancement failed: {e}")
+            progress_tracker.fail_step(f"❌ Enhancement failed: {e}")
+            return context
+
+    async def _progressive_step_3_basic_enhancement(self, data: Dict[str, Any]) -> bool:
+        """Fallback basic enhancement when AI is not available."""
+        try:
+            print("🔄 Applying basic enhancement without AI...")
+
+            # Prepare basic context
+            context = self.template_manager.prepare_base_context(**data)
+
+            # Apply template optimization only
+            task_type = data.get('task_type', 'Development')
+            optimized_context = self.template_manager.optimize_template_context(context, task_type, data['description'])
+
+            # Store basic enhancements
+            self.creation_state['ai_enhancements'] = optimized_context
+            self.creation_state['quality_score'] = 0.6  # Basic quality score
+
+            print("✅ Basic enhancement applied")
+            return True
+
+        except Exception as e:
+            logger.error(f"Basic enhancement failed: {e}")
+            return False
+
+    def _analyze_context_content(self, selected_context: List, title: str, description: str) -> Dict[str, Any]:
+        """Analyze context content type and extract relevant information for AI enhancement."""
+        try:
+            analysis = {
+                'formatted_context': "",
+                'reference_task_content': None,  # Store full content of best reference task
+                'code_patterns': [],
+                'template_structure_name': None,
+                'best_reference_score': 0.0
+            }
+
+            if not selected_context:
+                return analysis
+
+            context_summary_for_ai = "\n\nCONTEXT-AWARE ENHANCEMENT INSTRUCTIONS:\n"
+
+            for i, chunk in enumerate(selected_context[:3]): # Limit to top 3 for summary
+                file_name = Path(chunk.file_path).name
+                file_ext = Path(chunk.file_path).suffix.lower()
+
+                # TASK FILE ANALYSIS (Markdown/Text documents)
+                if file_ext == '.md' and ('task-' in file_name.lower() or 'readme' in file_name.lower() or 'doc' in file_name.lower()):
+                    context_summary_for_ai += f"\n🎯 REFERENCE DOCUMENT FOUND: {file_name}\n"
+                    context_summary_for_ai += "INSTRUCTION: Use this document as HIGH-CONFIDENCE reference while preserving template structure.\n"
+
+                    doc_content = chunk.text
+
+                    # Calculate relevance score for this reference
+                    title_lower = title.lower()
+                    desc_lower = description.lower()
+                    combined_query = f"{title_lower} {desc_lower}"
+
+                    # Score based on content overlap
+                    query_terms = combined_query.split()
+                    content_matches = sum(1 for term in query_terms if term in doc_content.lower())
+                    relevance_score = content_matches / max(len(query_terms), 1)
+
+                    # Boost for position in context list (first is most relevant)
+                    position_boost = (3 - i) * 0.1
+                    final_score = relevance_score + position_boost
+
+                    # Store if this is the best reference so far
+                    if final_score > analysis['best_reference_score']:
+                        analysis['reference_task_content'] = doc_content # Store full content
+                        analysis['template_structure_name'] = file_name
+                        analysis['best_reference_score'] = final_score
+                        context_summary_for_ai += f"⭐ BEST REFERENCE (Score: {final_score:.2f})\n"
+
+                # CODE FILE ANALYSIS (Python, JS, etc.)
+                elif file_ext in ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.cs']:
+                    context_summary_for_ai += f"\n💻 CODE REFERENCE: {file_name}\n"
+                    context_summary_for_ai += "INSTRUCTION: Analyze this code to understand implementation patterns and technical requirements.\n"
+
+                    code_content = chunk.text
+
+                    # Look for classes and functions
+                    if 'class ' in code_content:
+                        classes = [line.strip() for line in code_content.split('\n') if 'class ' in line]
+                        context_summary_for_ai += f"📦 KEY CLASSES: {', '.join(classes[:3])}\n"
+                        analysis['code_patterns'].extend(classes[:3])
+
+                    if 'def ' in code_content:
+                        functions = [line.strip() for line in code_content.split('\n') if 'def ' in line]
+                        context_summary_for_ai += f"⚙️ KEY FUNCTIONS: {', '.join(functions[:5])}\n"
+                        analysis['code_patterns'].extend(functions[:5])
+
+                    context_summary_for_ai += f"\n--- Code Context ---\n{code_content[:800]}...\n"
+
+                # DOCUMENTATION ANALYSIS (Other text files)
+                else:
+                    context_summary_for_ai += f"\n📚 DOCUMENTATION: {file_name}\n"
+                    context_summary_for_ai += f"--- Content ---\n{chunk.text[:600]}...\n"
+
+            # Add confidence and intent preservation instructions
+            context_summary_for_ai += f"""
+🎯 ENHANCEMENT CONFIDENCE LEVEL: HIGH (Reference content found)
+- Use reference content to enhance accuracy and detail
+- Preserve template structure and format
+- Adapt reference examples to user's specific requirements
+
+USER INTENT PRESERVATION:
+- Original Title: "{title}"
+- Original Description: "{description}"
+- MUST preserve user's exact goals and terminology
+- MUST NOT change the core purpose or functionality requested by user
+"""
+
+            analysis['formatted_context'] = context_summary_for_ai
+            return analysis
+
+        except Exception as e:
+            logger.error(f"Error analyzing context content: {e}")
+            return {
+                'formatted_context': "",
+                'reference_task_content': None,
+                'code_patterns': [],
+                'template_structure_name': None
+            }
+
+    async def _enhance_description_step(self, context: Dict[str, Any], description: str,
+                                      progress_tracker: AIEnhancementProgressTracker, context_analysis: Dict[str, Any]) -> Optional[str]:
+        """Enhanced description generation step with user input prioritization and reference adaptation."""
+        try:
+            title = context.get('title', '')
+            task_type = context.get('task_type', 'Development')
+            
+            reference_content = context_analysis['reference_task_content']
+            
+            # If a high-confidence reference task is found, use it for adaptation
+            if reference_content:
+                enhancement_prompt = f"""You are enhancing a task description. Your primary goal is to ADAPT the provided reference content to match the user's specific task, while STRICTLY preserving the user's original intent and content.
+
+ORIGINAL USER INPUT:
+Title: {title}
+Description: {description}
+Task Type: {task_type}
+
+HIGH-CONFIDENCE REFERENCE CONTENT (ADAPT THIS):
+```markdown
+{reference_content}
+```
+
+CRITICAL ADAPTATION STRATEGY:
+1. Identify the core concepts and technical details in the REFERENCE CONTENT that are relevant to the user's task.
+2. REWRITE and ADAPT sections of the REFERENCE CONTENT to fit the user's EXACT title and description.
+3. Use the REFERENCE's terminology, structure, and level of detail as a guide.
+4. DO NOT simply copy-paste. ADAPT and INTEGRATE.
+5. Ensure the output is a cohesive, enhanced description for the user's task.
+6. Focus on achieving high content similarity with the adapted reference.
+
+ENHANCEMENT RULES:
+- PRESERVE the user's exact intent and requirements.
+- ADAPT the reference content to EXPAND on the user's description with specific technical details.
+- DO NOT change the core functionality or purpose.
+- DO NOT add unrelated features or requirements.
+- Maintain the user's terminology and concepts.
+- Include implementation details that support the user's vision, derived from the reference.
+
+Enhanced description (ADAPTED from reference, preserving user intent):"""
+            else:
+                # Fallback to original enhancement prompt if no strong reference
+                enhancement_prompt = f"""You are enhancing a task description while STRICTLY preserving the user's original intent and content.
+
+ORIGINAL USER INPUT:
+Title: {title}
+Description: {description}
+Task Type: {task_type}
+
+{context_analysis['formatted_context']}
+
+CRITICAL ENHANCEMENT STRATEGY:
+When HIGH-CONFIDENCE reference content is found, you must:
+1. Extract specific technical details, class names, function names, and implementation patterns from the reference
+2. Adapt these details to match the user's exact title and description
+3. Use the reference's terminology and approach while preserving user intent
+4. Include specific code references (classes, functions, files) mentioned in the reference
+5. Maintain the reference's level of technical detail and specificity
+
+ENHANCEMENT RULES:
+1. PRESERVE the user's exact intent and requirements
+2. EXPAND on the user's description with specific technical details from the reference content
+3. DO NOT change the core functionality or purpose
+4. DO NOT add unrelated features or requirements
+5. Keep the user's terminology and concepts
+6. Add implementation details that support the user's vision
+7. Use specific examples and patterns from the reference content
+8. Include technical references (classes, functions, files) from the context
+
+Enhanced description (preserve user intent, add specific technical depth from reference):"""
+
+            enhanced_description = await self.ai_enhancement.ai_provider.generate_response(
+                enhancement_prompt, max_tokens=800, temperature=0.3
+            )
+
+            if enhanced_description and len(enhanced_description.strip()) > len(description):
+                progress_tracker.update_progress(f"Enhanced description: {len(enhanced_description)} characters")
+                return enhanced_description.strip()
+
+            progress_tracker.update_progress("Using original description (enhancement failed or no significant improvement)")
+            return description
+
+        except Exception as e:
+            logger.error(f"Description enhancement step failed: {e}")
+            return description
+
+    async def _generate_requirements_step(self, context: Dict[str, Any], description: str,
+                                        progress_tracker: AIEnhancementProgressTracker, context_analysis: Dict[str, Any]) -> Optional[List[str]]:
+        """Requirements generation step with user input prioritization and reference adaptation."""
+        try:
+            title = context.get('title', '')
+            task_type = context.get('task_type', 'Development')
+            
+            reference_content = context_analysis['reference_task_content']
+
+            if reference_content:
+                requirements_prompt = f"""You are a business analyst creating specific functional requirements for this exact task. Your primary goal is to ADAPT requirements found in the provided reference content to match the user's specific task.
+
+CRITICAL REQUIREMENTS:
+- MUST derive requirements from the user's EXACT description and title.
+- MUST ADAPT requirements from the REFERENCE CONTENT.
+- MUST NOT add generic or unrelated requirements.
+- MUST focus on what the user specifically wants to achieve.
+
+TASK DETAILS:
+Title: {title}
+Description: {description}
+Task Type: {task_type}
+
+HIGH-CONFIDENCE REFERENCE CONTENT (ADAPT REQUIREMENTS FROM THIS):
+```markdown
+{reference_content}
+```
+
+REQUIREMENTS GENERATION RULES:
+1. Identify and extract functional requirements from the REFERENCE CONTENT.
+2. ADAPT these requirements to align perfectly with the user's "{title}" and "{description}".
+3. Use the user's terminology and concepts.
+4. Make requirements testable and specific.
+5. Each requirement should directly support the user's vision.
+6. Focus on achieving high content similarity with the adapted reference requirements.
+
+Generate 4-6 specific functional requirements that directly support "{title}" as described by the user.
+
+Format as a JSON array of strings:
+["Requirement 1", "Requirement 2", ...]
+
+Requirements:"""
+            else:
+                # Fallback to original prompt if no strong reference
+                requirements_prompt = f"""You are a business analyst creating specific functional requirements for this exact task.
+
+CRITICAL REQUIREMENTS:
+- MUST derive requirements from the user's EXACT description and title
+- MUST NOT add generic or unrelated requirements
+- MUST focus on what the user specifically wants to achieve
+- USE the context files to understand detailed implementation requirements
+
+TASK DETAILS:
+Title: {title}
+Description: {description}
+Task Type: {task_type}
+{context_analysis['formatted_context']}
+
+REQUIREMENTS GENERATION RULES:
+1. Extract specific functionality from the user's description
+2. Use the user's terminology and concepts
+3. Focus on the user's stated goals and needs
+4. Make requirements testable and specific
+5. DO NOT add generic software development requirements
+6. Each requirement should directly support the user's vision
+7. Use relevant details from the context files to create specific requirements
+8. If TASK-003 is in the context, use its acceptance criteria as reference
+
+Generate 4-6 specific functional requirements that directly support "{title}" as described by the user.
+
+Format as a JSON array of strings:
+["Requirement 1", "Requirement 2", ...]
+
+Requirements:"""
+
+            response = await self.ai_enhancement.ai_provider.generate_response(
+                requirements_prompt, max_tokens=600, temperature=0.3
+            )
+
+            import json
+            import re
+
+            try:
+                response_clean = response.strip()
+                json_match = re.search(r'\[.*?\]', response_clean, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                    requirements = json.loads(json_str)
+                    if isinstance(requirements, list) and requirements:
+                        progress_tracker.update_progress(f"Generated {len(requirements)} user-focused requirements")
+                        return requirements
+
+                requirements = json.loads(response_clean)
+                if isinstance(requirements, list) and requirements:
+                    progress_tracker.update_progress(f"Generated {len(requirements)} user-focused requirements")
+                    return requirements
+
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse requirements JSON response: {e}")
+                logger.debug(f"Raw response: {response[:200]}...")
+                progress_tracker.fail_step(f"❌ Requirements generation failed: Invalid JSON response")
+                return None
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Requirements generation step failed: {e}")
+            return None
+
+    async def _generate_implementation_steps_step(self, context: Dict[str, Any], description: str,
+                                                progress_tracker: AIEnhancementProgressTracker, context_analysis: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+        """Implementation steps generation step."""
+        try:
+            # Use existing AI enhancement service
+            task_type = context.get('task_type', 'Development')
+            enhanced_context = self.context_processor.analyze_task_context_enhanced(
+                description, task_type, specific_files=None
+            )
+
+            implementation_steps = await self.ai_enhancement.generate_implementation_steps_with_context(
+                description, context, enhanced_context, context_analysis['reference_task_content']
+            )
+
+            if implementation_steps:
+                progress_tracker.update_progress(f"Generated {len(implementation_steps)} implementation phases")
+                return implementation_steps
+            return None
+
+        except Exception as e:
+            logger.error(f"Implementation steps generation step failed: {e}")
+            return None
+
+    async def _analyze_risks_step(self, context: Dict[str, Any], description: str,
+                                progress_tracker: AIEnhancementProgressTracker) -> Optional[List[Dict[str, Any]]]:
+        """Risk analysis step."""
+        try:
+            # Generate risks using AI enhancement service
+            if not await self.ai_enhancement.initialize_provider():
+                return None
+
+            task_type = context.get('task_type', 'Development')
+            title = context.get('title', 'Task')
+
+            prompt = f"""You are a senior risk analyst evaluating potential risks for a development task.
+
+TASK DETAILS:
+- Title: {title}
+- Description: {description}
+- Type: {task_type}
+
+RISK ANALYSIS INSTRUCTIONS:
+Generate 2-4 potential risks with detailed mitigation strategies.
+
+Each risk must include:
+- Risk description
+- Impact level (High/Medium/Low)
+- Probability (High/Medium/Low)
+- Specific mitigation strategy
+- Contingency plan
+
+Format as JSON array:
+[
+  {{
+    "risk": "Risk description",
+    "impact": "High/Medium/Low",
+    "probability": "High/Medium/Low",
+    "mitigation": "Specific mitigation strategy",
+    "contingency": "Backup plan if mitigation fails"
+  }}
+]
+
+Generate risks now:"""
+
+            response = await self.ai_enhancement.ai_provider.generate_response(
+                prompt, max_tokens=800, temperature=0.6
+            )
+
+            # Parse JSON response with better error handling
+            import json
+            import re
+
+            try:
+                # Clean the response to extract JSON
+                response_clean = response.strip()
+
+                # Try to extract JSON array from response
+                json_match = re.search(r'\[.*?\]', response_clean, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                    risks = json.loads(json_str)
+                    if isinstance(risks, list) and risks:
+                        progress_tracker.update_progress(f"Analyzed {len(risks)} potential risks")
+                        return risks
+
+                # Fallback: try parsing the entire response
+                risks = json.loads(response_clean)
+                if isinstance(risks, list) and risks:
+                    progress_tracker.update_progress(f"Analyzed {len(risks)} potential risks")
+                    return risks
+
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse risks JSON response: {e}")
+                logger.debug(f"Raw response: {response[:200]}...")
+
+                # NO FALLBACK - Let it fail transparently
+                progress_tracker.fail_step(f"❌ Risk analysis failed: Invalid JSON response")
+                return None
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Risk analysis step failed: {e}")
+            return None
+
+    async def _generate_visual_elements_step(self, context: Dict[str, Any], description: str,
+                                           progress_tracker: AIEnhancementProgressTracker) -> Optional[Dict[str, Any]]:
+        """Visual elements generation step."""
+        try:
+            visual_elements = {}
+
+            # Generate Mermaid diagrams
+            mermaid_diagrams = await self._generate_mermaid_diagrams(context, description)
+            if mermaid_diagrams:
+                visual_elements.update(mermaid_diagrams)
+                progress_tracker.update_progress("Generated Mermaid diagrams")
+
+            # Generate ASCII art
+            ascii_art = await self._generate_ascii_art(context, description)
+            if ascii_art:
+                visual_elements.update(ascii_art)
+                progress_tracker.update_progress("Generated ASCII art elements")
+
+            return visual_elements if visual_elements else None
+
+        except Exception as e:
+            logger.error(f"Visual elements generation step failed: {e}")
+            return None
+
+    async def _create_flow_diagrams_step(self, context: Dict[str, Any], description: str,
+                                       progress_tracker: AIEnhancementProgressTracker) -> Optional[Dict[str, Any]]:
+        """Flow diagrams creation step."""
+        try:
+            # Use template manager to generate flow diagrams
+            task_type = context.get('task_type', 'Development')
+            flow_diagram_context = self.template_manager.generate_task_specific_flow_diagram(
+                task_type, description, context
+            )
+
+            if flow_diagram_context and flow_diagram_context.get('flow_diagram'):
+                # Create flow diagram list for counting
+                flow_diagrams = [flow_diagram_context['flow_diagram']]
+                flow_diagram_context['flow_diagram_list'] = flow_diagrams
+                progress_tracker.update_progress(f"Created {len(flow_diagrams)} flow diagram(s)")
+                return flow_diagram_context
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Flow diagrams creation step failed: {e}")
+            return None
+
+    def _optimize_template_structure_step(self, context: Dict[str, Any], task_type: str, description: str,
+                                        progress_tracker: AIEnhancementProgressTracker) -> Optional[Dict[str, Any]]:
+        """Template structure optimization step with reference task structure adaptation."""
+        try:
+            # Check if we have a reference task structure to follow
+            selected_context = self.creation_state.get('selected_context', [])
+            context_analysis = self._analyze_context_content(selected_context, context.get('title', ''), description)
+
+            # If we have reference content, enhance template with high-confidence details
+            if context_analysis.get('reference_task') and context_analysis.get('template_structure'):
+                progress_tracker.update_progress(f"Enhancing template with {context_analysis['template_structure']} reference")
+
+                # Add reference confidence marker for template processing
+                context['reference_confidence'] = 'HIGH'
+                context['reference_source'] = context_analysis['template_structure']
+
+                progress_tracker.update_progress("Applied high-confidence reference enhancement")
+
+            # Use template manager to optimize structure
+            optimized_context = self.template_manager.optimize_template_context(context, task_type, description)
+
+            if optimized_context:
+                progress_tracker.update_progress("Applied template optimizations")
+                return optimized_context
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Template optimization step failed: {e}")
+            return None
+
+    async def _ai_self_validation_step(self, enhanced_context: Dict[str, Any], original_context: Dict[str, Any],
+                                     description: str, progress_tracker) -> Optional[Dict[str, Any]]:
+        """AI self-validation step to check and improve content relevance."""
+        try:
+            if not await self.ai_enhancement.initialize_provider():
+                return enhanced_context
+
+            title = original_context.get('title', '')
+            task_type = original_context.get('task_type', 'Development')
+
+            # Extract generated content for validation
+            implementation_steps = enhanced_context.get('implementation_steps', [])
+            requirements = enhanced_context.get('functional_requirements_list', [])
+            flow_diagram = enhanced_context.get('flow_diagram', '')
+
+            # Create validation prompt
+            validation_prompt = f"""You are a quality assurance expert reviewing AI-generated task content for relevance and accuracy.
+
+ORIGINAL USER INPUT:
+Title: {title}
+Description: {description}
+Task Type: {task_type}
+
+GENERATED CONTENT TO VALIDATE:
+Implementation Steps: {implementation_steps}
+Requirements: {requirements}
+Flow Diagram: {flow_diagram[:200]}...
+
+VALIDATION CRITERIA:
+1. Do the implementation steps directly relate to "{title}"?
+2. Are the requirements specific to the user's description?
+3. Does the flow diagram match the task purpose?
+4. Is there any irrelevant content (e.g., search functionality in a kanban task)?
+
+VALIDATION RULES:
+- Flag any content that doesn't match the user's intent
+- Identify generic or template-like content
+- Check for wrong domain content (search in kanban, notifications in AI engine, etc.)
+- Suggest specific improvements
+
+Provide validation results as JSON:
+{{
+  "implementation_steps_relevant": true/false,
+  "requirements_relevant": true/false,
+  "flow_diagram_relevant": true/false,
+  "issues_found": ["issue1", "issue2"],
+  "improvement_suggestions": ["suggestion1", "suggestion2"],
+  "overall_relevance_score": 0-100
+}}
+
+Validation results:"""
+
+            response = await self.ai_enhancement.ai_provider.generate_response(
+                validation_prompt, max_tokens=800, temperature=0.2
+            )
+
+            # Parse validation results
+            import json
+            import re
+
+            try:
+                # Extract JSON from response
+                json_match = re.search(r'\{.*?\}', response, re.DOTALL)
+                if json_match:
+                    validation_results = json.loads(json_match.group(0))
+
+                    relevance_score = validation_results.get('overall_relevance_score', 0)
+                    issues = validation_results.get('issues_found', [])
+
+                    progress_tracker.update_progress(f"Relevance score: {relevance_score}%")
+
+                    # If relevance is low, attempt to improve
+                    if relevance_score < 70 or issues:
+                        progress_tracker.update_progress("Low relevance detected, attempting improvements...")
+                        improved_context = await self._improve_content_relevance(
+                            enhanced_context, original_context, description, validation_results
+                        )
+                        if improved_context:
+                            progress_tracker.update_progress("Content improved based on validation")
+                            return improved_context
+
+                    return enhanced_context
+
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse validation results: {e}")
+                return enhanced_context
+
+        except Exception as e:
+            logger.error(f"AI self-validation failed: {e}")
+            return enhanced_context
+
+    async def _improve_content_relevance(self, enhanced_context: Dict[str, Any], original_context: Dict[str, Any],
+                                       description: str, validation_results: dict) -> Optional[Dict[str, Any]]:
+        """Improve content based on validation feedback."""
+        try:
+            title = original_context.get('title', '')
+            issues = validation_results.get('issues_found', [])
+            suggestions = validation_results.get('improvement_suggestions', [])
+
+            # Focus on fixing implementation steps if they're irrelevant
+            if not validation_results.get('implementation_steps_relevant', True):
+                improvement_prompt = f"""Fix the implementation steps to be specifically relevant to "{title}".
+
+ORIGINAL USER REQUEST:
+Title: {title}
+Description: {description}
+
+CURRENT ISSUES: {', '.join(issues)}
+SUGGESTIONS: {', '.join(suggestions)}
+
+Generate 5-7 implementation steps that are SPECIFICALLY for "{title}" based on the user's description.
+Use the user's exact terminology and focus on their stated requirements.
+
+Format as JSON array:
+["Step 1: ...", "Step 2: ...", ...]
+
+Improved implementation steps:"""
+
+                response = await self.ai_enhancement.ai_provider.generate_response(
+                    improvement_prompt, max_tokens=600, temperature=0.3
+                )
+
+                # Parse improved steps
+                import json
+                import re
+
+                json_match = re.search(r'\[.*?\]', response, re.DOTALL)
+                if json_match:
+                    try:
+                        improved_steps = json.loads(json_match.group(0))
+                        if isinstance(improved_steps, list) and improved_steps:
+                            enhanced_context['implementation_steps'] = improved_steps
+                            logger.info("Implementation steps improved based on validation")
+                    except json.JSONDecodeError:
+                        logger.warning("Failed to parse improved implementation steps")
+
+            return enhanced_context
+
+        except Exception as e:
+            logger.error(f"Content improvement failed: {e}")
+            return enhanced_context
+
+    async def _generate_mermaid_diagrams(self, context: Dict[str, Any], description: str) -> Optional[Dict[str, Any]]:
+        """Generate task-specific Mermaid diagrams based on context and task type."""
+        try:
+            if not await self.ai_enhancement.initialize_provider():
+                return None
+
+            task_type = context.get('task_type', 'Development')
+            title = context.get('title', 'Task')
+
+            # Get context-aware diagram type and structure
+            diagram_context = self._analyze_task_for_diagram_type(title, description, task_type)
+
+            prompt = f"""You are a technical architect creating a SPECIFIC Mermaid diagram for this exact task.
+
+CRITICAL REQUIREMENTS:
+- MUST reflect the EXACT task described by the user
+- MUST use terminology from the user's title and description
+- MUST NOT generate generic or unrelated content
+
+TASK DETAILS:
+- Title: {title}
+- Description: {description}
+- Type: {task_type}
+- Diagram Focus: {diagram_context['focus']}
+
+USER'S SPECIFIC REQUIREMENTS:
+{diagram_context['analysis']}
+
+Generate a {diagram_context['diagram_type']} Mermaid diagram that SPECIFICALLY shows the workflow for "{title}":
+
+STRICT GUIDELINES:
+1. Extract key components/processes from the user's description
+2. Use the EXACT terminology from the title and description
+3. Show the specific workflow for THIS task only
+4. DO NOT use generic examples or unrelated processes
+5. Focus on the user's stated requirements and goals
+
+{diagram_context['example']}
+
+Generate the SPECIFIC Mermaid diagram for "{title}" based on the user's description:"""
+
+            response = await self.ai_enhancement.ai_provider.generate_response(
+                prompt, max_tokens=800, temperature=0.4
+            )
+
+            # Extract Mermaid code
+            if '```mermaid' in response:
+                start = response.find('```mermaid') + 10
+                end = response.find('```', start)
+                if end > start:
+                    mermaid_code = response[start:end].strip()
+                    return {
+                        'mermaid_diagram': mermaid_code,
+                        'has_mermaid_diagram': True,
+                        'diagram_type': diagram_context['diagram_type'],
+                        'diagram_focus': diagram_context['focus']
+                    }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Mermaid diagram generation failed: {e}")
+            return None
+
+    def _analyze_task_for_diagram_type(self, title: str, description: str, task_type: str) -> Dict[str, str]:
+        """Analyze task to determine the most appropriate diagram type and structure."""
+        title_lower = title.lower()
+        desc_lower = description.lower()
+
+        # Integration/API tasks
+        if any(keyword in title_lower or keyword in desc_lower for keyword in
+               ['integration', 'api', 'graphiti', 'search', 'retrieval', 'context']):
+            return {
+                'diagram_type': 'flowchart TD',
+                'focus': 'Integration Architecture and Data Flow',
+                'analysis': 'This appears to be an integration task involving data flow and system interactions.',
+                'requirements': '''1. System integration points and data flow
+2. API calls and response handling
+3. Error handling and fallback mechanisms
+4. Performance optimization points
+5. Context retrieval and processing steps''',
+                'example': '''Example format:
+```mermaid
+flowchart TD
+    A[User Query] --> B[Context Processor]
+    B --> C{Graphiti Available?}
+    C -->|Yes| D[Graphiti Search]
+    C -->|No| E[Fallback Search]
+    D --> F[Score Results]
+    E --> F
+    F --> G[Return Context]
+```'''
+            }
+
+        # UI/Frontend tasks
+        elif any(keyword in title_lower or keyword in desc_lower for keyword in
+                ['ui', 'frontend', 'interface', 'component', 'react', 'vue']):
+            return {
+                'diagram_type': 'flowchart TD',
+                'focus': 'User Interface Flow and Component Interaction',
+                'analysis': 'This appears to be a UI/frontend task involving user interactions and component flow.',
+                'requirements': '''1. User interaction flow
+2. Component hierarchy and communication
+3. State management and data flow
+4. Event handling and validation
+5. Error states and user feedback''',
+                'example': '''Example format:
+```mermaid
+flowchart TD
+    A[User Input] --> B[Validation]
+    B -->|Valid| C[Update State]
+    B -->|Invalid| D[Show Error]
+    C --> E[Render Component]
+    D --> A
+```'''
+            }
+
+        # Database/Backend tasks
+        elif any(keyword in title_lower or keyword in desc_lower for keyword in
+                ['database', 'backend', 'server', 'model', 'schema', 'migration']):
+            return {
+                'diagram_type': 'erDiagram',
+                'focus': 'Database Schema and Backend Architecture',
+                'analysis': 'This appears to be a backend/database task involving data modeling and server logic.',
+                'requirements': '''1. Database schema and relationships
+2. API endpoints and data flow
+3. Business logic and validation
+4. Authentication and authorization
+5. Error handling and logging''',
+                'example': '''Example format:
+```mermaid
+erDiagram
+    USER ||--o{ TASK : creates
+    TASK ||--o{ COMMENT : has
+    USER {
+        string id
+        string name
+        string email
+    }
+```'''
+            }
+
+        # Testing tasks
+        elif any(keyword in title_lower or keyword in desc_lower for keyword in
+                ['test', 'testing', 'validation', 'qa', 'quality']):
+            return {
+                'diagram_type': 'flowchart TD',
+                'focus': 'Testing Strategy and Validation Flow',
+                'analysis': 'This appears to be a testing task involving validation and quality assurance.',
+                'requirements': '''1. Test execution flow
+2. Validation checkpoints
+3. Error detection and reporting
+4. Test data management
+5. Coverage and quality metrics''',
+                'example': '''Example format:
+```mermaid
+flowchart TD
+    A[Test Suite] --> B[Unit Tests]
+    A --> C[Integration Tests]
+    B --> D[Validate Results]
+    C --> D
+    D --> E[Generate Report]
+```'''
+            }
+
+        # Default for general development tasks
+        else:
+            return {
+                'diagram_type': 'flowchart TD',
+                'focus': 'Development Workflow and Implementation Steps',
+                'analysis': 'This appears to be a general development task requiring implementation workflow.',
+                'requirements': '''1. Development workflow and implementation steps
+2. Key decision points and branching logic
+3. Integration with existing systems
+4. Error handling and validation
+5. Testing and deployment considerations''',
+                'example': '''Example format:
+```mermaid
+flowchart TD
+    A[Requirements] --> B[Design]
+    B --> C[Implementation]
+    C --> D[Testing]
+    D --> E[Deployment]
+```'''
+            }
+
+    async def _generate_ascii_art(self, context: Dict[str, Any], description: str) -> Optional[Dict[str, Any]]:
+        """Generate ASCII art elements for the task."""
+        try:
+            if not await self.ai_enhancement.initialize_provider():
+                return None
+
+            task_type = context.get('task_type', 'Development')
+            title = context.get('title', 'Task')
+
+            prompt = f"""Create simple ASCII art that represents the concept of this task.
+
+TASK DETAILS:
+- Title: {title}
+- Description: {description}
+- Type: {task_type}
+
+Create a simple, clean ASCII art representation (max 10 lines, 60 characters wide).
+Focus on the main concept or workflow of the task.
+
+Generate ASCII art now:"""
+
+            response = await self.ai_enhancement.ai_provider.generate_response(
+                prompt, max_tokens=300, temperature=0.7
+            )
+
+            if response and len(response.strip()) > 10:
+                return {
+                    'ascii_art': response.strip(),
+                    'has_ascii_art': True
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"ASCII art generation failed: {e}")
+            return None
+
+    def _calculate_enhancement_quality_score(self, enhanced_context: Dict[str, Any]) -> float:
+        """Calculate quality score for the enhanced task."""
+        try:
+            score = 0.0
+            max_score = 100.0
+
+            # Base score for having enhanced content
+            score += 10.0
+
+            # Description enhancement (20 points)
+            if enhanced_context.get('detailed_description'):
+                desc_length = len(enhanced_context['detailed_description'])
+                if desc_length > 500:
+                    score += 20.0
+                elif desc_length > 200:
+                    score += 15.0
+                else:
+                    score += 10.0
+
+            # Requirements (20 points)
+            requirements = enhanced_context.get('functional_requirements_list', [])
+            if requirements:
+                req_count = len(requirements)
+                if req_count >= 6:
+                    score += 20.0
+                elif req_count >= 4:
+                    score += 15.0
+                elif req_count >= 2:
+                    score += 10.0
+                else:
+                    score += 5.0
+
+            # Implementation steps (15 points)
+            impl_steps = enhanced_context.get('implementation_steps', [])
+            if impl_steps:
+                step_count = len(impl_steps)
+                if step_count >= 4:
+                    score += 15.0
+                elif step_count >= 2:
+                    score += 10.0
+                else:
+                    score += 5.0
+
+            # Risk analysis (10 points)
+            risks = enhanced_context.get('risks', [])
+            if risks:
+                risk_count = len(risks)
+                if risk_count >= 3:
+                    score += 10.0
+                elif risk_count >= 2:
+                    score += 7.0
+                else:
+                    score += 5.0
+
+            # Visual elements (15 points)
+            visual_score = 0
+            if enhanced_context.get('mermaid_diagram'):
+                visual_score += 8.0
+            if enhanced_context.get('ascii_art'):
+                visual_score += 4.0
+            if enhanced_context.get('flow_diagram'):
+                visual_score += 3.0
+            score += min(visual_score, 15.0)
+
+            # Template optimization (10 points)
+            if enhanced_context.get('ai_enhancement_applied'):
+                score += 10.0
+
+            # Context usage (10 points)
+            context_used = enhanced_context.get('ai_context_used', 0)
+            if context_used > 0:
+                if context_used >= 5:
+                    score += 10.0
+                elif context_used >= 3:
+                    score += 7.0
+                else:
+                    score += 5.0
+
+            return min(score, max_score)
+
+        except Exception as e:
+            logger.error(f"Quality score calculation failed: {e}")
+            return 60.0  # Default score
+
+    def _display_enhancement_summary(self, enhanced_context: Dict[str, Any], quality_score: float,
+                                   progress_tracker: AIEnhancementProgressTracker) -> None:
+        """Display comprehensive enhancement summary."""
+        try:
+            print("\n" + "="*60)
+            print("📊 AI Enhancement Complete!")
+            print("="*60)
+
+            # Quality score
+            print(f"   🎯 Quality Score: {quality_score:.1f}%")
+
+            # Enhanced description
+            desc = enhanced_context.get('detailed_description', '')
+            if desc:
+                print(f"   📝 Enhanced Description: {len(desc)} characters")
+
+            # Requirements
+            requirements = enhanced_context.get('functional_requirements_list', [])
+            if requirements:
+                print(f"   📋 Requirements: {len(requirements)} items")
+
+            # Implementation steps
+            impl_steps = enhanced_context.get('implementation_steps', [])
+            if impl_steps:
+                print(f"   🔧 Implementation Steps: {len(impl_steps)} phases")
+
+            # Risks
+            risks = enhanced_context.get('risks', [])
+            if risks:
+                print(f"   🚨 Risks: {len(risks)} identified")
+
+            # Visual elements
+            visual_elements = []
+            if enhanced_context.get('mermaid_diagram'):
+                visual_elements.append("Mermaid diagrams")
+            if enhanced_context.get('ascii_art'):
+                visual_elements.append("ASCII art")
+            if visual_elements:
+                print(f"   🎨 Visual Elements: {', '.join(visual_elements)}")
+            else:
+                print("   🎨 Visual Elements: None generated")
+
+            # Flow diagrams
+            flow_diagrams = enhanced_context.get('flow_diagram_list', [])
+            if flow_diagrams:
+                print(f"   📊 Flow Diagrams: {len(flow_diagrams)} created")
+            else:
+                print("   📊 Flow Diagrams: None created")
+
+            # Context usage
+            context_used = enhanced_context.get('ai_context_used', 0)
+            if context_used > 0:
+                print(f"   🔍 Context Files Used: {context_used}")
+
+            # Enhancement metadata
+            if enhanced_context.get('graphiti_used'):
+                print("   🧠 Enhanced Context: Graphiti integration used")
+            elif enhanced_context.get('modular_enhanced'):
+                print("   🧠 Enhanced Context: Modular enhancement applied")
+
+            print("="*60)
+
+        except Exception as e:
+            logger.error(f"Enhancement summary display failed: {e}")
 
     async def _progressive_step_4_final_creation(self) -> Tuple[bool, str, str]:
         """Step 4: Final review and task creation."""

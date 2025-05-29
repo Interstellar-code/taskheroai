@@ -502,8 +502,8 @@ Generate 6-8 requirements now:"""
             return self._generate_fallback_requirements(user_description, context)
 
     async def generate_implementation_steps_with_context(self, user_description: str, context: Dict[str, Any],
-                                                       enhanced_context: EnhancedProjectContext) -> List[Dict[str, Any]]:
-        """Generate implementation steps with enhanced context awareness."""
+                                                       enhanced_context: EnhancedProjectContext, reference_task_content: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Generate implementation steps with enhanced context awareness, adapting from reference if provided."""
         try:
             if not await self.initialize_provider():
                 return self._generate_fallback_implementation_steps(user_description, context)
@@ -527,7 +527,43 @@ Generate 6-8 requirements now:"""
                 if primary_file.specific_patterns:
                     context_info += f"\nCode patterns: {', '.join(primary_file.specific_patterns)}"
 
-            prompt = f"""You are a senior technical architect creating a comprehensive implementation plan for a development task.
+            if reference_task_content:
+                prompt = f"""You are a senior technical architect creating a comprehensive implementation plan for a development task. Your primary goal is to ADAPT the implementation steps found in the provided reference content to match the user's specific task.
+
+TASK OVERVIEW:
+- Title: {context.get('title', 'Task')}
+- Description: {user_description}
+- Type: {task_type}
+
+TECHNICAL CONTEXT:
+{context_info}
+
+HIGH-CONFIDENCE REFERENCE CONTENT (ADAPT IMPLEMENTATION STEPS FROM THIS):
+```markdown
+{reference_task_content}
+```
+
+IMPLEMENTATION PLAN REQUIREMENTS:
+
+Create a detailed 4-5 phase implementation plan with:
+🎯 SPECIFIC PHASES: Each phase has clear objectives and scope
+📋 DETAILED SUB-STEPS: 3-4 actionable sub-steps per phase
+⏱️ REALISTIC TIMELINES: Estimated duration for each phase
+🎁 CLEAR DELIVERABLES: Specific outputs and artifacts
+🔧 TECHNICAL DETAILS: Code patterns, architecture considerations
+✅ VALIDATION CRITERIA: How to verify phase completion
+
+CRITICAL ADAPTATION STRATEGY:
+1. Identify and extract implementation phases and sub-steps from the REFERENCE CONTENT.
+2. ADAPT these phases and sub-steps to align perfectly with the user's "{context.get('title', 'Task')}" and "{user_description}".
+3. Use the REFERENCE's terminology, structure, and level of detail as a guide.
+4. DO NOT simply copy-paste. ADAPT and INTEGRATE.
+5. Ensure the output is a cohesive, actionable implementation plan for the user's task.
+6. Focus on achieving high content similarity with the adapted reference implementation steps.
+
+Generate 4-5 comprehensive implementation phases (ADAPTED from reference, preserving user intent):"""
+            else:
+                prompt = f"""You are a senior technical architect creating a comprehensive implementation plan for a development task.
 
 TASK OVERVIEW:
 - Title: {context.get('title', 'Task')}
@@ -592,6 +628,7 @@ Generate 4-5 comprehensive implementation phases:"""
     def _parse_requirements_response(self, response: str) -> List[str]:
         """Parse AI response into structured requirements list."""
         try:
+            logger.debug(f"Raw requirements response from AI: {response}")
             requirements = []
             lines = response.strip().split('\n')
 
@@ -600,7 +637,21 @@ Generate 4-5 comprehensive implementation phases:"""
                 if not line:
                     continue
 
-                # Remove numbering and clean up
+                # Attempt to parse as JSON array first
+                if line.startswith('[') and line.endswith(']'):
+                    try:
+                        json_reqs = json.loads(line)
+                        if isinstance(json_reqs, list):
+                            for req in json_reqs:
+                                if isinstance(req, str) and req.strip():
+                                    requirements.append(req.strip())
+                            logger.debug(f"Parsed requirements from JSON: {requirements}")
+                            return requirements[:8] # Limit to 8 requirements
+                    except json.JSONDecodeError:
+                        logger.debug("Response is not a valid JSON array, falling back to line-by-line parsing.")
+                        pass # Not a JSON array, continue with line-by-line parsing
+
+                # Remove numbering and clean up for non-JSON responses
                 if line[0].isdigit() and '.' in line[:5]:
                     line = line.split('.', 1)[1].strip()
                 elif line.startswith('-'):
@@ -611,6 +662,7 @@ Generate 4-5 comprehensive implementation phases:"""
                            line.startswith('The application must') or line.startswith('The component must')):
                     requirements.append(line)
 
+            logger.debug(f"Parsed requirements line-by-line: {requirements}")
             return requirements[:8]  # Limit to 8 requirements
 
         except Exception as e:

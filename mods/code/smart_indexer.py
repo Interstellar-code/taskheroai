@@ -284,7 +284,8 @@ class SmartIndexer:
         Get list of files that need indexing (both missing and outdated).
 
         This method combines the logic from get_outdated_files() and is_index_complete()
-        to find all files that need to be indexed or re-indexed.
+        to find all files that need to be indexed or re-indexed. It also cleans up
+        deleted files from the index.
 
         Returns:
             List of file paths that need indexing
@@ -293,7 +294,16 @@ class SmartIndexer:
             # Get the complete index status which includes both missing and outdated files
             index_status = self.indexer.is_index_complete()
 
-            # If index is complete, no files need updating
+            # Clean up deleted files if any are found
+            if index_status.get('deleted_count', 0) > 0:
+                logger.info(f"Found {index_status['deleted_count']} deleted files in index - cleaning up")
+                deleted_count = self.indexer.cleanup_deleted_files()
+                logger.info(f"Cleaned up {deleted_count} deleted files from index")
+
+                # Re-check index status after cleanup
+                index_status = self.indexer.is_index_complete()
+
+            # If index is complete after cleanup, no files need updating
             if index_status.get('complete', False):
                 return []
 
@@ -301,8 +311,9 @@ class SmartIndexer:
             files_needing_update = []
 
             # Get outdated files (files that exist in index but are out of date)
+            # Skip cleanup since we already did it above
             try:
-                outdated_files = self.indexer.get_outdated_files()
+                outdated_files = self.indexer.get_outdated_files(cleanup_deleted=False)
                 files_needing_update.extend(outdated_files)
             except Exception as e:
                 logger.warning(f"Error getting outdated files: {e}")
@@ -446,31 +457,45 @@ class SmartIndexer:
                 index_status = self.indexer.is_index_complete()
                 missing_count = index_status.get('missing_count', 0)
                 outdated_count = index_status.get('outdated_count', 0)
-                total_issues = missing_count + outdated_count
+                deleted_count = index_status.get('deleted_count', 0)
+                total_issues = missing_count + outdated_count + deleted_count
 
                 if total_issues == 0:
                     status['overall_status'] = 'up_to_date'
                     status['message'] = f"Index is up to date ({status['metadata_files']} files indexed, no recent logs)"
                 elif total_issues <= 5:
                     status['overall_status'] = 'mostly_current'
-                    if missing_count > 0 and outdated_count > 0:
-                        status['message'] = f"Index is mostly current ({status['metadata_files']} files indexed, {missing_count} missing, {outdated_count} outdated)"
-                    elif missing_count > 0:
-                        status['message'] = f"Index is mostly current ({status['metadata_files']} files indexed, {missing_count} files not indexed)"
+                    issue_parts = []
+                    if missing_count > 0:
+                        issue_parts.append(f"{missing_count} missing")
+                    if outdated_count > 0:
+                        issue_parts.append(f"{outdated_count} outdated")
+                    if deleted_count > 0:
+                        issue_parts.append(f"{deleted_count} deleted")
+
+                    if issue_parts:
+                        status['message'] = f"Index is mostly current ({status['metadata_files']} files indexed, {', '.join(issue_parts)})"
                     else:
-                        status['message'] = f"Index is mostly current ({status['metadata_files']} files indexed, {outdated_count} files need updating)"
+                        status['message'] = f"Index is mostly current ({status['metadata_files']} files indexed)"
                 else:
                     status['overall_status'] = 'incomplete'
-                    if missing_count > 0 and outdated_count > 0:
-                        status['message'] = f"Index is incomplete ({status['metadata_files']} files indexed, {missing_count} missing, {outdated_count} outdated)"
-                    elif missing_count > 0:
-                        status['message'] = f"Index is incomplete ({status['metadata_files']} files indexed, {missing_count} files not indexed)"
+                    issue_parts = []
+                    if missing_count > 0:
+                        issue_parts.append(f"{missing_count} missing")
+                    if outdated_count > 0:
+                        issue_parts.append(f"{outdated_count} outdated")
+                    if deleted_count > 0:
+                        issue_parts.append(f"{deleted_count} deleted")
+
+                    if issue_parts:
+                        status['message'] = f"Index is incomplete ({status['metadata_files']} files indexed, {', '.join(issue_parts)})"
                     else:
-                        status['message'] = f"Index exists but may be incomplete ({status['metadata_files']} files indexed, {outdated_count} files need updating)"
+                        status['message'] = f"Index exists but may be incomplete ({status['metadata_files']} files indexed)"
 
                 # Store the detailed counts for other methods to use
                 status['missing_count'] = missing_count
                 status['outdated_count'] = outdated_count
+                status['deleted_count'] = deleted_count
                 status['total_issues'] = total_issues
 
             except Exception as e:
