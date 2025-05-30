@@ -140,6 +140,7 @@ class TemplateOptimizer:
     def optimize_template_context(self, context: Dict[str, Any], task_type: str,
                                 task_description: str = "") -> Dict[str, Any]:
         """Optimize template context by filtering sections and customizing content.
+        Enhanced for TASK-126 with intelligent template population and context-aware optimization.
 
         Args:
             context: Original template context
@@ -153,6 +154,9 @@ class TemplateOptimizer:
             # Convert task type to abbreviation
             task_type_abbrev = self.task_type_mappings.get(task_type, task_type)
 
+            # TASK-126 Phase 3: Enhanced context analysis for intelligent optimization
+            task_analysis = self._analyze_task_for_optimization(task_description, task_type_abbrev, context)
+
             # Determine which sections to include
             included_sections = self._determine_included_sections(
                 task_type_abbrev, task_description, context
@@ -161,9 +165,19 @@ class TemplateOptimizer:
             # Filter context based on included sections
             optimized_context = self._filter_context_sections(context, included_sections)
 
+            # TASK-126 Phase 3: Intelligent template population with context awareness
+            optimized_context = self._populate_template_with_context_intelligence(
+                optimized_context, task_analysis, task_type_abbrev, task_description
+            )
+
             # Customize content based on task type
             optimized_context = self._customize_content_by_task_type(
                 optimized_context, task_type_abbrev, task_description
+            )
+
+            # TASK-126 Phase 3: Enhanced section-specific optimization
+            optimized_context = self._optimize_sections_with_context(
+                optimized_context, task_analysis, task_type_abbrev
             )
 
             # TASK-044 IMPROVEMENT: Enhanced placeholder content removal
@@ -181,10 +195,13 @@ class TemplateOptimizer:
             # TASK-044 IMPROVEMENT: Handle UI section relevance
             optimized_context = self._handle_ui_section_relevance(optimized_context, task_type_abbrev, task_description)
 
+            # TASK-126 Phase 3: Final quality validation and enhancement
+            optimized_context = self._apply_final_template_enhancements(optimized_context, task_analysis)
+
             # Add section control flags
             optimized_context.update(self._generate_section_flags(included_sections))
 
-            logger.info(f"Template optimized for {task_type_abbrev} task with {len(included_sections)} sections")
+            logger.info(f"Template optimized for {task_type_abbrev} task with {len(included_sections)} sections (TASK-126 enhanced)")
             return optimized_context
 
         except Exception as e:
@@ -1057,3 +1074,576 @@ flowchart TD
             issues.append("Duplicate content found between technical_considerations and detailed_description")
 
         return issues
+
+    # ============================================================================
+    # TASK-126 Phase 3: Template Processing Enhancement Methods
+    # ============================================================================
+
+    def _analyze_task_for_optimization(self, description: str, task_type: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze task for intelligent template optimization (TASK-126 Phase 3)."""
+        analysis = {
+            'complexity': 'medium',
+            'domain': 'general',
+            'key_terms': [],
+            'technical_focus': [],
+            'ui_components': False,
+            'integration_aspects': False,
+            'testing_requirements': False,
+            'documentation_needs': False,
+            'project_specific_context': []
+        }
+
+        description_lower = description.lower()
+        title_lower = context.get('title', '').lower()
+
+        # Analyze complexity
+        complexity_indicators = {
+            'simple': ['fix', 'update', 'change', 'modify', 'adjust'],
+            'medium': ['implement', 'create', 'develop', 'build', 'add'],
+            'complex': ['integrate', 'optimize', 'enhance', 'refactor', 'architecture', 'system']
+        }
+
+        for complexity, indicators in complexity_indicators.items():
+            if any(indicator in description_lower or indicator in title_lower for indicator in indicators):
+                analysis['complexity'] = complexity
+                break
+
+        # Analyze domain
+        if any(term in description_lower or term in title_lower for term in ['ai', 'ml', 'intelligence', 'enhancement', 'provider']):
+            analysis['domain'] = 'ai_ml'
+        elif any(term in description_lower or term in title_lower for term in ['ui', 'visualization', 'kanban', 'display', 'interface']):
+            analysis['domain'] = 'ui_visualization'
+        elif any(term in description_lower or term in title_lower for term in ['api', 'integration', 'service', 'endpoint']):
+            analysis['domain'] = 'integration'
+        elif any(term in description_lower or term in title_lower for term in ['test', 'testing', 'validation', 'quality']):
+            analysis['domain'] = 'testing'
+        elif any(term in description_lower or term in title_lower for term in ['doc', 'documentation', 'guide', 'manual']):
+            analysis['domain'] = 'documentation'
+
+        # Extract key terms (4+ characters, meaningful words)
+        import re
+        words = re.findall(r'\b\w{4,}\b', description_lower)
+        analysis['key_terms'] = list(set(words))[:10]  # Top 10 unique terms
+
+        # Identify technical focus areas
+        technical_areas = {
+            'context_discovery': ['context', 'discovery', 'semantic', 'search', 'relevance'],
+            'prompt_engineering': ['prompt', 'engineering', 'template', 'optimization'],
+            'quality_validation': ['quality', 'validation', 'scoring', 'metrics'],
+            'ai_enhancement': ['enhancement', 'optimization', 'improvement'],
+            'integration': ['integration', 'service', 'endpoint', 'connection'],
+            'visualization': ['visualization', 'display', 'interface', 'kanban'],
+            'testing': ['testing', 'validation', 'framework', 'automation']
+        }
+
+        for area, keywords in technical_areas.items():
+            if any(keyword in description_lower for keyword in keywords):
+                analysis['technical_focus'].append(area)
+
+        # Check for specific aspects
+        analysis['ui_components'] = any(term in description_lower for term in ['ui', 'interface', 'visualization', 'display'])
+        analysis['integration_aspects'] = any(term in description_lower for term in ['integrate', 'api', 'service', 'connection'])
+        analysis['testing_requirements'] = any(term in description_lower for term in ['test', 'testing', 'validation', 'quality'])
+        analysis['documentation_needs'] = any(term in description_lower for term in ['document', 'documentation', 'guide'])
+
+        # Identify project-specific context
+        project_terms = ['taskhero', 'kanban', 'ai enhancement', 'context processor', 'template', 'provider']
+        analysis['project_specific_context'] = [term for term in project_terms if term in description_lower]
+
+        return analysis
+
+    def _populate_template_with_context_intelligence(self, context: Dict[str, Any], task_analysis: Dict[str, Any],
+                                                   task_type: str, description: str) -> Dict[str, Any]:
+        """Intelligently populate template sections with context-aware content (TASK-126 Phase 3)."""
+        enhanced_context = context.copy()
+
+        # Enhance functional requirements based on analysis
+        enhanced_context['functional_requirements'] = self._generate_intelligent_requirements(
+            task_analysis, description, context.get('title', '')
+        )
+
+        # Enhance purpose and benefits
+        enhanced_context['purpose_benefits'] = self._generate_intelligent_purpose_benefits(
+            task_analysis, description, context.get('title', '')
+        )
+
+        # Enhance technical considerations
+        if task_analysis['technical_focus']:
+            enhanced_context['technical_considerations'] = self._generate_context_aware_technical_considerations(
+                task_analysis, task_type, description
+            )
+
+        # Enhance implementation steps
+        enhanced_context['implementation_steps'] = self._generate_intelligent_implementation_steps(
+            task_analysis, task_type, description, context.get('due_date', '')
+        )
+
+        # Enhance flow description
+        enhanced_context['flow_description'] = self._generate_intelligent_flow_description(
+            task_analysis, description, context.get('title', '')
+        )
+
+        return enhanced_context
+
+    def _optimize_sections_with_context(self, context: Dict[str, Any], task_analysis: Dict[str, Any],
+                                      task_type: str) -> Dict[str, Any]:
+        """Optimize specific sections based on context analysis (TASK-126 Phase 3)."""
+        optimized_context = context.copy()
+
+        # Optimize risk assessment based on complexity and domain
+        optimized_context['risks'] = self._generate_context_aware_risks(task_analysis, task_type)
+
+        # Optimize success criteria based on domain and technical focus
+        optimized_context['success_criteria'] = self._generate_intelligent_success_criteria(
+            task_analysis, task_type
+        )
+
+        # Optimize UI design section if relevant
+        if task_analysis['ui_components']:
+            optimized_context = self._enhance_ui_design_section(optimized_context, task_analysis)
+
+        # Optimize testing section if relevant
+        if task_analysis['testing_requirements']:
+            optimized_context = self._enhance_testing_section(optimized_context, task_analysis)
+
+        return optimized_context
+
+    def _apply_final_template_enhancements(self, context: Dict[str, Any], task_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply final quality enhancements to the template (TASK-126 Phase 3)."""
+        enhanced_context = context.copy()
+
+        # Remove any remaining generic content
+        enhanced_context = self._remove_generic_content_patterns(enhanced_context)
+
+        # Ensure project-specific terminology
+        enhanced_context = self._ensure_project_specific_terminology(enhanced_context, task_analysis)
+
+        # Add quality indicators
+        enhanced_context['template_quality_score'] = self._calculate_template_quality_score(enhanced_context, task_analysis)
+
+        return enhanced_context
+
+    # ============================================================================
+    # TASK-126 Phase 3: Helper Methods for Intelligent Template Population
+    # ============================================================================
+
+    def _generate_intelligent_requirements(self, task_analysis: Dict[str, Any], description: str, title: str) -> str:
+        """Generate intelligent functional requirements based on task analysis."""
+        requirements = []
+
+        # Base requirement from title and description
+        if task_analysis['domain'] == 'ai_ml':
+            requirements.append(f"Implement {title.lower()} with enhanced AI capabilities")
+            requirements.append("Integrate with existing AI provider infrastructure")
+            if 'context_discovery' in task_analysis['technical_focus']:
+                requirements.append("Enhance context discovery with multi-pass semantic search")
+            if 'prompt_engineering' in task_analysis['technical_focus']:
+                requirements.append("Implement specialized prompt templates for different task types")
+            if 'quality_validation' in task_analysis['technical_focus']:
+                requirements.append("Add comprehensive quality validation and scoring mechanisms")
+
+        elif task_analysis['domain'] == 'ui_visualization':
+            requirements.append(f"Develop {title.lower()} with responsive and accessible design")
+            requirements.append("Ensure cross-platform compatibility and optimal performance")
+            if 'kanban' in description.lower():
+                requirements.append("Implement three-column layout (Todo, InProgress, Done)")
+                requirements.append("Add color coding for priorities and task types")
+                requirements.append("Include interactive navigation with keyboard shortcuts")
+
+        elif task_analysis['domain'] == 'integration':
+            requirements.append(f"Integrate {title.lower()} with existing system architecture")
+            requirements.append("Implement proper error handling and fallback mechanisms")
+            requirements.append("Ensure backward compatibility and data integrity")
+
+        elif task_analysis['domain'] == 'testing':
+            requirements.append(f"Develop comprehensive testing framework for {title.lower()}")
+            requirements.append("Implement automated testing with CI/CD integration")
+            requirements.append("Include performance and regression testing capabilities")
+
+        elif task_analysis['domain'] == 'documentation':
+            requirements.append(f"Create comprehensive documentation for {title.lower()}")
+            requirements.append("Include practical examples and code snippets")
+            requirements.append("Ensure accessibility and maintainability standards")
+
+        else:
+            requirements.append(f"Implement {title.lower()} according to specifications")
+            requirements.append("Ensure code quality and maintainability standards")
+            requirements.append("Include comprehensive testing and documentation")
+
+        # Add complexity-specific requirements
+        if task_analysis['complexity'] == 'complex':
+            requirements.append("Design scalable architecture for future enhancements")
+            requirements.append("Implement comprehensive monitoring and logging")
+
+        return '\n'.join(f"- {req}" for req in requirements)
+
+    def _generate_intelligent_purpose_benefits(self, task_analysis: Dict[str, Any], description: str, title: str) -> str:
+        """Generate intelligent purpose and benefits based on task analysis."""
+        if task_analysis['domain'] == 'ai_ml':
+            return f"This task enhances the TaskHero AI system by implementing {title.lower()}, which will significantly improve AI-powered task creation quality through advanced context discovery, specialized prompt engineering, and comprehensive quality validation mechanisms."
+
+        elif task_analysis['domain'] == 'ui_visualization':
+            return f"This task improves user experience by implementing {title.lower()}, providing an intuitive visual interface that enhances task management efficiency and user productivity within the TaskHero AI system."
+
+        elif task_analysis['domain'] == 'integration':
+            return f"This task strengthens the TaskHero AI ecosystem by implementing {title.lower()}, enabling seamless integration with external services and enhancing overall system capabilities and reliability."
+
+        elif task_analysis['domain'] == 'testing':
+            return f"This task ensures system reliability by implementing {title.lower()}, providing comprehensive testing coverage that validates functionality and prevents regressions in the TaskHero AI system."
+
+        elif task_analysis['domain'] == 'documentation':
+            return f"This task improves system maintainability by implementing {title.lower()}, providing clear documentation that facilitates development, onboarding, and system understanding."
+
+        else:
+            return f"This task enhances the TaskHero AI system by implementing {title.lower()}, contributing to overall system functionality and user experience."
+
+    def _generate_context_aware_technical_considerations(self, task_analysis: Dict[str, Any], task_type: str, description: str) -> str:
+        """Generate context-aware technical considerations."""
+        considerations = []
+
+        # Domain-specific considerations
+        if task_analysis['domain'] == 'ai_ml':
+            considerations.extend([
+                "AI model compatibility and performance optimization",
+                "Context discovery algorithms and relevance scoring",
+                "Prompt engineering best practices and template management",
+                "Quality validation metrics and scoring mechanisms",
+                "Multi-provider AI integration and fallback strategies"
+            ])
+
+        elif task_analysis['domain'] == 'ui_visualization':
+            considerations.extend([
+                "Responsive design and cross-device compatibility",
+                "Accessibility compliance (WCAG guidelines)",
+                "Performance optimization for rendering and animations",
+                "Component reusability and design system consistency",
+                "User interaction patterns and feedback mechanisms"
+            ])
+
+        elif task_analysis['domain'] == 'integration':
+            considerations.extend([
+                "API design and versioning strategies",
+                "Error handling and retry mechanisms",
+                "Security and authentication protocols",
+                "Data transformation and validation",
+                "Performance and scalability requirements"
+            ])
+
+        elif task_analysis['domain'] == 'testing':
+            considerations.extend([
+                "Test coverage requirements and metrics",
+                "Automation strategy and framework selection",
+                "Performance and load testing scenarios",
+                "CI/CD integration and reporting",
+                "Test data management and cleanup procedures"
+            ])
+
+        # Complexity-specific considerations
+        if task_analysis['complexity'] == 'complex':
+            considerations.extend([
+                "Scalable architecture and design patterns",
+                "Monitoring and observability requirements",
+                "Deployment and rollback strategies"
+            ])
+
+        # Project-specific considerations
+        if task_analysis['project_specific_context']:
+            considerations.append("Integration with existing TaskHero AI infrastructure")
+            considerations.append("Compatibility with current project management workflows")
+
+        return '\n'.join(f"- {consideration}" for consideration in considerations)
+
+    def _generate_intelligent_implementation_steps(self, task_analysis: Dict[str, Any], task_type: str,
+                                                 description: str, due_date: str) -> List[Dict[str, Any]]:
+        """Generate intelligent implementation steps based on task analysis."""
+        steps = []
+
+        # Analysis and Planning Phase
+        steps.append({
+            'title': 'Analysis and Requirements Gathering',
+            'completed': False,
+            'in_progress': False,
+            'target_date': due_date,
+            'substeps': [
+                {'description': f'Analyze {task_analysis["domain"]} requirements and specifications', 'completed': False},
+                {'description': 'Review existing system architecture and integration points', 'completed': False},
+                {'description': 'Define acceptance criteria and success metrics', 'completed': False}
+            ]
+        })
+
+        # Domain-specific implementation steps
+        if task_analysis['domain'] == 'ai_ml':
+            steps.append({
+                'title': 'AI Enhancement Implementation',
+                'completed': False,
+                'in_progress': False,
+                'target_date': due_date,
+                'substeps': [
+                    {'description': 'Implement enhanced context discovery mechanisms', 'completed': False},
+                    {'description': 'Develop specialized prompt engineering templates', 'completed': False},
+                    {'description': 'Add quality validation and scoring systems', 'completed': False}
+                ]
+            })
+
+        elif task_analysis['domain'] == 'ui_visualization':
+            steps.append({
+                'title': 'UI Development and Design',
+                'completed': False,
+                'in_progress': False,
+                'target_date': due_date,
+                'substeps': [
+                    {'description': 'Create responsive component architecture', 'completed': False},
+                    {'description': 'Implement accessibility features and WCAG compliance', 'completed': False},
+                    {'description': 'Add interactive elements and user feedback mechanisms', 'completed': False}
+                ]
+            })
+
+        elif task_analysis['domain'] == 'integration':
+            steps.append({
+                'title': 'Integration Development',
+                'completed': False,
+                'in_progress': False,
+                'target_date': due_date,
+                'substeps': [
+                    {'description': 'Design API interfaces and data contracts', 'completed': False},
+                    {'description': 'Implement error handling and retry mechanisms', 'completed': False},
+                    {'description': 'Add authentication and security measures', 'completed': False}
+                ]
+            })
+
+        elif task_analysis['domain'] == 'testing':
+            steps.append({
+                'title': 'Testing Framework Development',
+                'completed': False,
+                'in_progress': False,
+                'target_date': due_date,
+                'substeps': [
+                    {'description': 'Design comprehensive test strategy and coverage plan', 'completed': False},
+                    {'description': 'Implement automated testing framework', 'completed': False},
+                    {'description': 'Add performance and regression testing capabilities', 'completed': False}
+                ]
+            })
+
+        else:
+            steps.append({
+                'title': 'Core Implementation',
+                'completed': False,
+                'in_progress': False,
+                'target_date': due_date,
+                'substeps': [
+                    {'description': 'Implement core functionality and business logic', 'completed': False},
+                    {'description': 'Add error handling and validation', 'completed': False},
+                    {'description': 'Integrate with existing system components', 'completed': False}
+                ]
+            })
+
+        # Testing and Validation Phase
+        steps.append({
+            'title': 'Testing and Quality Assurance',
+            'completed': False,
+            'in_progress': False,
+            'target_date': due_date,
+            'substeps': [
+                {'description': 'Execute comprehensive unit and integration tests', 'completed': False},
+                {'description': 'Perform user acceptance testing and validation', 'completed': False},
+                {'description': 'Conduct performance and security testing', 'completed': False}
+            ]
+        })
+
+        return steps
+
+    def _generate_intelligent_flow_description(self, task_analysis: Dict[str, Any], description: str, title: str) -> str:
+        """Generate intelligent flow description based on task analysis."""
+        if task_analysis['domain'] == 'ai_ml':
+            return f"User workflow for {title.lower()} with enhanced AI capabilities, context discovery, and quality validation"
+        elif task_analysis['domain'] == 'ui_visualization':
+            return f"User interaction flow for {title.lower()} with intuitive interface design and responsive functionality"
+        elif task_analysis['domain'] == 'integration':
+            return f"System integration workflow for {title.lower()} with external services and data synchronization"
+        elif task_analysis['domain'] == 'testing':
+            return f"Testing workflow for {title.lower()} with comprehensive validation and quality assurance"
+        elif task_analysis['domain'] == 'documentation':
+            return f"Documentation workflow for {title.lower()} with content creation and review processes"
+        else:
+            return f"User workflow for {title.lower()} implementation and functionality"
+
+    def _generate_context_aware_risks(self, task_analysis: Dict[str, Any], task_type: str) -> List[Dict[str, Any]]:
+        """Generate context-aware risk assessment."""
+        risks = []
+
+        # Complexity-based risks
+        if task_analysis['complexity'] == 'complex':
+            risks.append({
+                'description': 'High technical complexity may lead to implementation delays',
+                'impact': 'High',
+                'probability': 'Medium',
+                'mitigation': 'Break down into smaller phases, conduct technical spikes, seek expert review'
+            })
+
+        # Domain-specific risks
+        if task_analysis['domain'] == 'ai_ml':
+            risks.append({
+                'description': 'AI model performance may not meet quality expectations',
+                'impact': 'Medium',
+                'probability': 'Medium',
+                'mitigation': 'Implement comprehensive testing, use fallback mechanisms, monitor quality metrics'
+            })
+
+        elif task_analysis['domain'] == 'integration':
+            risks.append({
+                'description': 'External service dependencies may cause integration failures',
+                'impact': 'High',
+                'probability': 'Medium',
+                'mitigation': 'Implement circuit breakers, add retry logic, create fallback strategies'
+            })
+
+        # General project risks
+        risks.append({
+            'description': 'Requirements may change during implementation',
+            'impact': 'Medium',
+            'probability': 'Low',
+            'mitigation': 'Maintain clear communication with stakeholders, use agile development practices'
+        })
+
+        return risks
+
+    def _generate_intelligent_success_criteria(self, task_analysis: Dict[str, Any], task_type: str) -> List[Dict[str, Any]]:
+        """Generate intelligent success criteria based on task analysis."""
+        criteria = []
+
+        # Domain-specific criteria
+        if task_analysis['domain'] == 'ai_ml':
+            criteria.extend([
+                {'description': 'AI enhancement achieves 80%+ quality score improvement', 'completed': False},
+                {'description': 'Context discovery shows measurable relevance improvements', 'completed': False},
+                {'description': 'Multi-provider compatibility is verified and functional', 'completed': False}
+            ])
+
+        elif task_analysis['domain'] == 'ui_visualization':
+            criteria.extend([
+                {'description': 'UI components are responsive across all target devices', 'completed': False},
+                {'description': 'Accessibility compliance (WCAG 2.1 AA) is verified', 'completed': False},
+                {'description': 'User interaction performance meets usability standards', 'completed': False}
+            ])
+
+        elif task_analysis['domain'] == 'integration':
+            criteria.extend([
+                {'description': 'Integration handles all error scenarios gracefully', 'completed': False},
+                {'description': 'Data synchronization maintains consistency and integrity', 'completed': False},
+                {'description': 'Performance meets specified throughput requirements', 'completed': False}
+            ])
+
+        elif task_analysis['domain'] == 'testing':
+            criteria.extend([
+                {'description': 'Test coverage achieves minimum 90% code coverage', 'completed': False},
+                {'description': 'Automated tests execute successfully in CI/CD pipeline', 'completed': False},
+                {'description': 'Performance tests validate system under expected load', 'completed': False}
+            ])
+
+        # General quality criteria
+        criteria.extend([
+            {'description': 'All functional requirements are implemented and verified', 'completed': False},
+            {'description': 'Code quality meets project standards and passes review', 'completed': False},
+            {'description': 'Documentation is complete and accurate', 'completed': False}
+        ])
+
+        return criteria
+
+    def _enhance_ui_design_section(self, context: Dict[str, Any], task_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Enhance UI design section with context-aware content."""
+        enhanced_context = context.copy()
+
+        if task_analysis['domain'] == 'ui_visualization':
+            enhanced_context['ui_design_overview'] = "Comprehensive UI design focusing on user experience, accessibility, and responsive functionality"
+            enhanced_context['ui_layout'] = "Responsive grid layout with mobile-first approach and flexible component arrangement"
+            enhanced_context['ui_colors'] = "TaskHero AI design system palette with accessibility-compliant contrast ratios"
+            enhanced_context['ui_typography'] = "Consistent typography hierarchy following design system standards"
+            enhanced_context['ui_spacing'] = "8px grid system with consistent spacing patterns for visual harmony"
+            enhanced_context['ui_components'] = "Reusable component library integration with custom TaskHero AI elements"
+            enhanced_context['ui_icons'] = "Consistent icon set from TaskHero AI design system with semantic meaning"
+
+        return enhanced_context
+
+    def _enhance_testing_section(self, context: Dict[str, Any], task_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Enhance testing section with context-aware content."""
+        enhanced_context = context.copy()
+
+        if task_analysis['domain'] == 'testing':
+            enhanced_context['testing_overview'] = "Comprehensive testing strategy covering unit, integration, and end-to-end scenarios"
+            enhanced_context['testing_strategy'] = "Multi-layered testing approach with automated CI/CD integration"
+            enhanced_context['test_cases'] = "Detailed test cases covering functional, performance, and edge case scenarios"
+
+        return enhanced_context
+
+    def _remove_generic_content_patterns(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Remove remaining generic content patterns."""
+        cleaned_context = context.copy()
+
+        # Additional generic patterns to remove
+        generic_patterns = {
+            'will be defined during implementation': '',
+            'will be analyzed during planning': '',
+            'will be developed based on requirements': '',
+            'according to specifications': '',
+            'based on functionality needs': '',
+            'where applicable': '',
+            'if needed': '',
+            'as required': ''
+        }
+
+        for key, value in cleaned_context.items():
+            if isinstance(value, str):
+                for pattern, replacement in generic_patterns.items():
+                    if pattern in value.lower():
+                        cleaned_context[key] = value.replace(pattern, replacement).strip()
+
+        return cleaned_context
+
+    def _ensure_project_specific_terminology(self, context: Dict[str, Any], task_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Ensure project-specific terminology is used throughout."""
+        enhanced_context = context.copy()
+
+        # Project-specific terminology mapping
+        terminology_mapping = {
+            'the system': 'TaskHero AI',
+            'the application': 'TaskHero AI',
+            'the project': 'TaskHero AI project',
+            'task management': 'TaskHero AI task management',
+            'ai system': 'TaskHero AI system'
+        }
+
+        for key, value in enhanced_context.items():
+            if isinstance(value, str):
+                for generic_term, specific_term in terminology_mapping.items():
+                    if generic_term in value.lower():
+                        enhanced_context[key] = value.replace(generic_term, specific_term)
+
+        return enhanced_context
+
+    def _calculate_template_quality_score(self, context: Dict[str, Any], task_analysis: Dict[str, Any]) -> float:
+        """Calculate template quality score based on content analysis."""
+        score = 0.0
+        max_score = 100.0
+
+        # Check for specific content (20 points)
+        if context.get('functional_requirements') and len(context['functional_requirements']) > 50:
+            score += 20
+
+        # Check for domain-specific content (20 points)
+        if task_analysis['domain'] != 'general':
+            score += 20
+
+        # Check for technical focus areas (20 points)
+        if task_analysis['technical_focus']:
+            score += min(20, len(task_analysis['technical_focus']) * 5)
+
+        # Check for project-specific context (20 points)
+        if task_analysis['project_specific_context']:
+            score += min(20, len(task_analysis['project_specific_context']) * 10)
+
+        # Check for implementation steps quality (20 points)
+        implementation_steps = context.get('implementation_steps', [])
+        if implementation_steps and len(implementation_steps) >= 3:
+            score += 20
+
+        return min(max_score, score)

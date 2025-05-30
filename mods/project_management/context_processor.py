@@ -50,31 +50,48 @@ class ContextProcessor:
             return self._convert_to_enhanced_context(basic_context)
 
     def collect_embeddings_context(self, query: str, context: Dict[str, Any]) -> List[ContextChunk]:
-        """Collect relevant context from embeddings using semantic search."""
+        """Collect relevant context from embeddings using enhanced multi-pass discovery."""
         try:
-            # Determine relevant file types based on task type and description
+            # Extract task information for enhanced discovery
+            task_type = context.get('task_type', 'Development')
+            title = context.get('title', '')
+            description = context.get('description', query)
+
+            # Use enhanced multi-pass context discovery
+            enhanced_chunks = self._multi_pass_task_context_discovery(title, description, task_type, query)
+
+            if not enhanced_chunks:
+                logger.warning(f"No context found for query: {query[:100]}...")
+                return []
+
+            logger.info(f"Enhanced context discovery found {len(enhanced_chunks)} relevant chunks")
+            return enhanced_chunks[:self.config['max_context_items']]
+
+        except Exception as e:
+            logger.error(f"Enhanced context collection failed: {e}")
+            # Fallback to original method
+            return self._fallback_context_collection(query, context)
+
+    def _fallback_context_collection(self, query: str, context: Dict[str, Any]) -> List[ContextChunk]:
+        """Fallback context collection using original method."""
+        try:
             task_type = context.get('task_type', 'Development')
             relevant_file_types = self._determine_relevant_file_types(query, task_type)
 
-            # Perform semantic search
             search_result = self.semantic_search.search(
                 query=query,
-                max_results=self.config['max_context_items'] * 2,  # Get more for filtering
+                max_results=self.config['max_context_items'] * 2,
                 file_types=relevant_file_types
             )
 
             if not search_result or not search_result.chunks:
-                logger.warning(f"No context found for query: {query[:100]}...")
                 return []
 
-            # Filter and rank results
             filtered_chunks = self._filter_context_chunks(search_result.chunks, query)
-
-            logger.info(f"Collected {len(filtered_chunks)} context chunks from {len(search_result.chunks)} candidates")
             return filtered_chunks[:self.config['max_context_items']]
 
         except Exception as e:
-            logger.error(f"Context collection failed: {e}")
+            logger.error(f"Fallback context collection failed: {e}")
             return []
 
     def optimize_context_for_ai(self, relevant_context: List[ContextChunk]) -> List[Dict[str, Any]]:
@@ -143,6 +160,40 @@ class ContextProcessor:
                 relevant_types.append('.md')
 
         return list(set(relevant_types))  # Remove duplicates
+
+    def _multi_pass_task_context_discovery(self, title: str, description: str, task_type: str, query: str) -> List[ContextChunk]:
+        """Multi-pass context discovery for enhanced task creation (based on TASK-125 success)."""
+        try:
+            logger.info(f"Starting multi-pass context discovery for task: {title}")
+
+            # Pass 1: Task-specific semantic search
+            semantic_chunks = self._semantic_task_search(title, description, task_type, query)
+            logger.info(f"Pass 1 (Semantic): Found {len(semantic_chunks)} chunks")
+
+            # Pass 2: Reference task discovery (similar completed tasks)
+            reference_chunks = self._find_reference_tasks(task_type, title, description)
+            logger.info(f"Pass 2 (Reference): Found {len(reference_chunks)} chunks")
+
+            # Pass 3: Project structure importance
+            project_chunks = self._get_project_context_files(task_type, title)
+            logger.info(f"Pass 3 (Project): Found {len(project_chunks)} chunks")
+
+            # Pass 4: Template and quality examples
+            quality_chunks = self._get_quality_reference_files(task_type)
+            logger.info(f"Pass 4 (Quality): Found {len(quality_chunks)} chunks")
+
+            # Combine and rank all discovered context
+            combined_chunks = self._combine_and_rank_task_context(
+                semantic_chunks, reference_chunks, project_chunks, quality_chunks, query
+            )
+
+            logger.info(f"Multi-pass discovery complete: {len(combined_chunks)} total relevant chunks")
+            return combined_chunks
+
+        except Exception as e:
+            logger.error(f"Multi-pass context discovery failed: {e}")
+            # Fallback to basic semantic search
+            return self._basic_semantic_search_fallback(query, task_type)
 
     def _get_dynamic_file_types_from_project(self) -> Dict[str, List[str]]:
         """Get dynamic file types based on actual project analysis (leveraging project report data)."""
@@ -714,3 +765,358 @@ class ContextProcessor:
         enhanced.user_description = getattr(basic_context, 'description', '')
         enhanced.relevant_files = getattr(basic_context, 'relevant_files', [])
         return enhanced
+
+    # ============================================================================
+    # TASK-126: Multi-Pass Context Discovery Implementation
+    # ============================================================================
+
+    def _semantic_task_search(self, title: str, description: str, task_type: str, query: str) -> List[ContextChunk]:
+        """Pass 1: Enhanced semantic search for task-specific context."""
+        try:
+            # Create enhanced query combining title, description, and task type
+            enhanced_query = f"{title} {description} {task_type} {query}".strip()
+
+            # Determine relevant file types for this specific task
+            relevant_file_types = self._determine_relevant_file_types(enhanced_query, task_type)
+
+            # Perform semantic search with enhanced parameters
+            search_result = self.semantic_search.search(
+                query=enhanced_query,
+                max_results=self.config['max_context_items'] * 3,  # Get more for better filtering
+                file_types=relevant_file_types
+            )
+
+            if not search_result or not search_result.chunks:
+                return []
+
+            # Apply task-specific filtering and enhancement
+            enhanced_chunks = self._enhance_semantic_chunks(search_result.chunks, title, description, task_type)
+
+            return enhanced_chunks
+
+        except Exception as e:
+            logger.error(f"Semantic task search failed: {e}")
+            return []
+
+    def _find_reference_tasks(self, task_type: str, title: str, description: str) -> List[ContextChunk]:
+        """Pass 2: Find similar completed tasks for reference and quality examples."""
+        try:
+            reference_chunks = []
+
+            # Search for completed tasks in /done/ and /devdone/ directories
+            task_queries = [
+                f"task {task_type.lower()}",
+                f"completed {task_type.lower()}",
+                title.lower(),
+                # Extract key terms from description
+                ' '.join(description.lower().split()[:5])  # First 5 words
+            ]
+
+            for query in task_queries:
+                search_result = self.semantic_search.search(
+                    query=query,
+                    max_results=5,
+                    file_types=['.md']  # Focus on task files
+                )
+
+                if search_result and search_result.chunks:
+                    # Filter for actual task files in done directories
+                    task_chunks = [
+                        chunk for chunk in search_result.chunks
+                        if ('/done/' in chunk.file_path.lower() or
+                            '/devdone/' in chunk.file_path.lower() or
+                            'task-' in chunk.file_path.lower())
+                    ]
+                    reference_chunks.extend(task_chunks)
+
+            # Remove duplicates and prioritize high-quality reference tasks
+            unique_chunks = self._deduplicate_chunks(reference_chunks)
+            quality_references = self._prioritize_quality_references(unique_chunks, task_type)
+
+            return quality_references[:5]  # Limit to top 5 reference tasks
+
+        except Exception as e:
+            logger.error(f"Reference task search failed: {e}")
+            return []
+
+    def _get_project_context_files(self, task_type: str, title: str) -> List[ContextChunk]:
+        """Pass 3: Get project structure and foundational files for context."""
+        try:
+            project_chunks = []
+
+            # Core project files based on task type
+            core_queries = [
+                f"{task_type.lower()} core files",
+                "project structure",
+                "main application files",
+                "configuration setup"
+            ]
+
+            # Add task-specific core file queries
+            if 'kanban' in title.lower() or 'visualization' in title.lower():
+                core_queries.extend(["kanban", "visualization", "ui", "display"])
+            elif 'ai' in title.lower() or 'enhancement' in title.lower():
+                core_queries.extend(["ai", "enhancement", "provider", "engine"])
+            elif 'integration' in title.lower():
+                core_queries.extend(["integration", "service", "api"])
+
+            for query in core_queries:
+                search_result = self.semantic_search.search(
+                    query=query,
+                    max_results=3,
+                    file_types=['.py', '.js', '.ts', '.json', '.md']
+                )
+
+                if search_result and search_result.chunks:
+                    # Prioritize core/foundational files
+                    core_chunks = [
+                        chunk for chunk in search_result.chunks
+                        if any(term in chunk.file_path.lower() for term in
+                               ['main', 'core', 'base', 'engine', 'manager', 'service', 'app.py'])
+                    ]
+                    project_chunks.extend(core_chunks)
+
+            # Remove duplicates and limit results
+            unique_chunks = self._deduplicate_chunks(project_chunks)
+            return unique_chunks[:4]  # Limit to top 4 project files
+
+        except Exception as e:
+            logger.error(f"Project context search failed: {e}")
+            return []
+
+    def _get_quality_reference_files(self, task_type: str) -> List[ContextChunk]:
+        """Pass 4: Get high-quality reference files and templates."""
+        try:
+            quality_chunks = []
+
+            # Search for high-quality reference tasks (specifically TASK-003, TASK-012)
+            quality_task_ids = ['TASK-003', 'TASK-012', 'TASK-125']  # Known high-quality tasks
+
+            for task_id in quality_task_ids:
+                search_result = self.semantic_search.search(
+                    query=task_id,
+                    max_results=2,
+                    file_types=['.md']
+                )
+
+                if search_result and search_result.chunks:
+                    # Filter for actual task files
+                    task_chunks = [
+                        chunk for chunk in search_result.chunks
+                        if task_id.lower() in chunk.file_path.lower()
+                    ]
+                    quality_chunks.extend(task_chunks)
+
+            # Search for template and documentation files
+            template_queries = [
+                "template",
+                "documentation guide",
+                "best practices",
+                "quality standards"
+            ]
+
+            for query in template_queries:
+                search_result = self.semantic_search.search(
+                    query=query,
+                    max_results=2,
+                    file_types=['.md', '.txt']
+                )
+
+                if search_result and search_result.chunks:
+                    quality_chunks.extend(search_result.chunks)
+
+            # Remove duplicates and prioritize
+            unique_chunks = self._deduplicate_chunks(quality_chunks)
+            return unique_chunks[:3]  # Limit to top 3 quality references
+
+        except Exception as e:
+            logger.error(f"Quality reference search failed: {e}")
+            return []
+
+    def _combine_and_rank_task_context(self, semantic_chunks: List[ContextChunk],
+                                     reference_chunks: List[ContextChunk],
+                                     project_chunks: List[ContextChunk],
+                                     quality_chunks: List[ContextChunk],
+                                     query: str) -> List[ContextChunk]:
+        """Combine and rank all discovered context chunks."""
+        try:
+            # Combine all chunks with source weighting
+            all_chunks = []
+
+            # Add semantic chunks with base weight
+            for chunk in semantic_chunks:
+                chunk.source_type = 'semantic'
+                chunk.source_weight = 1.0
+                all_chunks.append(chunk)
+
+            # Add reference chunks with high weight (they provide quality examples)
+            for chunk in reference_chunks:
+                chunk.source_type = 'reference'
+                chunk.source_weight = 1.3  # Higher weight for reference tasks
+                all_chunks.append(chunk)
+
+            # Add project chunks with medium weight
+            for chunk in project_chunks:
+                chunk.source_type = 'project'
+                chunk.source_weight = 1.1
+                all_chunks.append(chunk)
+
+            # Add quality chunks with highest weight
+            for chunk in quality_chunks:
+                chunk.source_type = 'quality'
+                chunk.source_weight = 1.5  # Highest weight for quality references
+                all_chunks.append(chunk)
+
+            # Remove duplicates
+            unique_chunks = self._deduplicate_chunks(all_chunks)
+
+            # Apply enhanced scoring and ranking
+            ranked_chunks = self._rank_combined_chunks(unique_chunks, query)
+
+            # Apply final filtering and balancing
+            final_chunks = self._apply_final_context_balancing(ranked_chunks)
+
+            return final_chunks
+
+        except Exception as e:
+            logger.error(f"Context combination and ranking failed: {e}")
+            return semantic_chunks[:self.config['max_context_items']]  # Fallback
+
+    def _deduplicate_chunks(self, chunks: List[ContextChunk]) -> List[ContextChunk]:
+        """Remove duplicate chunks based on file path."""
+        seen_paths = set()
+        unique_chunks = []
+
+        for chunk in chunks:
+            file_path = str(chunk.file_path).lower()
+            if file_path not in seen_paths:
+                seen_paths.add(file_path)
+                unique_chunks.append(chunk)
+
+        return unique_chunks
+
+    def _prioritize_quality_references(self, chunks: List[ContextChunk], task_type: str) -> List[ContextChunk]:
+        """Prioritize high-quality reference tasks."""
+        # Known high-quality task patterns
+        quality_patterns = [
+            'task-003',  # High-quality kanban task
+            'task-012',  # High-quality AI engine task
+            'task-125',  # Recent optimization success
+        ]
+
+        prioritized = []
+        remaining = []
+
+        for chunk in chunks:
+            file_path_lower = chunk.file_path.lower()
+            if any(pattern in file_path_lower for pattern in quality_patterns):
+                prioritized.append(chunk)
+            else:
+                remaining.append(chunk)
+
+        # Sort prioritized by relevance, then add remaining
+        prioritized.sort(key=lambda x: x.relevance_score, reverse=True)
+        remaining.sort(key=lambda x: x.relevance_score, reverse=True)
+
+        return prioritized + remaining
+
+    def _enhance_semantic_chunks(self, chunks: List[ContextChunk], title: str, description: str, task_type: str) -> List[ContextChunk]:
+        """Enhance semantic chunks with task-specific scoring."""
+        enhanced_chunks = []
+
+        for chunk in chunks:
+            # Apply task-specific relevance boost
+            task_relevance_boost = self._calculate_task_specific_relevance(chunk, title, description, task_type)
+            chunk.relevance_score = min(1.0, chunk.relevance_score + task_relevance_boost)
+
+            # Only include chunks above minimum threshold
+            if chunk.relevance_score >= 0.3:
+                enhanced_chunks.append(chunk)
+
+        # Sort by enhanced relevance score
+        enhanced_chunks.sort(key=lambda x: x.relevance_score, reverse=True)
+        return enhanced_chunks[:8]  # Limit to top 8 semantic results
+
+    def _calculate_task_specific_relevance(self, chunk: ContextChunk, title: str, description: str, task_type: str) -> float:
+        """Calculate task-specific relevance boost."""
+        boost = 0.0
+        file_path_lower = chunk.file_path.lower()
+        content_lower = chunk.text.lower()
+
+        # Title keyword matching
+        title_words = title.lower().split()
+        for word in title_words:
+            if len(word) > 3:  # Skip short words
+                if word in file_path_lower:
+                    boost += 0.2
+                if word in content_lower:
+                    boost += 0.1
+
+        # Task type specific boosts
+        if task_type.lower() == 'development':
+            if any(term in file_path_lower for term in ['.py', 'service', 'manager', 'engine']):
+                boost += 0.3
+        elif task_type.lower() == 'documentation':
+            if any(term in file_path_lower for term in ['.md', 'doc', 'readme']):
+                boost += 0.3
+
+        return min(0.5, boost)  # Cap boost at 0.5
+
+    def _rank_combined_chunks(self, chunks: List[ContextChunk], query: str) -> List[ContextChunk]:
+        """Rank combined chunks using weighted scoring."""
+        for chunk in chunks:
+            # Calculate final score combining relevance, source weight, and quality
+            base_score = chunk.relevance_score
+            source_weight = getattr(chunk, 'source_weight', 1.0)
+            quality_score = getattr(chunk, 'quality_score', 0.5)
+
+            # Weighted final score
+            chunk.final_score = (base_score * 0.5) + (source_weight * 0.3) + (quality_score * 0.2)
+
+        # Sort by final score
+        chunks.sort(key=lambda x: getattr(x, 'final_score', x.relevance_score), reverse=True)
+        return chunks
+
+    def _apply_final_context_balancing(self, chunks: List[ContextChunk]) -> List[ContextChunk]:
+        """Apply final balancing to ensure diverse, high-quality context."""
+        if len(chunks) <= self.config['max_context_items']:
+            return chunks
+
+        balanced_chunks = []
+        source_types_seen = set()
+
+        # First pass: ensure diversity across source types
+        for chunk in chunks:
+            source_type = getattr(chunk, 'source_type', 'unknown')
+            if len(balanced_chunks) < 4 or source_type not in source_types_seen:
+                balanced_chunks.append(chunk)
+                source_types_seen.add(source_type)
+
+                if len(balanced_chunks) >= self.config['max_context_items']:
+                    break
+
+        # Second pass: fill remaining slots with highest scores
+        remaining_slots = self.config['max_context_items'] - len(balanced_chunks)
+        if remaining_slots > 0:
+            remaining_chunks = [c for c in chunks if c not in balanced_chunks]
+            balanced_chunks.extend(remaining_chunks[:remaining_slots])
+
+        return balanced_chunks
+
+    def _basic_semantic_search_fallback(self, query: str, task_type: str) -> List[ContextChunk]:
+        """Basic semantic search fallback when multi-pass discovery fails."""
+        try:
+            relevant_file_types = self._determine_relevant_file_types(query, task_type)
+            search_result = self.semantic_search.search(
+                query=query,
+                max_results=self.config['max_context_items'],
+                file_types=relevant_file_types
+            )
+
+            if search_result and search_result.chunks:
+                return search_result.chunks
+            return []
+
+        except Exception as e:
+            logger.error(f"Basic semantic search fallback failed: {e}")
+            return []
