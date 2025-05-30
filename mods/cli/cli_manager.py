@@ -208,7 +208,7 @@ class CLIManager(BaseManager):
                 self._handle_max_chat()
             elif choice == "7":
                 self._handle_agent_mode()
-            # TaskHero Management Section (8-12)
+            # TaskHero Management Section (8-13)
             elif choice == "8":
                 self._handle_task_dashboard()
             elif choice == "9":
@@ -219,15 +219,17 @@ class CLIManager(BaseManager):
                 self._handle_quick_view_tasks()
             elif choice == "12":
                 self._handle_search_tasks()
-            # Settings & Tools Section
             elif choice == "13":
-                self._handle_project_cleanup()
+                self._handle_create_about_document()
+            # Settings & Tools Section (14-15)
             elif choice == "14":
+                self._handle_project_cleanup()
+            elif choice == "15":
                 self._handle_ai_settings()
             elif choice == "0":
                 self._handle_exit()
             else:
-                print(f"{Fore.RED}Invalid choice. Please enter 1-14 or 0 to exit.{Style.RESET_ALL}")
+                print(f"{Fore.RED}Invalid choice. Please enter 1-15 or 0 to exit.{Style.RESET_ALL}")
 
         except Exception as e:
             self.logger.error(f"Error handling choice {choice}: {e}")
@@ -875,7 +877,7 @@ class CLIManager(BaseManager):
         return f"{size_bytes:.1f}{size_names[i]}"
 
     def _handle_view_project(self) -> None:
-        """Handle view project info option with AI-powered analysis."""
+        """Handle view project info option with submenu."""
         print(f"\n{Fore.CYAN}📊 View Project Info{Style.RESET_ALL}")
         print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
 
@@ -884,31 +886,102 @@ class CLIManager(BaseManager):
             input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
             return
 
+        while True:
+            # Display submenu
+            print(f"\n{Fore.CYAN}Select an option:{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}1. {Style.BRIGHT}📊 Show Project Information{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}2. {Style.BRIGHT}🔍 Generate Project Analysis{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}0. {Style.BRIGHT}🔙 Back to Main Menu{Style.RESET_ALL}")
+
+            choice = input(f"\n{Fore.GREEN}Enter your choice (0-2): {Style.RESET_ALL}").strip()
+
+            if choice == "1":
+                self._show_project_information()
+            elif choice == "2":
+                self._handle_create_about_document()
+            elif choice == "0":
+                break
+            else:
+                print(f"{Fore.RED}Invalid choice. Please enter 0-2.{Style.RESET_ALL}")
+
+    def _show_project_information(self) -> None:
+        """Show detailed project information including analysis and reports."""
+        if not self.indexer:
+            print(f"{Fore.RED}No project indexed. Please index your project first.{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+            return
+
+        print(f"\n{Fore.CYAN}📊 Project Information{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+
+        print(f"\n{Fore.GREEN}Available options:{Style.RESET_ALL}")
+        print(f"  1. 📈 Generate AI Project Analysis")
+        print(f"  2. 📋 Show Basic Project Stats")
+        print(f"  0. ← Back to main menu")
+
+        choice = input(f"\n{Fore.GREEN}Select option (0-2): {Style.RESET_ALL}").strip()
+
+        if choice == "1":
+            # Generate AI analysis
+            asyncio.run(self._perform_ai_project_analysis())
+        elif choice == "2":
+            # Show basic stats
+            self._show_basic_project_stats()
+        elif choice == "0":
+            return
+        else:
+            print(f"{Fore.YELLOW}Invalid choice. Please try again.{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+            return
+
+        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+
+    async def _perform_ai_project_analysis(self) -> None:
+        """Perform AI-powered project analysis."""
         try:
-            print(f"{Fore.GREEN}🔍 Analyzing project structure and generating AI report...{Style.RESET_ALL}")
-
-            # Get basic project info
-            project_path = self.indexer.root_path
-            project_name = os.path.basename(project_path)
-
-            # Get index status
-            index_status = self.indexer.is_index_complete()
+            print(f"\n{Fore.CYAN}🤖 Generating AI Project Analysis{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
 
             # Collect project statistics
+            print(f"{Fore.YELLOW}📊 Collecting project statistics...{Style.RESET_ALL}")
             stats = self._collect_project_statistics()
 
             # Generate AI analysis
-            print(f"{Fore.YELLOW}🤖 Generating AI-powered project analysis...{Style.RESET_ALL}")
-            ai_analysis = asyncio.run(self._generate_ai_project_analysis(stats))
+            print(f"{Fore.YELLOW}🤖 Generating AI analysis...{Style.RESET_ALL}")
+            ai_analysis = await self._generate_ai_project_analysis(stats)
 
-            # Display the report
-            self._display_project_report(project_name, project_path, stats, ai_analysis)
+            # Display the analysis
+            project_name = os.path.basename(self.indexer.root_path)
+            self._display_project_report(project_name, self.indexer.root_path, stats, ai_analysis)
 
         except Exception as e:
-            self.logger.error(f"Error generating project info: {e}", exc_info=True)
-            print(f"{Fore.RED}Error generating project analysis: {e}{Style.RESET_ALL}")
+            self.logger.error(f"Error performing AI project analysis: {e}")
+            print(f"{Fore.RED}Error performing AI project analysis: {e}{Style.RESET_ALL}")
 
-        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+    def _show_basic_project_stats(self) -> None:
+        """Show basic project statistics without AI analysis."""
+        try:
+            print(f"\n{Fore.CYAN}📊 Basic Project Statistics{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+
+            stats = self._collect_project_statistics()
+            
+            print(f"\n{Fore.GREEN}📁 Project Overview:{Style.RESET_ALL}")
+            print(f"  Total Files: {stats['total_files']}")
+            print(f"  Indexed Files: {stats['indexed_files']}")
+            print(f"  Total Size: {self._format_size(stats['size_info']['total_size'])}")
+
+            print(f"\n{Fore.GREEN}📄 File Types:{Style.RESET_ALL}")
+            for ext, count in sorted(stats['file_types'].items(), key=lambda x: x[1], reverse=True)[:10]:
+                print(f"  {ext or 'no extension'}: {count} files")
+
+            print(f"\n{Fore.GREEN}💻 Programming Languages:{Style.RESET_ALL}")
+            for lang, count in sorted(stats['language_breakdown'].items(), key=lambda x: x[1], reverse=True):
+                print(f"  {lang}: {count} files")
+
+        except Exception as e:
+            self.logger.error(f"Error showing basic project stats: {e}")
+            print(f"{Fore.RED}Error showing basic project stats: {e}{Style.RESET_ALL}")
 
     def _collect_project_statistics(self) -> Dict[str, Any]:
         """Collect comprehensive project statistics."""
@@ -944,34 +1017,33 @@ class CLIManager(BaseManager):
                     if rel_path != '.' and len(rel_path.split(os.sep)) <= 3:  # Only top 3 levels
                         stats['directory_structure'][rel_path] = len(files)
 
-                    # Analyze each file for types, sizes, and languages
-                    for filename in files:
+                    # Analyze files in this directory
+                    for file in files:
+                        file_path = os.path.join(root, file)
                         try:
-                            file_path = os.path.join(root, filename)
-                            if os.path.exists(file_path) and os.path.isfile(file_path):
-                                file_ext = os.path.splitext(filename)[1].lower()
-                                file_size = os.path.getsize(file_path)
+                            file_size = os.path.getsize(file_path)
+                            file_ext = os.path.splitext(file)[1].lower()
 
-                                # Count file types
-                                stats['file_types'][file_ext] = stats['file_types'].get(file_ext, 0) + 1
+                            # Count file types
+                            stats['file_types'][file_ext] = stats['file_types'].get(file_ext, 0) + 1
 
-                                # Track total size
-                                stats['size_info']['total_size'] += file_size
+                            # Track total size
+                            stats['size_info']['total_size'] += file_size
 
-                                # Track largest files (keep top 10)
-                                if len(stats['size_info']['largest_files']) < 10:
-                                    stats['size_info']['largest_files'].append((file_path, file_size))
-                                else:
-                                    # Replace smallest if current is larger
-                                    min_size_idx = min(range(len(stats['size_info']['largest_files'])),
-                                                     key=lambda i: stats['size_info']['largest_files'][i][1])
-                                    if file_size > stats['size_info']['largest_files'][min_size_idx][1]:
-                                        stats['size_info']['largest_files'][min_size_idx] = (file_path, file_size)
+                            # Track largest files (keep top 10)
+                            if len(stats['size_info']['largest_files']) < 10:
+                                stats['size_info']['largest_files'].append((file_path, file_size))
+                            else:
+                                # Replace smallest if current is larger
+                                min_size_idx = min(range(len(stats['size_info']['largest_files'])),
+                                                 key=lambda i: stats['size_info']['largest_files'][i][1])
+                                if file_size > stats['size_info']['largest_files'][min_size_idx][1]:
+                                    stats['size_info']['largest_files'][min_size_idx] = (file_path, file_size)
 
-                                # Language breakdown
-                                language = self._get_language_from_extension(file_ext)
-                                if language:
-                                    stats['language_breakdown'][language] = stats['language_breakdown'].get(language, 0) + 1
+                            # Language breakdown
+                            language = self._get_language_from_extension(file_ext)
+                            if language:
+                                stats['language_breakdown'][language] = stats['language_breakdown'].get(language, 0) + 1
 
                         except Exception as e:
                             self.logger.debug(f"Error analyzing file {file_path}: {e}")
@@ -2905,3 +2977,50 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
             self.logger.error(f"Error in AI settings: {e}")
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
             input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+
+    def _handle_create_about_document(self) -> None:
+        """Handle create about document option."""
+        print(f"\n{Fore.CYAN}📝 Create About Document{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+
+        try:
+            # Show simple options
+            print(f"\n{Fore.GREEN}Options:{Style.RESET_ALL}")
+            print(f"  1. 🚀 Generate about.md (AI-powered)")
+            print(f"  0. ← Back to main menu")
+
+            choice = input(f"\n{Fore.GREEN}Select option (1 or 0): {Style.RESET_ALL}").strip()
+
+            if choice == "0":
+                print(f"{Fore.YELLOW}Operation cancelled.{Style.RESET_ALL}")
+                return
+            elif choice == "1":
+                # Generate AI-powered about.md
+                print(f"\n{Fore.CYAN}🚀 Generating AI-Powered About Document{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+                
+                from ..project_management.about_manager import AboutManager
+                
+                # Initialize AboutManager with AI and settings managers
+                about_manager = AboutManager(
+                    project_root=str(Path.cwd()),
+                    ai_manager=self.ai_manager,
+                    settings_manager=self.settings_manager
+                )
+                
+                # Generate with truly dynamic AI analysis
+                success, message, file_path = about_manager.create_dynamic_about()
+                
+                if success:
+                    print(f"\n{Fore.GREEN}✅ {message}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}📁 File saved to: {file_path}{Style.RESET_ALL}")
+                else:
+                    print(f"\n{Fore.RED}❌ {message}{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}Invalid option. Please select 1 or 0.{Style.RESET_ALL}")
+
+        except Exception as e:
+            self.logger.error(f"Error creating about document: {e}")
+            print(f"{Fore.RED}Error creating about document: {e}{Style.RESET_ALL}")
+
+        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")

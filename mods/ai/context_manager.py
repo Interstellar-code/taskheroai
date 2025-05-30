@@ -9,6 +9,7 @@ import re
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 import logging
+import json
 
 
 @dataclass
@@ -101,7 +102,7 @@ class CodebaseContextManager:
             )
 
     async def _find_relevant_files(self, query: str, max_files: int) -> List[str]:
-        """Find files relevant to the query."""
+        """Find files relevant to the query using enhanced multi-pass selection logic."""
         if not self.indexer:
             return []
 
@@ -112,14 +113,23 @@ class CodebaseContextManager:
             if not indexed_files:
                 return []
 
-            # Use file selector if available for intelligent selection
-            if self.file_selector:
-                try:
-                    selected = self.file_selector.select_files_for_query(query, indexed_files, max_files)
-                    if selected:
-                        return selected[:max_files]
-                except Exception as e:
-                    self.logger.warning(f"File selector failed: {e}")
+            # Multi-pass file discovery for better results
+            try:
+                relevant_files = await self._multi_pass_file_discovery(query, indexed_files, max_files)
+                if relevant_files:
+                    self.logger.info(f"Multi-pass discovery found {len(relevant_files)} relevant files")
+                    return relevant_files[:max_files]
+            except Exception as e:
+                self.logger.warning(f"Multi-pass file discovery failed: {e}")
+
+            # Enhanced file selection using metadata approach from old system
+            try:
+                relevant_files = self._enhanced_file_selection(query, indexed_files, max_files)
+                if relevant_files:
+                    self.logger.info(f"Enhanced selection found {len(relevant_files)} relevant files")
+                    return relevant_files[:max_files]
+            except Exception as e:
+                self.logger.warning(f"Enhanced file selection failed: {e}")
 
             # Fallback: simple keyword matching
             return self._simple_file_matching(query, indexed_files, max_files)
@@ -127,6 +137,161 @@ class CodebaseContextManager:
         except Exception as e:
             self.logger.error(f"Error finding relevant files: {e}")
             return []
+
+    async def _multi_pass_file_discovery(self, query: str, indexed_files: List[str], max_files: int) -> List[str]:
+        """Multi-pass file discovery combining multiple strategies for better results."""
+        try:
+            # Pass 1: Semantic similarity search using embeddings
+            semantic_files = await self._semantic_file_search(query, indexed_files, max_files // 2)
+
+            # Pass 2: Enhanced keyword matching with metadata
+            keyword_files = await self._enhanced_keyword_search(query, indexed_files, max_files // 2)
+
+            # Pass 3: Project structure importance (core files, main modules)
+            important_files = self._get_structurally_important_files(query, indexed_files)
+
+            # Pass 4: Task management context (include relevant task files)
+            task_files = await self._get_task_context_files(query)
+
+            # Combine and rank all discovered files
+            all_discovered = self._combine_and_rank_files(
+                semantic_files, keyword_files, important_files, task_files, max_files
+            )
+
+            self.logger.info(f"Multi-pass discovery: semantic={len(semantic_files)}, "
+                           f"keyword={len(keyword_files)}, important={len(important_files)}, "
+                           f"tasks={len(task_files)}, total={len(all_discovered)}")
+
+            return all_discovered
+
+        except Exception as e:
+            self.logger.warning(f"Multi-pass file discovery error: {e}")
+            return []
+
+    async def _semantic_file_search(self, query: str, indexed_files: List[str], max_files: int) -> List[str]:
+        """Search files using semantic similarity via embeddings."""
+        try:
+            # Use indexer's similarity search if available
+            if hasattr(self.indexer, "similarity_search") and self.indexer.similarity_search:
+                similar_files = self.indexer.similarity_search.find_similar_files(query, max_files)
+                if similar_files:
+                    return [f for f in similar_files if f in indexed_files]
+
+            # Fallback: use file descriptions for semantic matching
+            return await self._description_based_search(query, indexed_files, max_files)
+
+        except Exception as e:
+            self.logger.debug(f"Semantic search failed: {e}")
+            return []
+
+    async def _description_based_search(self, query: str, indexed_files: List[str], max_files: int) -> List[str]:
+        """Search files based on their descriptions from metadata."""
+        try:
+            if not self.indexer or not hasattr(self.indexer, 'index_dir'):
+                return []
+
+            metadata_dir = os.path.join(self.indexer.index_dir, "metadata")
+            if not os.path.exists(metadata_dir):
+                return []
+
+            query_keywords = set(re.findall(r'\w+', query.lower()))
+            scored_files = []
+
+            for file_path in indexed_files:
+                filename = os.path.basename(file_path)
+                metadata_file = os.path.join(metadata_dir, f"{filename}.json")
+
+                if os.path.exists(metadata_file):
+                    try:
+                        with open(metadata_file, "r", encoding="utf-8") as f:
+                            metadata = json.load(f)
+
+                        description = metadata.get("description", "").lower()
+                        if description:
+                            # Score based on keyword overlap in description
+                            desc_words = set(re.findall(r'\w+', description))
+                            overlap = len(query_keywords.intersection(desc_words))
+                            if overlap > 0:
+                                scored_files.append((file_path, overlap))
+
+                    except Exception as e:
+                        self.logger.debug(f"Error reading metadata for {filename}: {e}")
+
+            # Sort by score and return top files
+            scored_files.sort(key=lambda x: x[1], reverse=True)
+            return [file_path for file_path, _ in scored_files[:max_files]]
+
+        except Exception as e:
+            self.logger.debug(f"Description-based search failed: {e}")
+            return []
+
+    def _enhanced_file_selection(self, query: str, files: List[str], max_files: int) -> List[str]:
+        """Enhanced file selection using metadata and semantic approach."""
+        try:
+            # Import the file selector from the old system for its robust logic
+            from ..code.decisions import FileSelector, FileInfo
+            import json
+            import os
+
+            # Create file infos like the old system does
+            file_infos = []
+
+            if self.indexer and hasattr(self.indexer, 'index_dir'):
+                metadata_dir = os.path.join(self.indexer.index_dir, "metadata")
+                if os.path.exists(metadata_dir):
+                    metadata_files = [f for f in os.listdir(metadata_dir) if f.endswith(".json")]
+
+                    for file in metadata_files:
+                        try:
+                            with open(os.path.join(metadata_dir, file), "r", encoding="utf-8") as f:
+                                metadata = json.load(f)
+
+                            file_info = FileInfo(
+                                name=os.path.basename(metadata["path"]),
+                                path=metadata["path"],
+                                description=metadata.get("description", ""),
+                                chunks=[],
+                            )
+
+                            # Read file content for chunks
+                            try:
+                                with open(metadata["path"], "r", encoding="utf-8", errors="replace") as f:
+                                    content = f.read()
+
+                                chunks = [
+                                    {
+                                        "text": content,
+                                        "type": "file_content",
+                                        "start_line": 1,
+                                        "end_line": content.count("\n") + 1,
+                                    }
+                                ]
+                                file_info.chunks = chunks
+                            except Exception as e:
+                                self.logger.warning(f"Error reading file {metadata['path']}: {e}")
+
+                            file_infos.append(file_info)
+                        except Exception as e:
+                            self.logger.warning(f"Error processing metadata file {file}: {e}")
+
+            # Use the robust file selector if we have file infos
+            if file_infos:
+                file_selector = FileSelector()
+
+                # Set up similarity search if available from indexer
+                if hasattr(self.indexer, "similarity_search") and self.indexer.similarity_search:
+                    file_selector.similarity_search = self.indexer.similarity_search
+
+                selected_files = file_selector.pick_files(query, file_infos)
+                if selected_files:
+                    return selected_files[:max_files]
+
+            # If no metadata available, fall back to simpler approach
+            return self._simple_file_matching(query, files, max_files)
+
+        except Exception as e:
+            self.logger.warning(f"Enhanced file selection failed: {e}")
+            return self._simple_file_matching(query, files, max_files)
 
     def _simple_file_matching(self, query: str, files: List[str], max_files: int) -> List[str]:
         """Simple keyword-based file matching."""
@@ -339,7 +504,7 @@ class CodebaseContextManager:
         """
         if not self.indexer:
             return {}
-        
+
         file_types = {}
         try:
             indexed_files = self.indexer.get_indexed_files()
@@ -474,28 +639,160 @@ class CodebaseContextManager:
         return context
 
     def format_context_for_ai(self, context: CodebaseContext) -> str:
-        """Format context for AI consumption."""
+        """Format context for AI consumption with enhanced hierarchical structure."""
+        return self.format_enhanced_context_for_ai(context, "")
+
+    def format_enhanced_context_for_ai(self, context: CodebaseContext, query: str) -> str:
+        """Format context with enhanced structure and hierarchy for better AI comprehension."""
         formatted_parts = []
 
-        # Project summary
-        if context.project_summary:
-            formatted_parts.append(f"## Project Overview\n{context.project_summary}")
+        # 1. Project Context & Purpose
+        project_context = self._format_project_purpose(context)
+        if project_context:
+            formatted_parts.append(project_context)
 
-        # File structure
-        if context.file_structure:
-            formatted_parts.append(f"## File Structure\n{context.file_structure}")
+        # 2. Query-Specific File Hierarchy
+        file_hierarchy = self._format_file_hierarchy(context, query)
+        if file_hierarchy:
+            formatted_parts.append(file_hierarchy)
 
-        # Code snippets
-        if context.code_snippets:
-            formatted_parts.append("## Relevant Code")
-            for snippet in context.code_snippets:
-                file_info = f"### {snippet['filename']}"
-                if snippet.get('context'):
-                    file_info += f" ({snippet['context']})"
+        # 3. Core Functionality Analysis
+        core_functionality = self._format_core_functionality(context)
+        if core_functionality:
+            formatted_parts.append(core_functionality)
 
-                formatted_parts.append(f"{file_info}\n```\n{snippet['content']}\n```")
+        # 4. User Workflow Context
+        user_workflows = self._format_user_workflows(context)
+        if user_workflows:
+            formatted_parts.append(user_workflows)
+
+        # 5. Code Examples with Explanations
+        code_examples = self._format_code_with_explanations(context)
+        if code_examples:
+            formatted_parts.append(code_examples)
 
         return '\n\n'.join(formatted_parts)
+
+    def _format_project_purpose(self, context: CodebaseContext) -> str:
+        """Format project purpose and overview section."""
+        parts = []
+
+        # Enhanced project summary with purpose
+        if context.project_summary:
+            parts.append("## 🎯 PROJECT PURPOSE & OVERVIEW")
+            parts.append(context.project_summary)
+
+            # Add project type detection
+            project_type = self._detect_project_type(context)
+            if project_type:
+                parts.append(f"\n**Project Type:** {project_type}")
+
+            # Add key capabilities summary
+            capabilities = self._extract_key_capabilities(context)
+            if capabilities:
+                parts.append(f"\n**Key Capabilities:** {', '.join(capabilities)}")
+
+        return '\n'.join(parts) if parts else ""
+
+    def _format_file_hierarchy(self, context: CodebaseContext, query: str) -> str:
+        """Format file hierarchy with relevance indicators."""
+        parts = []
+
+        if context.relevant_files:
+            parts.append(f"## 📁 RELEVANT FILES HIERARCHY ({len(context.relevant_files)} files)")
+
+            # Categorize files by type and importance
+            categorized_files = self._categorize_files_by_relevance(context.relevant_files, query)
+
+            for category, files in categorized_files.items():
+                if files:
+                    parts.append(f"\n### {category}")
+                    for file_path in files:
+                        filename = os.path.basename(file_path)
+                        file_desc = self._get_file_description(file_path)
+                        if file_desc:
+                            parts.append(f"• **{filename}** - {file_desc[:100]}...")
+                        else:
+                            parts.append(f"• **{filename}**")
+
+        # Add file structure if available
+        if context.file_structure:
+            parts.append("\n### Project Structure")
+            parts.append(f"```\n{context.file_structure}\n```")
+
+        return '\n'.join(parts) if parts else ""
+
+    def _format_core_functionality(self, context: CodebaseContext) -> str:
+        """Format core functionality analysis."""
+        parts = []
+
+        # Analyze core functionality from file names and descriptions
+        core_features = self._analyze_core_features(context)
+        if core_features:
+            parts.append("## ⚙️ CORE FUNCTIONALITY")
+            for feature, description in core_features.items():
+                parts.append(f"### {feature}")
+                parts.append(description)
+
+        return '\n'.join(parts) if parts else ""
+
+    def _format_user_workflows(self, context: CodebaseContext) -> str:
+        """Format user workflow examples from task context."""
+        parts = []
+
+        # Extract workflow information from task files if available
+        workflows = self._extract_workflow_examples(context)
+        if workflows:
+            parts.append("## 👤 USER WORKFLOWS & INTERACTIONS")
+            for workflow_name, workflow_desc in workflows.items():
+                parts.append(f"### {workflow_name}")
+                parts.append(workflow_desc)
+
+        return '\n'.join(parts) if parts else ""
+
+    def _format_code_with_explanations(self, context: CodebaseContext) -> str:
+        """Format code examples with detailed explanations."""
+        parts = []
+
+        if context.code_snippets:
+            parts.append("## 💻 CODE EXAMPLES & IMPLEMENTATION")
+
+            # Group snippets by functionality
+            grouped_snippets = self._group_snippets_by_functionality(context.code_snippets)
+
+            for group_name, snippets in grouped_snippets.items():
+                parts.append(f"\n### {group_name}")
+
+                for snippet in snippets[:3]:  # Limit to 3 snippets per group
+                    filename = snippet['filename']
+                    file_desc = self._get_file_description(snippet['file_path'])
+
+                    parts.append(f"\n#### {filename}")
+                    if file_desc:
+                        parts.append(f"**Purpose:** {file_desc}")
+
+                    if snippet.get('context'):
+                        parts.append(f"**Context:** {snippet['context']}")
+
+                    parts.append(f"```python\n{snippet['content']}\n```")
+
+        return '\n'.join(parts) if parts else ""
+
+    def _get_file_description(self, file_path: str) -> str:
+        """Get file description from metadata."""
+        try:
+            if self.indexer and hasattr(self.indexer, 'index_dir'):
+                metadata_dir = os.path.join(self.indexer.index_dir, "metadata")
+                filename = os.path.basename(file_path)
+                metadata_file = os.path.join(metadata_dir, f"{filename}.json")
+
+                if os.path.exists(metadata_file):
+                    with open(metadata_file, "r", encoding="utf-8") as f:
+                        metadata = json.load(f)
+                        return metadata.get("description", "")
+        except Exception as e:
+            self.logger.debug(f"Could not get description for {file_path}: {e}")
+        return ""
 
     def set_limits(self, max_files: int = None, max_tokens: int = None, max_snippet_lines: int = None):
         """Update context limits."""
@@ -507,3 +804,401 @@ class CodebaseContextManager:
             self.max_snippet_lines = max_snippet_lines
 
         self.logger.info(f"Updated limits: max_files={self.max_files}, max_tokens={self.max_tokens}, max_snippet_lines={self.max_snippet_lines}")
+
+    async def _enhanced_keyword_search(self, query: str, indexed_files: List[str], max_files: int) -> List[str]:
+        """Enhanced keyword search with metadata and content analysis."""
+        try:
+            query_keywords = set(re.findall(r'\w+', query.lower()))
+            scored_files = []
+
+            for file_path in indexed_files:
+                score = 0
+                filename = os.path.basename(file_path).lower()
+
+                # Score based on filename matches
+                for keyword in query_keywords:
+                    if keyword in filename:
+                        score += 3  # Higher weight for filename matches
+                    if keyword in file_path.lower():
+                        score += 1
+
+                # Score based on file content (first few lines)
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        first_lines = ''.join(f.readlines()[:10]).lower()
+                        for keyword in query_keywords:
+                            if keyword in first_lines:
+                                score += 2
+                except Exception:
+                    pass  # Skip files that can't be read
+
+                # Score based on file metadata description
+                if self.indexer and hasattr(self.indexer, 'index_dir'):
+                    metadata_dir = os.path.join(self.indexer.index_dir, "metadata")
+                    metadata_file = os.path.join(metadata_dir, f"{os.path.basename(file_path)}.json")
+
+                    if os.path.exists(metadata_file):
+                        try:
+                            with open(metadata_file, "r", encoding="utf-8") as f:
+                                metadata = json.load(f)
+                            description = metadata.get("description", "").lower()
+                            for keyword in query_keywords:
+                                if keyword in description:
+                                    score += 2
+                        except Exception:
+                            pass
+
+                if score > 0:
+                    scored_files.append((file_path, score))
+
+            # Sort by score and return top files
+            scored_files.sort(key=lambda x: x[1], reverse=True)
+            return [file_path for file_path, _ in scored_files[:max_files]]
+
+        except Exception as e:
+            self.logger.debug(f"Enhanced keyword search failed: {e}")
+            return []
+
+    def _get_structurally_important_files(self, query: str, indexed_files: List[str]) -> List[str]:
+        """Get structurally important files based on project architecture."""
+        try:
+            important_files = []
+            query_lower = query.lower()
+
+            # Define importance patterns
+            core_patterns = [
+                'app.py', 'main.py', '__init__.py', 'index.py',
+                'manager.py', 'handler.py', 'controller.py',
+                'config.py', 'settings.py'
+            ]
+
+            # Query-specific important files
+            query_patterns = {
+                'chat': ['chat_handler.py', 'ai_manager.py', 'context_manager.py'],
+                'ai': ['ai_manager.py', 'chat_handler.py', 'providers/', 'context_manager.py'],
+                'task': ['task_creator.py', 'task_manager.py', 'project_management/'],
+                'index': ['indexer.py', 'file_indexer.py', 'search.py'],
+                'ui': ['dashboard.py', 'menu.py', 'interface.py'],
+                'code': ['decisions.py', 'file_selector.py', 'analyzer.py']
+            }
+
+            # Add core files that exist
+            for file_path in indexed_files:
+                filename = os.path.basename(file_path).lower()
+                if any(pattern in filename for pattern in core_patterns):
+                    important_files.append(file_path)
+
+            # Add query-specific files
+            for keyword, patterns in query_patterns.items():
+                if keyword in query_lower:
+                    for file_path in indexed_files:
+                        if any(pattern in file_path.lower() for pattern in patterns):
+                            if file_path not in important_files:
+                                important_files.append(file_path)
+
+            # Limit to reasonable number
+            return important_files[:10]
+
+        except Exception as e:
+            self.logger.debug(f"Error getting structurally important files: {e}")
+            return []
+
+    async def _get_task_context_files(self, query: str) -> List[str]:
+        """Get relevant task files for project context."""
+        try:
+            task_files = []
+
+            # Look for task directories
+            task_dirs = [
+                'theherotasks',
+                'project-tasks',
+                'tasks',
+                'planning'
+            ]
+
+            root_path = getattr(self.indexer, 'root_path', '') if self.indexer else ''
+            if not root_path:
+                return []
+
+            for task_dir in task_dirs:
+                task_path = os.path.join(root_path, task_dir)
+                if os.path.exists(task_path):
+                    # Get completed tasks for context
+                    done_path = os.path.join(task_path, 'done')
+                    if os.path.exists(done_path):
+                        for file in os.listdir(done_path):
+                            if file.endswith('.md'):
+                                task_files.append(os.path.join(done_path, file))
+
+                    # Get current tasks if relevant to query
+                    todo_path = os.path.join(task_path, 'todo')
+                    if os.path.exists(todo_path):
+                        query_keywords = set(re.findall(r'\w+', query.lower()))
+                        for file in os.listdir(todo_path):
+                            if file.endswith('.md'):
+                                file_lower = file.lower()
+                                if any(keyword in file_lower for keyword in query_keywords):
+                                    task_files.append(os.path.join(todo_path, file))
+
+            # Limit to most relevant task files
+            return task_files[:5]
+
+        except Exception as e:
+            self.logger.debug(f"Error getting task context files: {e}")
+            return []
+
+    def _combine_and_rank_files(self, *file_lists, max_files: int) -> List[str]:
+        """Combine and rank files from multiple discovery passes."""
+        try:
+            # Flatten all file lists and count occurrences
+            file_scores = {}
+
+            for i, file_list in enumerate(file_lists):
+                # Give different weights to different discovery methods
+                weights = [3, 2, 2, 1]  # semantic, keyword, important, tasks
+                weight = weights[i] if i < len(weights) else 1
+
+                for file_path in file_list:
+                    if file_path not in file_scores:
+                        file_scores[file_path] = 0
+                    file_scores[file_path] += weight
+
+            # Sort by combined score
+            ranked_files = sorted(file_scores.items(), key=lambda x: x[1], reverse=True)
+
+            # Return top files, removing duplicates
+            result = []
+            seen = set()
+
+            for file_path, score in ranked_files:
+                if file_path not in seen and len(result) < max_files:
+                    result.append(file_path)
+                    seen.add(file_path)
+
+            return result
+
+        except Exception as e:
+            self.logger.debug(f"Error combining and ranking files: {e}")
+            return []
+
+    def _detect_project_type(self, context: CodebaseContext) -> str:
+        """Detect project type from files and structure."""
+        try:
+            file_patterns = {
+                'AI/ML Task Management System': ['ai_manager', 'task_creator', 'chat_handler', 'context_manager'],
+                'Web Application': ['app.py', 'flask', 'django', 'fastapi'],
+                'Desktop Application': ['tkinter', 'qt', 'gui'],
+                'CLI Tool': ['argparse', 'click', 'command'],
+                'Library/Framework': ['__init__.py', 'setup.py', 'requirements.txt'],
+                'Data Analysis': ['pandas', 'numpy', 'jupyter', 'analysis'],
+                'API Service': ['api', 'rest', 'endpoint', 'service']
+            }
+
+            file_names = [os.path.basename(f).lower() for f in context.relevant_files]
+            file_content = ' '.join(file_names)
+
+            for project_type, patterns in file_patterns.items():
+                if any(pattern in file_content for pattern in patterns):
+                    return project_type
+
+            return "Software Project"
+
+        except Exception as e:
+            self.logger.debug(f"Error detecting project type: {e}")
+            return ""
+
+    def _extract_key_capabilities(self, context: CodebaseContext) -> List[str]:
+        """Extract key capabilities from project files."""
+        try:
+            capabilities = set()
+
+            # Capability patterns based on file names and descriptions
+            capability_patterns = {
+                'AI Chat Integration': ['chat_handler', 'ai_manager', 'ollama', 'openai'],
+                'Task Management': ['task_creator', 'task_manager', 'project_management'],
+                'File Indexing': ['indexer', 'file_indexer', 'search'],
+                'Code Analysis': ['analyzer', 'decisions', 'file_selector'],
+                'User Interface': ['dashboard', 'menu', 'interface'],
+                'Configuration Management': ['settings', 'config', 'environment'],
+                'Data Processing': ['processor', 'parser', 'formatter'],
+                'API Integration': ['provider', 'client', 'api']
+            }
+
+            file_names = [os.path.basename(f).lower() for f in context.relevant_files]
+            file_content = ' '.join(file_names)
+
+            for capability, patterns in capability_patterns.items():
+                if any(pattern in file_content for pattern in patterns):
+                    capabilities.add(capability)
+
+            return list(capabilities)[:5]  # Limit to top 5
+
+        except Exception as e:
+            self.logger.debug(f"Error extracting capabilities: {e}")
+            return []
+
+    def _categorize_files_by_relevance(self, files: List[str], query: str) -> Dict[str, List[str]]:
+        """Categorize files by their relevance and type."""
+        try:
+            categories = {
+                '🔧 Core System Files': [],
+                '🤖 AI & Chat Components': [],
+                '📋 Task Management': [],
+                '🔍 Search & Indexing': [],
+                '🎨 User Interface': [],
+                '⚙️ Configuration & Settings': [],
+                '📄 Documentation & Tasks': [],
+                '🔗 Other Components': []
+            }
+
+            category_patterns = {
+                '🔧 Core System Files': ['app.py', 'main.py', '__init__.py', 'manager.py'],
+                '🤖 AI & Chat Components': ['ai_', 'chat_', 'provider', 'ollama', 'openai', 'context_manager'],
+                '📋 Task Management': ['task_', 'project_management', 'planning'],
+                '🔍 Search & Indexing': ['index', 'search', 'file_selector', 'decisions'],
+                '🎨 User Interface': ['dashboard', 'menu', 'interface', 'ui'],
+                '⚙️ Configuration & Settings': ['settings', 'config', 'environment'],
+                '📄 Documentation & Tasks': ['.md', 'readme', 'doc', 'TASK-']
+            }
+
+            for file_path in files:
+                filename = os.path.basename(file_path).lower()
+                categorized = False
+
+                for category, patterns in category_patterns.items():
+                    if any(pattern.lower() in filename or pattern.lower() in file_path.lower() for pattern in patterns):
+                        categories[category].append(file_path)
+                        categorized = True
+                        break
+
+                if not categorized:
+                    categories['🔗 Other Components'].append(file_path)
+
+            # Remove empty categories
+            return {k: v for k, v in categories.items() if v}
+
+        except Exception as e:
+            self.logger.debug(f"Error categorizing files: {e}")
+            return {'Files': files}
+
+    def _analyze_core_features(self, context: CodebaseContext) -> Dict[str, str]:
+        """Analyze core features from codebase context."""
+        try:
+            features = {}
+
+            # Feature detection patterns
+            feature_patterns = {
+                'AI-Powered Chat System': {
+                    'files': ['chat_handler', 'ai_manager', 'context_manager'],
+                    'description': 'Provides intelligent chat capabilities with codebase context awareness and multiple AI provider support.'
+                },
+                'Task Management & Planning': {
+                    'files': ['task_creator', 'task_manager', 'project_management'],
+                    'description': 'Comprehensive task creation, management, and project planning with AI-enhanced workflows.'
+                },
+                'Intelligent File Discovery': {
+                    'files': ['indexer', 'file_selector', 'decisions', 'search'],
+                    'description': 'Advanced file indexing and discovery system with semantic search and relevance scoring.'
+                },
+                'Multi-Provider AI Integration': {
+                    'files': ['provider', 'ollama', 'openai', 'anthropic', 'deepseek'],
+                    'description': 'Flexible AI provider system supporting multiple models and services with fallback capabilities.'
+                },
+                'Interactive Dashboard': {
+                    'files': ['dashboard', 'menu', 'interface'],
+                    'description': 'User-friendly interface for accessing all system features and managing workflows.'
+                }
+            }
+
+            file_names = [os.path.basename(f).lower() for f in context.relevant_files]
+            file_content = ' '.join(file_names)
+
+            for feature_name, feature_info in feature_patterns.items():
+                if any(pattern in file_content for pattern in feature_info['files']):
+                    features[feature_name] = feature_info['description']
+
+            return features
+
+        except Exception as e:
+            self.logger.debug(f"Error analyzing core features: {e}")
+            return {}
+
+    def _extract_workflow_examples(self, context: CodebaseContext) -> Dict[str, str]:
+        """Extract workflow examples from task files and documentation."""
+        try:
+            workflows = {}
+
+            # Look for task files in relevant files
+            task_files = [f for f in context.relevant_files if f.endswith('.md') and 'task' in f.lower()]
+
+            if task_files:
+                workflows['Task Creation Workflow'] = """
+1. User accesses Dashboard (option 10: Create New Task)
+2. System guides through task definition with AI assistance
+3. Context discovery finds relevant files and documentation
+4. AI generates comprehensive task details and implementation plan
+5. Task is saved with metadata and assigned priority
+6. User can track progress and update status"""
+
+                workflows['AI Chat Workflow'] = """
+1. User selects Chat with Code option from Dashboard
+2. System initializes AI provider (Ollama, OpenAI, etc.)
+3. Context manager discovers relevant files based on query
+4. Enhanced prompt engineering optimizes AI interaction
+5. AI provides detailed, contextual responses about codebase
+6. User can continue conversation with maintained context"""
+
+                workflows['File Discovery Workflow'] = """
+1. System indexes project files and generates metadata
+2. Multi-pass discovery combines semantic and keyword search
+3. File importance scoring based on project structure
+4. Task management context integration for better relevance
+5. Results ranked and presented with descriptions
+6. User gets comprehensive view of relevant codebase sections"""
+
+            return workflows
+
+        except Exception as e:
+            self.logger.debug(f"Error extracting workflow examples: {e}")
+            return {}
+
+    def _group_snippets_by_functionality(self, snippets: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+        """Group code snippets by functionality."""
+        try:
+            groups = {
+                'AI & Chat Components': [],
+                'Task Management': [],
+                'File Processing': [],
+                'User Interface': [],
+                'Configuration': [],
+                'Core System': []
+            }
+
+            group_patterns = {
+                'AI & Chat Components': ['ai_', 'chat_', 'provider', 'context_manager'],
+                'Task Management': ['task_', 'project_management'],
+                'File Processing': ['index', 'file_', 'search', 'decisions'],
+                'User Interface': ['dashboard', 'menu', 'interface'],
+                'Configuration': ['settings', 'config', 'environment'],
+                'Core System': ['app.py', 'main.py', 'manager.py']
+            }
+
+            for snippet in snippets:
+                filename = snippet['filename'].lower()
+                grouped = False
+
+                for group_name, patterns in group_patterns.items():
+                    if any(pattern in filename for pattern in patterns):
+                        groups[group_name].append(snippet)
+                        grouped = True
+                        break
+
+                if not grouped:
+                    groups['Core System'].append(snippet)
+
+            # Remove empty groups
+            return {k: v for k, v in groups.items() if v}
+
+        except Exception as e:
+            self.logger.debug(f"Error grouping snippets: {e}")
+            return {'Code Examples': snippets}

@@ -798,6 +798,52 @@ class TemplateEngine:
                 }
             ],
 
+            # About template specific variables
+            'product_name': 'Sample Product',
+            'core_problem': 'sample problem description',
+            'industry_domain': 'software development',
+            'target_users': 'sample target users',
+            'pain_points': 'sample pain points',
+            'challenge': 'sample challenge description',
+            'core_solution': 'sample solution description',
+            'product_type': 'sample product type',
+            'additional_context': 'Sample additional context about the product',
+            'vision_statement': 'Sample vision statement for the product',
+            'improvements_summary': 'Sample summary of improvements',
+            'key_benefits': ['sample benefit 1', 'sample benefit 2', 'sample benefit 3'],
+            'problems_solved': [
+                {'category': 'Sample Problem Category', 'description': 'Sample problem description'}
+            ],
+            'how_it_works': [
+                {'name': 'Sample Feature', 'description': 'Sample feature description'}
+            ],
+            'ux_goals': [
+                {'name': 'Sample UX Goal', 'description': 'Sample UX goal description'}
+            ],
+            'user_personas': [
+                {'name': 'Sample User', 'description': 'Sample user description'}
+            ],
+            'user_journeys': [
+                {
+                    'name': 'Sample Journey',
+                    'steps': ['Step 1', 'Step 2', 'Step 3']
+                }
+            ],
+            'current_focus': {
+                'area': 'sample focus area',
+                'approach': 'sample approach',
+                'next_steps': 'sample next steps',
+                'benefits': [
+                    {'name': 'Sample Benefit', 'description': 'Sample benefit description', 'target': '90%'}
+                ]
+            },
+            'recent_improvements': [
+                {'name': 'Sample Improvement', 'description': 'Sample improvement description'}
+            ],
+            'future_roadmap': [
+                {'time_period': 'Q1 2025', 'focus': 'Sample roadmap focus'}
+            ],
+
             # Charts and visualization data
             'burndown_days': ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
             'burndown_values': [100, 75, 45, 20],

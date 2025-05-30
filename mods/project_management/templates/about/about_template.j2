@@ -1,0 +1,341 @@
+{# METADATA
+title: Product About Template
+description: Comprehensive product context template for creating about files with product vision, problems solved, user journeys, and roadmap
+version: 2.0.0
+category: about
+tags: about, product, context, vision, roadmap, users, mermaid, flow-diagram
+author: TaskHero AI
+created: {{ current_date|default('2025-01-XX') }}
+modified: {{ current_date|default('2025-01-XX') }}
+requires: 
+variables: product_name, core_problem, industry_domain, target_users, pain_points, challenge, core_solution, key_benefits, vision_statement, problems_solved, how_it_works, ux_goals, user_personas, user_journeys, success_metrics, current_focus, recent_improvements, future_roadmap
+is_base: false
+#}
+
+# {{ product_name|default('[Product Name]') }} - Product Context Document
+
+## Table of Contents
+1. [Why {{ product_name|default('[Product Name]') }} Exists](#1-why-{{ product_name|default('product-name')|lower|replace(' ', '-') }}-exists)
+2. [Vision Statement](#2-vision-statement)
+3. [Problems Solved](#3-problems-solved)
+4. [Solution Flow Diagram](#4-solution-flow-diagram)
+5. [How {{ product_name|default('[Product Name]') }} Works](#5-how-{{ product_name|default('product-name')|lower|replace(' ', '-') }}-works)
+6. [User Experience Goals](#6-user-experience-goals)
+7. [Target Users](#7-target-users)
+8. [Key User Journeys](#8-key-user-journeys)
+9. [Success Metrics](#9-success-metrics)
+10. [Current Product Focus](#10-current-product-focus)
+11. [Recent Improvements](#11-recent-improvements)
+12. [Future Roadmap](#12-future-roadmap)
+
+---
+
+## 1. Why {{ product_name|default('[Product Name]') }} Exists
+{{ product_name|default('[Product Name]') }} was created to solve {{ core_problem|default('[describe the core problem]') }} in {{ industry_domain|default('[industry/domain]') }}. As {{ target_users|default('[describe target users]') }} experience {{ pain_points|default('[describe pain points]') }}, {{ challenge|default('[describe the challenge]') }}. {{ product_name|default('[Product Name]') }} provides {{ core_solution|default('[describe core solution]') }} where users can {% if key_benefits and key_benefits|length >= 3 %}{{ key_benefits[0] }}, {{ key_benefits[1] }}, and {{ key_benefits[2] }}{% else %}[key benefit 1], [key benefit 2], and [key benefit 3]{% endif %}.
+
+## 2. Vision Statement
+{{ vision_statement|default('[A concise statement describing the long-term goal of the product and what it aims to achieve in the market or for its users]') }}
+
+## 3. Problems Solved
+{% if problems_solved and problems_solved|length > 0 -%}
+{% for problem in problems_solved -%}
+{{ loop.index }}. **{{ problem.category|default('[Problem Category ' + loop.index|string + ']') }}**: {{ problem.description|default('[Brief description of the problem]') }}
+{% endfor %}
+{%- else -%}
+1. **[Problem Category 1]**: [Brief description of the problem]
+2. **[Problem Category 2]**: [Brief description of the problem]
+3. **[Problem Category 3]**: [Brief description of the problem]
+4. **[Problem Category 4]**: [Brief description of the problem]
+5. **[Problem Category 5]**: [Brief description of the problem]
+6. **[Problem Category 6]**: [Brief description of the problem]
+7. **[Problem Category 7]**: [Brief description of the problem]
+{%- endif %}
+
+## 4. Solution Flow Diagram
+
+{% if solution_flow and solution_flow.flow_description -%}
+{{ solution_flow.flow_description }}
+
+{% if solution_flow.flow_steps and solution_flow.flow_steps|length > 0 -%}
+
+**Flow Steps:**
+{% for step in solution_flow.flow_steps -%}
+{% if step.step and step.description -%}
+{{ loop.index }}. **{{ step.step }}**: {{ step.description }}
+{% elif step is string -%}
+{{ loop.index }}. {{ step }}
+{% else -%}
+{{ loop.index }}. **Step {{ loop.index }}**: {{ step | string }}
+{% endif -%}
+{% endfor %}
+{%- endif %}
+
+{% if solution_flow.mermaid_diagram -%}
+
+```mermaid
+{{ solution_flow.mermaid_diagram }}
+```
+{%- else -%}
+```mermaid
+graph TD
+    A[User Problem/Need] --> B{Problem Analysis}
+    B --> C[{{ product_name|default('[Product Name]') }} Solution]
+    
+    C --> D[Core Features]
+    D --> E[AI-Powered Automation]
+    D --> F[Intelligent Analysis]
+    D --> G[Streamlined Workflow]
+    
+    E --> H[Task Generation]
+    E --> I[Progress Tracking]
+    F --> J[Project Insights]
+    F --> K[Recommendations]
+    G --> L[Team Collaboration]
+    G --> M[Tool Integration]
+    
+    H --> N[User Success]
+    I --> N
+    J --> N
+    K --> N
+    L --> N
+    M --> N
+    
+    N --> O{Continuous Improvement}
+    O --> P[User Feedback]
+    O --> Q[AI Learning]
+    O --> R[Feature Enhancement]
+    
+    P --> C
+    Q --> C
+    R --> C
+    
+    style A fill:#ffebee
+    style N fill:#e8f5e8
+    style C fill:#e3f2fd
+    style O fill:#fff3e0
+```
+{%- endif %}
+{%- else -%}
+This section shows how {{ product_name|default('[Product Name]') }} transforms user problems into solutions through intelligent analysis and automated workflows.
+
+```mermaid
+graph TD
+    A[User Problem/Need] --> B{Problem Analysis}
+    B --> C[{{ product_name|default('[Product Name]') }} Solution]
+    
+    C --> D[Core Features]
+    D --> E[AI-Powered Automation]
+    D --> F[Intelligent Analysis]
+    D --> G[Streamlined Workflow]
+    
+    E --> H[Task Generation]
+    E --> I[Progress Tracking]
+    F --> J[Project Insights]
+    F --> K[Recommendations]
+    G --> L[Team Collaboration]
+    G --> M[Tool Integration]
+    
+    H --> N[User Success]
+    I --> N
+    J --> N
+    K --> N
+    L --> N
+    M --> N
+    
+    N --> O{Continuous Improvement}
+    O --> P[User Feedback]
+    O --> Q[AI Learning]
+    O --> R[Feature Enhancement]
+    
+    P --> C
+    Q --> C
+    R --> C
+    
+    style A fill:#ffebee
+    style N fill:#e8f5e8
+    style C fill:#e3f2fd
+    style O fill:#fff3e0
+```
+{%- endif %}
+
+## 5. How {{ product_name|default('[Product Name]') }} Works
+{{ product_name|default('[Product Name]') }} is a {{ product_type|default('[product type]') }} that allows users to:
+{% if how_it_works and how_it_works|length > 0 -%}
+{% for feature in how_it_works -%}
+{{ loop.index }}. **{{ feature.name|default('[Core Feature ' + loop.index|string + ']') }}**: {{ feature.description|default('[Brief description of how it works]') }}
+{% endfor %}
+{%- else -%}
+1. **[Core Feature 1]**: [Brief description of how it works]
+2. **[Core Feature 2]**: [Brief description of how it works]
+3. **[Core Feature 3]**: [Brief description of how it works]
+4. **[Core Feature 4]**: [Brief description of how it works]
+5. **[Core Feature 5]**: [Brief description of how it works]
+6. **[Core Feature 6]**: [Brief description of how it works]
+7. **[Core Feature 7]**: [Brief description of how it works]
+{%- endif %}
+
+{{ additional_context|default('[Additional context about what the product does and doesn\'t do, focusing on its core purpose and approach]') }}
+
+## 6. User Experience Goals
+{% if ux_goals and ux_goals|length > 0 -%}
+{% for goal in ux_goals -%}
+{{ loop.index }}. **{{ goal.name|default('[UX Goal ' + loop.index|string + ']') }}**: {{ goal.description|default('[Description of the goal]') }}
+{% endfor %}
+{%- else -%}
+1. **[UX Goal 1]**: [Description of the goal]
+2. **[UX Goal 2]**: [Description of the goal]
+3. **[UX Goal 3]**: [Description of the goal]
+4. **[UX Goal 4]**: [Description of the goal]
+5. **[UX Goal 5]**: [Description of the goal]
+6. **[UX Goal 6]**: [Description of the goal]
+7. **[UX Goal 7]**: [Description of the goal]
+8. **[UX Goal 8]**: [Description of the goal]
+{%- endif %}
+
+## 7. Target Users
+{% if user_personas and user_personas|length > 0 -%}
+{% for persona in user_personas -%}
+{{ loop.index }}. **{{ persona.name|default('[User Persona ' + loop.index|string + ']') }}**: {{ persona.description|default('[Description of this user type and their needs]') }}
+{% endfor %}
+{%- else -%}
+1. **[User Persona 1]**: [Description of this user type and their needs]
+2. **[User Persona 2]**: [Description of this user type and their needs]
+3. **[User Persona 3]**: [Description of this user type and their needs]
+4. **[User Persona 4]**: [Description of this user type and their needs]
+5. **[User Persona 5]**: [Description of this user type and their needs]
+6. **[User Persona 6]**: [Description of this user type and their needs]
+7. **[Future User Persona]**: [Description of potential future users]
+{%- endif %}
+
+## 8. Key User Journeys
+{% if user_journeys and user_journeys|length > 0 -%}
+{% for journey in user_journeys -%}
+{{ loop.index }}. **{{ journey.name|default('[Journey ' + loop.index|string + ': e.g., New User Onboarding]') }}**:
+{% if journey.steps and journey.steps|length > 0 -%}
+{% for step in journey.steps -%}
+   - {{ step }}
+{% endfor %}
+{%- else -%}
+   - [Step 1]
+   - [Step 2]
+   - [Step 3]
+   - [Step 4]
+   - [Step 5]
+{%- endif %}
+
+{% endfor %}
+{%- else -%}
+1. **[Journey 1: e.g., New User Onboarding]**:
+   - [Step 1]
+   - [Step 2]
+   - [Step 3]
+   - [Step 4]
+   - [Step 5]
+
+2. **[Journey 2: e.g., Core Feature Usage]**:
+   - [Step 1]
+   - [Step 2]
+   - [Step 3]
+   - [Step 4]
+   - [Step 5]
+   - [Step 6]
+
+3. **[Journey 3: e.g., Advanced Feature Usage]**:
+   - [Step 1]
+   - [Step 2]
+   - [Step 3]
+   - [Step 4]
+   - [Step 5]
+
+4. **[Journey 4: e.g., Data/Analytics Usage]**:
+   - [Step 1]
+   - [Step 2]
+   - [Step 3]
+   - [Step 4]
+   - [Step 5]
+{%- endif %}
+
+## 9. Success Metrics
+{% if success_metrics and success_metrics|length > 0 -%}
+{% for metric in success_metrics -%}
+{{ loop.index }}. **{{ metric.name|default('[Metric ' + loop.index|string + ']') }}**: {{ metric.description|default('[Description]') }} (target: {{ metric.target|default('[specific target]') }})
+{% endfor %}
+{%- else -%}
+1. **[Metric 1]**: [Description] (target: [specific target])
+2. **[Metric 2]**: [Description] (target: [specific target])
+3. **[Metric 3]**: [Description] (target: [specific target])
+4. **[Metric 4]**: [Description] (target: [specific target])
+5. **[Metric 5]**: [Description] (target: [specific target])
+6. **[Metric 6]**: [Description] (target: [specific target])
+7. **[Metric 7]**: [Description] (target: [specific target])
+8. **[Metric 8]**: [Description] (target: [specific target])
+9. **[Metric 9]**: [Description] (target: [specific target])
+{%- endif %}
+
+## 10. Current Product Focus
+The current product focus is on {{ current_focus.area|default('[describe current focus area]') }} by {{ current_focus.approach|default('[describe approach]') }}. This will enhance the user experience by:
+{% if current_focus and current_focus.benefits and current_focus.benefits|length > 0 -%}
+{% for benefit in current_focus.benefits -%}
+{{ loop.index }}. **{{ benefit.name|default('[Benefit ' + loop.index|string + ']') }}**: {{ benefit.description|default('[Description]') }}{% if benefit.target %} (target: {{ benefit.target }}){% endif %}
+{% endfor %}
+{%- else -%}
+1. **[Benefit 1]**: [Description] (target: [specific target if applicable])
+2. **[Benefit 2]**: [Description]
+3. **[Benefit 3]**: [Description]
+4. **[Benefit 4]**: [Description]
+5. **[Benefit 5]**: [Description]
+6. **[Benefit 6]**: [Description]
+7. **[Benefit 7]**: [Description]
+{%- endif %}
+
+{{ current_focus.next_steps|default('[Description of what will happen after current focus is completed]') if current_focus else '[Description of what will happen after current focus is completed]' }}
+
+## 11. Recent Improvements
+The application has recently been enhanced with:
+{% if recent_improvements and recent_improvements|length > 0 -%}
+{% for improvement in recent_improvements -%}
+{{ loop.index }}. **{{ improvement.name|default('[Improvement ' + loop.index|string + ']') }}**: {{ improvement.description|default('[Description of the improvement]') }}
+{% endfor %}
+{%- else -%}
+1. **[Improvement 1]**: [Description of the improvement]
+2. **[Improvement 2]**: [Description of the improvement]
+3. **[Improvement 3]**: [Description of the improvement]
+4. **[Improvement 4]**: [Description of the improvement]
+5. **[Improvement 5]**: [Description of the improvement]
+6. **[Improvement 6]**: [Description of the improvement]
+7. **[Improvement 7]**: [Description of the improvement]
+8. **[Improvement 8]**: [Description of the improvement]
+{%- endif %}
+
+{{ improvements_summary|default('[Summary of the impact of these improvements]') }}
+
+## 12. Future Roadmap
+{% if future_roadmap and future_roadmap|length > 0 -%}
+{% for roadmap_item in future_roadmap -%}
+{{ loop.index }}. **{{ roadmap_item.time_period|default('[Time Period ' + loop.index|string + ']') }}**: {{ roadmap_item.focus|default('[Major focus or features planned]') }}
+{% endfor %}
+{%- else -%}
+1. **[Time Period 1]**: [Major focus or features planned]
+2. **[Time Period 2]**: [Major focus or features planned]
+3. **[Time Period 3]**: [Major focus or features planned]
+4. **[Time Period 4]**: [Major focus or features planned]
+5. **[Time Period 5]**: [Major focus or features planned]
+{%- endif %}
+
+---
+
+*This document provides context for why {{ product_name|default('[Product Name]') }} exists, the problems it solves, and how it should work from a product perspective. It serves as a guide for product decisions and feature prioritization.*
+
+### Notes for AI Agent
+
+When populating this template:
+1. Replace all placeholder text in [brackets] with specific product information
+2. Ensure the vision statement is concise, inspiring, and aligned with product goals
+3. Be specific about the problems solved and how the product solves them
+4. Update the mermaid flow diagram to reflect actual product workflow
+5. Define clear user personas that represent actual target users
+6. Map out realistic user journeys that cover the main use cases
+7. Set measurable success metrics with specific target values
+8. Focus on the current product priorities and recent improvements
+9. Include a realistic roadmap with timeframes
+10. Add any product-specific sections that might be relevant 

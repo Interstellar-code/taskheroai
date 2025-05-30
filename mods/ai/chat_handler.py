@@ -129,11 +129,14 @@ class ChatHandler(BaseComponent):
                 streaming=streaming and self.streaming_enabled
             )
 
+            # Enhance response quality and formatting
+            enhanced_response = self._enhance_response_quality(response, query, context)
+
             # Add to history
             self.add_to_history("user", query)
-            self.add_to_history("assistant", response)
+            self.add_to_history("assistant", enhanced_response)
 
-            return response, context.relevant_files
+            return enhanced_response, context.relevant_files
 
         except Exception as e:
             self.logger.error(f"Error processing query: {e}")
@@ -287,3 +290,156 @@ class ChatHandler(BaseComponent):
         await self.provider_factory.close_all_providers()
         self.current_provider = None
         self.logger.info("ChatHandler connections closed")
+
+    def _enhance_response_quality(self, response: str, query: str, context) -> str:
+        """Enhance response quality with validation and formatting improvements."""
+        try:
+            # Validate response quality
+            quality_score = self._validate_response_quality(response, query, context)
+
+            # Format response with structure
+            formatted_response = self._format_response_structure(response)
+
+            # Add follow-up suggestions if appropriate
+            enhanced_response = self._add_follow_up_suggestions(formatted_response, query, context)
+
+            # Add quality metadata for debugging
+            if quality_score < 0.7:  # If quality is low, add a note
+                self.logger.warning(f"Response quality score: {quality_score:.2f} for query: {query[:50]}...")
+
+            return enhanced_response
+
+        except Exception as e:
+            self.logger.warning(f"Error enhancing response quality: {e}")
+            return response  # Return original response if enhancement fails
+
+    def _validate_response_quality(self, response: str, query: str, context) -> float:
+        """Validate response quality and return a score between 0 and 1."""
+        try:
+            score = 0.0
+
+            # Basic length check (not too short, not too long)
+            if 100 <= len(response) <= 5000:
+                score += 0.2
+            elif len(response) > 50:
+                score += 0.1
+
+            # Check for specific mentions of project features
+            project_terms = ['taskhero', 'task', 'ai', 'chat', 'dashboard', 'indexing', 'file']
+            mentions = sum(1 for term in project_terms if term.lower() in response.lower())
+            score += min(mentions * 0.1, 0.3)
+
+            # Check for structured content (headings, lists, etc.)
+            if any(marker in response for marker in ['##', '###', '•', '-', '1.', '2.']):
+                score += 0.2
+
+            # Check for code examples or technical details
+            if any(marker in response for marker in ['```', '`', 'function', 'class', 'method']):
+                score += 0.1
+
+            # Check for actionable information
+            action_words = ['can', 'allows', 'enables', 'provides', 'supports', 'offers']
+            if any(word in response.lower() for word in action_words):
+                score += 0.1
+
+            # Check if response addresses the query
+            query_words = set(query.lower().split())
+            response_words = set(response.lower().split())
+            overlap = len(query_words.intersection(response_words))
+            if overlap > 0:
+                score += min(overlap * 0.02, 0.1)
+
+            return min(score, 1.0)
+
+        except Exception as e:
+            self.logger.debug(f"Error validating response quality: {e}")
+            return 0.5  # Default neutral score
+
+    def _format_response_structure(self, response: str) -> str:
+        """Format response with better structure and readability."""
+        try:
+            # If response is already well-structured, return as-is
+            if any(marker in response for marker in ['##', '###', '**', '•']):
+                return response
+
+            # Split response into paragraphs
+            paragraphs = [p.strip() for p in response.split('\n\n') if p.strip()]
+
+            if len(paragraphs) <= 1:
+                return response  # Single paragraph, no need to restructure
+
+            # Add structure to multi-paragraph responses
+            structured_parts = []
+
+            # First paragraph as introduction
+            if paragraphs:
+                structured_parts.append(paragraphs[0])
+
+            # Remaining paragraphs as sections
+            if len(paragraphs) > 1:
+                structured_parts.append("\n## Key Points\n")
+                for i, paragraph in enumerate(paragraphs[1:], 1):
+                    structured_parts.append(f"**{i}.** {paragraph}")
+
+            return '\n\n'.join(structured_parts)
+
+        except Exception as e:
+            self.logger.debug(f"Error formatting response structure: {e}")
+            return response
+
+    def _add_follow_up_suggestions(self, response: str, query: str, context) -> str:
+        """Add relevant follow-up suggestions based on query and context."""
+        try:
+            suggestions = []
+            query_lower = query.lower()
+
+            # Suggest related queries based on current query
+            if 'functionality' in query_lower or 'features' in query_lower:
+                suggestions.extend([
+                    "How do users typically interact with this system?",
+                    "What are the main workflows available?",
+                    "How is the AI chat system implemented?"
+                ])
+
+            elif 'workflow' in query_lower or 'process' in query_lower:
+                suggestions.extend([
+                    "What are the technical implementation details?",
+                    "How are the different components integrated?",
+                    "What configuration options are available?"
+                ])
+
+            elif 'technical' in query_lower or 'implementation' in query_lower:
+                suggestions.extend([
+                    "What user features does this enable?",
+                    "How do the components work together?",
+                    "What are the main user workflows?"
+                ])
+
+            elif 'chat' in query_lower or 'ai' in query_lower:
+                suggestions.extend([
+                    "How does the context discovery system work?",
+                    "What AI providers are supported?",
+                    "How is the task management integrated?"
+                ])
+
+            # Add general suggestions if no specific ones match
+            if not suggestions:
+                suggestions = [
+                    "What are the main features users can access?",
+                    "How do the different components work together?",
+                    "What are the key user workflows?"
+                ]
+
+            # Limit to 3 suggestions and format them
+            if suggestions:
+                follow_up_text = "\n\n---\n\n**💡 Related Questions You Might Ask:**\n"
+                for i, suggestion in enumerate(suggestions[:3], 1):
+                    follow_up_text += f"{i}. {suggestion}\n"
+
+                return response + follow_up_text
+
+            return response
+
+        except Exception as e:
+            self.logger.debug(f"Error adding follow-up suggestions: {e}")
+            return response

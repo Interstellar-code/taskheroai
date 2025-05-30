@@ -102,12 +102,13 @@ class MenuManager(BaseManager):
         print(Fore.MAGENTA + "10. " + Style.BRIGHT + "➕ Quick Create Task" + Style.RESET_ALL)
         print(Fore.MAGENTA + "11. " + Style.BRIGHT + "👀 Quick View Tasks" + Style.RESET_ALL)
         print(Fore.MAGENTA + "12. " + Style.BRIGHT + "🔍 Search Tasks" + Style.RESET_ALL)
+        print(Fore.MAGENTA + "13. " + Style.BRIGHT + "📝 Create About Document" + Style.RESET_ALL + f" {Fore.GREEN}(Product context){Style.RESET_ALL}")
 
         # Settings & Tools Section
         print(Fore.CYAN + "-" * 70 + Style.RESET_ALL)
         print(Fore.CYAN + Style.BRIGHT + "⚙️ Settings & Tools" + Style.RESET_ALL)
-        print(Fore.RED + "13. " + Style.BRIGHT + "🗑️ Project Cleanup Manager" + Style.RESET_ALL + f" {Fore.YELLOW}(Delete indices){Style.RESET_ALL}")
-        print(Fore.GREEN + "14. " + Style.BRIGHT + "🤖 AI Settings" + Style.RESET_ALL + f" {Fore.CYAN}(Configure providers){Style.RESET_ALL}")
+        print(Fore.RED + "14. " + Style.BRIGHT + "🗑️ Project Cleanup Manager" + Style.RESET_ALL + f" {Fore.YELLOW}(Delete indices){Style.RESET_ALL}")
+        print(Fore.GREEN + "15. " + Style.BRIGHT + "🤖 AI Settings" + Style.RESET_ALL + f" {Fore.CYAN}(Configure providers){Style.RESET_ALL}")
         print(Fore.BLUE + "0. " + Style.BRIGHT + "🚪 Exit" + Style.RESET_ALL)
 
         print(Fore.CYAN + "=" * 70 + Style.RESET_ALL)
