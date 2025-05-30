@@ -621,7 +621,7 @@ if (-not $Force) {
     if (Test-Path $setupFile) {
         try {
             $setupData = Get-Content $setupFile | ConvertFrom-Json
-            $requiredSteps = @("venv_created", "dependencies_installed", "pip_upgraded", "setup_completed")
+            $requiredSteps = @("venv_created", "dependencies_installed", "pip_upgraded", "configuration_wizard_completed", "setup_completed")
             $allStepsComplete = $true
 
             # Check if setup_completed section exists
@@ -1077,9 +1077,14 @@ if (-not $skipOllamaCheck) {
 Write-SectionHeader "Step 6: Interactive Configuration Wizard" "[CONFIG]"
 Show-Progress 6 8 "Starting configuration wizard..."
 
-Write-Info "Starting interactive configuration wizard..."
-Write-Info "This will configure TaskHero AI for your specific needs."
-Write-ColoredLine "===============================================================================" $Colors.Primary
+# Check if configuration wizard has been completed
+if (-not $Force -and (Test-SetupCompleted "configuration_wizard_completed")) {
+    Write-Success "Configuration wizard already completed - skipping"
+    Write-Info "Use -Force flag to reconfigure if needed"
+} else {
+    Write-Info "Starting interactive configuration wizard..."
+    Write-Info "This will configure TaskHero AI for your specific needs."
+    Write-ColoredLine "===============================================================================" $Colors.Primary
 
 # Configuration Step 1: Repository Type
 Write-Host ""
@@ -1392,9 +1397,13 @@ if ($configureModels.ToUpper() -eq "Y") {
     Write-Info "Using default model settings. You can modify later by editing .env file."
 }
 
-Write-Host ""
-Write-Success "Configuration wizard completed!"
-Write-ColoredLine "===============================================================================" $Colors.Primary
+    Write-Host ""
+    Write-Success "Configuration wizard completed!"
+    Write-ColoredLine "===============================================================================" $Colors.Primary
+
+    # Mark configuration wizard as completed
+    Set-SetupCompleted "configuration_wizard_completed" | Out-Null
+}
 
 # Create data directory if it doesn't exist
 $dataDir = "./data"

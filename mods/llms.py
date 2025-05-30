@@ -99,6 +99,46 @@ def get_current_provider() -> Tuple[str, str]:
     """Get the current AI provider and Model based on environment variables."""
     return AI_CHAT_PROVIDER, CHAT_MODEL
 
+def get_provider_api_key(provider: str) -> Optional[str]:
+    """
+    Get the API key for a specific provider from its main configuration.
+    This replaces the old function-specific API key system.
+
+    Args:
+        provider: Provider name (openai, anthropic, ollama, openrouter, deepseek, google, groq)
+
+    Returns:
+        API key string or None if not found/not needed
+    """
+    # Ollama doesn't need an API key
+    if provider.lower() == 'ollama':
+        return None
+
+    # Map provider to its main API key environment variable
+    provider_key_map = {
+        'openai': 'OPENAI_API_KEY',
+        'anthropic': 'ANTHROPIC_API_KEY',
+        'openrouter': 'OPENROUTER_API_KEY',
+        'deepseek': 'DEEPSEEK_API_KEY',
+        'google': 'GOOGLE_API_KEY',
+        'groq': 'GROQ_API_KEY'
+    }
+
+    api_key_var = provider_key_map.get(provider.lower())
+    if not api_key_var:
+        logger.warning(f"Unknown provider: {provider}")
+        return None
+
+    api_key = os.getenv(api_key_var)
+
+    # Return None if key is not set or is a placeholder
+    if not api_key or api_key in ['None', 'your_openai_api_key_here', 'your_anthropic_api_key_here',
+                                 'your_openrouter_api_key_here', 'your_deepseek_api_key_here',
+                                 'your_google_api_key_here', 'your_groq_api_key_here']:
+        return None
+
+    return api_key
+
 class ConversationMemory:
     """Manages memory for AI conversations to provide context and reduce redundant API calls."""
 
@@ -902,8 +942,13 @@ def generate_response(
         Exception: If Google API encounters an error.
     """
     chat_provider = provider or AI_CHAT_PROVIDER
-    chat_api_key = api_key or AI_CHAT_API_KEY
     chat_model = model or CHAT_MODEL
+
+    # Use provider's main API key instead of function-specific key
+    if api_key:
+        chat_api_key = api_key
+    else:
+        chat_api_key = get_provider_api_key(chat_provider)
 
     if not chat_model:
         raise ValueError("Model not set. Either set CHAT_MODEL environment variable or provide model parameter.")

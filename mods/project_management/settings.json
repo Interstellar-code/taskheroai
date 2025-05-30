@@ -2,7 +2,7 @@
   "project_name": "TaskHeroAI Project",
   "default_task_template": "task-template.md",
   "task_id_prefix": "TASK",
-  "task_id_counter": 80,
+  "task_id_counter": 1,
   "statuses": {
     "todo": "To Do",
     "inprogress": "In Progress",
@@ -17,16 +17,6 @@
     "high",
     "critical"
   ],
-  "created": "2025-01-27T16:00:00.000000",
-  "modified": "2025-05-26T14:28:13.773654",
-  "openrouter": {
-    "api_key": "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",
-    "site_url": "https://taskhero.test/",
-    "site_name": "taskshero",
-    "model": "google/gemini-2.5-flash-preview-05-20"
-  },
-  "user_preferences": {
-    "default_report_path": "project-report-auto.md",
-    "default_comprehensive_report_path": "project-comprehensive-report-auto.md"
-  }
+  "created": "2025-05-30T17:55:54.709072",
+  "modified": "2025-05-30T17:55:54.709078"
 }

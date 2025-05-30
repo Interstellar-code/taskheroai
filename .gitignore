@@ -1,4 +1,4 @@
-# Python
+﻿# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -87,3 +87,6 @@ mods/__pycache__/
 # Git cache files
 .git_update_cache.json
 .git_version_cache.json
+
+# TaskHero AI - Added by setup script
+./taskheroai

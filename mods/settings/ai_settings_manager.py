@@ -614,28 +614,21 @@ class AISettingsManager(BaseManager):
         try:
             env_vars = self.env_manager.env_vars
 
-            assignments = {
-                'embedding': {
-                    'provider': env_vars.get('AI_EMBEDDING_PROVIDER', 'openai'),
-                    'model': env_vars.get('AI_EMBEDDING_MODEL', 'text-embedding-3-small')
-                },
-                'chat': {
-                    'provider': env_vars.get('AI_CHAT_PROVIDER', 'ollama'),
-                    'model': env_vars.get('AI_CHAT_MODEL', 'llama3.2:latest')
-                },
-                'task': {
-                    'provider': env_vars.get('AI_TASK_PROVIDER', 'ollama'),
-                    'model': env_vars.get('AI_TASK_MODEL', 'llama3.2:latest')
-                },
-                'description': {
-                    'provider': env_vars.get('AI_DESCRIPTION_PROVIDER', 'ollama'),
-                    'model': env_vars.get('AI_DESCRIPTION_MODEL', 'llama3.2:latest')
-                },
-                'agent': {
-                    'provider': env_vars.get('AI_AGENT_PROVIDER', 'ollama'),
-                    'model': env_vars.get('AI_AGENT_MODEL', 'llama3.2:latest')
+            assignments = {}
+            functions = ['embedding', 'chat', 'task', 'description', 'agent']
+
+            for function in functions:
+                provider = env_vars.get(f'AI_{function.upper()}_PROVIDER', 'ollama')
+                model = env_vars.get(f'AI_{function.upper()}_MODEL', 'llama3.2:latest')
+
+                # Get API key from provider's main configuration
+                api_key = self._get_provider_api_key(provider)
+
+                assignments[function] = {
+                    'provider': provider,
+                    'model': model,
+                    'api_key': api_key
                 }
-            }
 
             return assignments
 
@@ -643,9 +636,40 @@ class AISettingsManager(BaseManager):
             self.logger.error(f"Error getting AI function assignments: {e}")
             return {}
 
+    def _get_provider_api_key(self, provider: str) -> Optional[str]:
+        """
+        Get the API key for a specific provider from its main configuration.
+
+        Args:
+            provider: Provider name (openai, anthropic, ollama, openrouter, deepseek)
+
+        Returns:
+            API key string or None if not found/not needed
+        """
+        try:
+            # Ollama doesn't need an API key
+            if provider.lower() == 'ollama':
+                return None
+
+            # Get the provider's main API key
+            api_key_var = f"{provider.upper()}_API_KEY"
+            api_key = self.env_manager.get_env_var(api_key_var)
+
+            # Return None if key is not set or is a placeholder
+            if not api_key or api_key in ['None', 'your_openai_api_key_here', 'your_anthropic_api_key_here',
+                                         'your_openrouter_api_key_here', 'your_deepseek_api_key_here']:
+                return None
+
+            return api_key
+
+        except Exception as e:
+            self.logger.error(f"Error getting API key for provider {provider}: {e}")
+            return None
+
     def set_ai_function_assignment(self, function: str, provider: str, model: str) -> bool:
         """
         Set AI function assignment.
+        Now automatically uses the provider's main API key instead of separate function keys.
 
         Args:
             function: Function name (embedding, chat, task, description, agent)
@@ -674,9 +698,15 @@ class AISettingsManager(BaseManager):
             self.env_manager.set_env_var(provider_key, provider)
             self.env_manager.set_env_var(model_key, model)
 
+            # Remove old function-specific API key if it exists (cleanup)
+            old_api_key = f"AI_{function.upper()}_API_KEY"
+            if old_api_key in self.env_manager.env_vars:
+                self.env_manager.env_vars.pop(old_api_key, None)
+                self.logger.info(f"Removed deprecated API key variable: {old_api_key}")
+
             # Save to .env file
             if self.env_manager.write_env_file(self.env_manager.env_vars):
-                self.logger.info(f"Updated {function} assignment: {provider}/{model}")
+                self.logger.info(f"Updated {function} assignment: {provider}/{model} (using {provider.upper()}_API_KEY)")
                 return True
             else:
                 self.logger.error(f"Failed to save {function} assignment")

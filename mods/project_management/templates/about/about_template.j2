@@ -7,7 +7,7 @@ tags: about, product, context, vision, roadmap, users, mermaid, flow-diagram
 author: TaskHero AI
 created: {{ current_date|default('2025-01-XX') }}
 modified: {{ current_date|default('2025-01-XX') }}
-requires: 
+requires:
 variables: product_name, core_problem, industry_domain, target_users, pain_points, challenge, core_solution, key_benefits, vision_statement, problems_solved, how_it_works, ux_goals, user_personas, user_journeys, success_metrics, current_focus, recent_improvements, future_roadmap
 is_base: false
 #}
@@ -31,10 +31,10 @@ is_base: false
 ---
 
 ## 1. Why {{ product_name|default('[Product Name]') }} Exists
-{{ product_name|default('[Product Name]') }} was created to solve {{ core_problem|default('[describe the core problem]') }} in {{ industry_domain|default('[industry/domain]') }}. As {{ target_users|default('[describe target users]') }} experience {{ pain_points|default('[describe pain points]') }}, {{ challenge|default('[describe the challenge]') }}. {{ product_name|default('[Product Name]') }} provides {{ core_solution|default('[describe core solution]') }} where users can {% if key_benefits and key_benefits|length >= 3 %}{{ key_benefits[0] }}, {{ key_benefits[1] }}, and {{ key_benefits[2] }}{% else %}[key benefit 1], [key benefit 2], and [key benefit 3]{% endif %}.
+{{ product_name|default('[Product Name]') }} was created to solve {{ core_problem|default('inefficient project management and task tracking in software development') }} in {{ industry_domain|default('software development and project management') }}. As {{ target_users|default('development teams, project managers, and software engineers') }} experience {{ pain_points|default('scattered task information, manual status updates, lack of intelligent automation, and poor project visibility') }}, {{ challenge|default('teams struggle to maintain visibility and efficiency in complex projects while managing multiple priorities') }}. {{ product_name|default('[Product Name]') }} provides {{ core_solution|default('an AI-powered task management and project analysis platform') }} where users can {% if key_benefits and key_benefits|length >= 3 %}{{ key_benefits[0] }}, {{ key_benefits[1] }}, and {{ key_benefits[2] }}{% else %}automate task creation and tracking with AI, provide intelligent insights and project analytics, and streamline team collaboration and workflow optimization{% endif %}.
 
 ## 2. Vision Statement
-{{ vision_statement|default('[A concise statement describing the long-term goal of the product and what it aims to achieve in the market or for its users]') }}
+{{ vision_statement|default('To revolutionize project management by making AI-powered automation accessible to every development team, enabling them to focus on creating great products rather than managing processes.') }}
 
 ## 3. Problems Solved
 {% if problems_solved and problems_solved|length > 0 -%}
@@ -80,35 +80,35 @@ is_base: false
 graph TD
     A[User Problem/Need] --> B{Problem Analysis}
     B --> C[{{ product_name|default('[Product Name]') }} Solution]
-    
+
     C --> D[Core Features]
     D --> E[AI-Powered Automation]
     D --> F[Intelligent Analysis]
     D --> G[Streamlined Workflow]
-    
+
     E --> H[Task Generation]
     E --> I[Progress Tracking]
     F --> J[Project Insights]
     F --> K[Recommendations]
     G --> L[Team Collaboration]
     G --> M[Tool Integration]
-    
+
     H --> N[User Success]
     I --> N
     J --> N
     K --> N
     L --> N
     M --> N
-    
+
     N --> O{Continuous Improvement}
     O --> P[User Feedback]
     O --> Q[AI Learning]
     O --> R[Feature Enhancement]
-    
+
     P --> C
     Q --> C
     R --> C
-    
+
     style A fill:#ffebee
     style N fill:#e8f5e8
     style C fill:#e3f2fd
@@ -122,35 +122,35 @@ This section shows how {{ product_name|default('[Product Name]') }} transforms u
 graph TD
     A[User Problem/Need] --> B{Problem Analysis}
     B --> C[{{ product_name|default('[Product Name]') }} Solution]
-    
+
     C --> D[Core Features]
     D --> E[AI-Powered Automation]
     D --> F[Intelligent Analysis]
     D --> G[Streamlined Workflow]
-    
+
     E --> H[Task Generation]
     E --> I[Progress Tracking]
     F --> J[Project Insights]
     F --> K[Recommendations]
     G --> L[Team Collaboration]
     G --> M[Tool Integration]
-    
+
     H --> N[User Success]
     I --> N
     J --> N
     K --> N
     L --> N
     M --> N
-    
+
     N --> O{Continuous Improvement}
     O --> P[User Feedback]
     O --> Q[AI Learning]
     O --> R[Feature Enhancement]
-    
+
     P --> C
     Q --> C
     R --> C
-    
+
     style A fill:#ffebee
     style N fill:#e8f5e8
     style C fill:#e3f2fd
@@ -338,4 +338,4 @@ When populating this template:
 7. Set measurable success metrics with specific target values
 8. Focus on the current product priorities and recent improvements
 9. Include a realistic roadmap with timeframes
-10. Add any product-specific sections that might be relevant 
+10. Add any product-specific sections that might be relevant
