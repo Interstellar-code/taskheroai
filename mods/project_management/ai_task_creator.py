@@ -777,6 +777,14 @@ flowchart TD
         try:
             print("🚀 Starting Progressive Task Creation Wizard...")
 
+            # Show AI provider information
+            try:
+                from ..code.indexer import _get_ai_provider_info
+                ai_info = _get_ai_provider_info()
+                print(f"🤖 AI Provider: {ai_info['description_full']} will enhance your task")
+            except Exception as e:
+                print("🤖 AI Provider info unavailable")
+
             # Step 1: Basic Information Collection
             success = await self._progressive_step_1_basic_info()
             if not success:
@@ -1035,7 +1043,14 @@ flowchart TD
                 progress_tracker.fail_step("❌ AI provider initialization failed")
                 print("⚠️  Continuing with basic enhancement...")
                 return await self._progressive_step_3_basic_enhancement(data)
-            progress_tracker.complete_step("✅ AI provider ready")
+
+            # Show AI provider information
+            try:
+                from ..code.indexer import _get_ai_provider_info
+                ai_info = _get_ai_provider_info()
+                progress_tracker.complete_step(f"✅ AI provider ready: {ai_info['description_full']}")
+            except Exception as e:
+                progress_tracker.complete_step("✅ AI provider ready")
 
             # Step 2: Context Preparation
             progress_tracker.start_step("📋 Preparing enhancement context...")
@@ -1083,7 +1098,7 @@ flowchart TD
             # Analyze context once for all steps
             selected_context = self.creation_state.get('selected_context', [])
             context_analysis = self._analyze_context_content(selected_context, context.get('title', ''), description)
-            
+
             # Step 1: Description Enhancement
             progress_tracker.start_step("🔄 Enhancing description...")
             enhanced_description = await self._enhance_description_step(context, description, progress_tracker, context_analysis)
@@ -1293,9 +1308,9 @@ USER INTENT PRESERVATION:
         try:
             title = context.get('title', '')
             task_type = context.get('task_type', 'Development')
-            
+
             reference_content = context_analysis['reference_task_content']
-            
+
             # If a high-confidence reference task is found, use it for adaptation
             if reference_content:
                 enhancement_prompt = f"""You are enhancing a task description. Your primary goal is to ADAPT the provided reference content to match the user's specific task, while STRICTLY preserving the user's original intent and content.
@@ -1379,7 +1394,7 @@ Enhanced description (preserve user intent, add specific technical depth from re
         try:
             title = context.get('title', '')
             task_type = context.get('task_type', 'Development')
-            
+
             reference_content = context_analysis['reference_task_content']
 
             if reference_content:

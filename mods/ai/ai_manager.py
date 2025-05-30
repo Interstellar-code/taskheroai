@@ -83,6 +83,15 @@ class AIManager(BaseManager):
         indexed_files = self.indexer.get_indexed_files()
         print(f"{Fore.GREEN}📂 Project: {Style.BRIGHT}{project_name}{Style.RESET_ALL}")
         print(f"{Fore.GREEN}📚 Indexed Files: {Style.BRIGHT}{len(indexed_files)}{Style.RESET_ALL}")
+
+        # Show AI provider information
+        try:
+            from ..code.indexer import _get_ai_provider_info
+            ai_info = _get_ai_provider_info()
+            print(f"{Fore.MAGENTA}🤖 AI Provider: {ai_info['description_full']} for chat responses{Style.RESET_ALL}")
+        except Exception as e:
+            print(f"{Fore.YELLOW}🤖 AI Provider info unavailable{Style.RESET_ALL}")
+
         print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
 
         print(f"{Fore.YELLOW}💡 Ask questions about your codebase!")
@@ -247,6 +256,15 @@ class AIManager(BaseManager):
         indexed_files = self.indexer.get_indexed_files()
         print(f"{Fore.GREEN}📂 Project: {Style.BRIGHT}{project_name}{Style.RESET_ALL}")
         print(f"{Fore.GREEN}📚 Indexed Files: {Style.BRIGHT}{len(indexed_files)}{Style.RESET_ALL}")
+
+        # Show AI provider information
+        try:
+            from ..code.indexer import _get_ai_provider_info
+            ai_info = _get_ai_provider_info()
+            print(f"{Fore.MAGENTA}🤖 AI Provider: {ai_info['description_full']} for agent responses{Style.RESET_ALL}")
+        except Exception as e:
+            print(f"{Fore.YELLOW}🤖 AI Provider info unavailable{Style.RESET_ALL}")
+
         print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
 
         print(f"{Fore.YELLOW}🤖 Advanced AI Agent with codebase tools!")

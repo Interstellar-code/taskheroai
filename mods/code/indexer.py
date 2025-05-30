@@ -39,6 +39,51 @@ logger = logging.getLogger("TaskHeroAI.Indexer")
 logger.info("[INDEXER] LOGGER WORKING")
 
 
+def _get_ai_provider_info() -> Dict[str, str]:
+    """Get current AI provider information for display purposes.
+
+    Returns:
+        Dict containing provider info for descriptions and embeddings
+    """
+    try:
+        from ..settings import AISettingsManager
+        ai_settings = AISettingsManager()
+        ai_settings.initialize()
+
+        # Get AI function assignments
+        assignments = ai_settings.get_ai_function_assignments()
+
+        # Get description provider info
+        description_assignment = assignments.get('description', {})
+        desc_provider = description_assignment.get('provider', 'ollama')
+        desc_model = description_assignment.get('model', 'llama3.2:latest')
+
+        # Get embedding provider info
+        embedding_assignment = assignments.get('embedding', {})
+        embed_provider = embedding_assignment.get('provider', 'ollama')
+        embed_model = embedding_assignment.get('model', 'llama3.2:latest')
+
+        return {
+            'description_provider': desc_provider.title(),
+            'description_model': desc_model,
+            'embedding_provider': embed_provider.title(),
+            'embedding_model': embed_model,
+            'description_full': f"{desc_provider.title()} ({desc_model})",
+            'embedding_full': f"{embed_provider.title()} ({embed_model})"
+        }
+
+    except Exception as e:
+        logger.debug(f"Could not get AI provider info: {e}")
+        return {
+            'description_provider': 'Unknown',
+            'description_model': 'Unknown',
+            'embedding_provider': 'Unknown',
+            'embedding_model': 'Unknown',
+            'description_full': 'Unknown Provider',
+            'embedding_full': 'Unknown Provider'
+        }
+
+
 class DirectIndexerLogger:
     """Simple direct file logger for the indexer that doesn't rely on logging framework."""
 

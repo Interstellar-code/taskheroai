@@ -271,6 +271,14 @@ class CLIManager(BaseManager):
             # Step 1: Smart indexing analysis
             print(f"\n{Fore.GREEN}🔍 Step 1: Smart indexing analysis...{Style.RESET_ALL}")
 
+            # Get AI provider information
+            try:
+                from ..code.indexer import _get_ai_provider_info
+                ai_info = _get_ai_provider_info()
+                print(f"{Fore.MAGENTA}🤖 AI Providers: Descriptions via {ai_info['description_full']}, Embeddings via {ai_info['embedding_full']}{Style.RESET_ALL}")
+            except Exception as e:
+                print(f"{Fore.YELLOW}🤖 AI Provider info unavailable{Style.RESET_ALL}")
+
             # Initialize smart indexer
             smart_indexer = SmartIndexer(directory)
 
@@ -331,30 +339,17 @@ class CLIManager(BaseManager):
                 if self.ai_manager:
                     self.ai_manager.set_dependencies(self.indexer, self.file_selector, self.project_analyzer)
 
-            # Step 3: Perform smart indexing
-            print(f"\n{Fore.GREEN}⚡ Step 3: Performing smart indexing...{Style.RESET_ALL}")
-
+            # Step 3: Perform smart indexing (visual feedback handled by smart_indexer)
             try:
                 # Use smart indexing instead of traditional indexing
                 result = smart_indexer.smart_index(force_reindex=False)
 
                 if result['status'] == 'no_action_needed':
-                    print(f"{Fore.GREEN}✅ {result['message']}{Style.RESET_ALL}")
+                    print(f"\n{Fore.GREEN}✅ {result['message']}{Style.RESET_ALL}")
                     print(f"{Fore.CYAN}⏱️  Analysis time: {result['processing_time']:.2f} seconds{Style.RESET_ALL}")
                 elif result['status'] == 'completed':
-                    print(f"{Fore.GREEN}🎉 Smart indexing completed successfully!{Style.RESET_ALL}")
-                    print(f"{Fore.CYAN}📊 Files indexed: {result['files_indexed']}{Style.RESET_ALL}")
-                    print(f"{Fore.CYAN}📁 Files processed: {result['files_to_process']}{Style.RESET_ALL}")
-                    print(f"{Fore.CYAN}⏱️  Processing time: {result['processing_time']:.2f} seconds{Style.RESET_ALL}")
-
-                    # Show scan type
-                    scan_type = result['analysis'].get('scan_type', 'unknown')
-                    print(f"{Fore.CYAN}🔍 Scan type: {scan_type}{Style.RESET_ALL}")
-
-                    # Calculate performance metrics
-                    if result['files_indexed'] > 0:
-                        rate = result['files_indexed'] / result['processing_time']
-                        print(f"{Fore.CYAN}⚡ Processing rate: {rate:.1f} files/second{Style.RESET_ALL}")
+                    # Smart indexer already showed detailed progress and completion
+                    # Just handle post-processing tasks
 
                     # Save the directory
                     if self.settings_manager:
@@ -366,8 +361,11 @@ class CLIManager(BaseManager):
 
                     self.index_outdated = False
 
+                    print(f"\n{Fore.GREEN}🚀 Ready for AI interactions!{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}You can now use chat, max chat, or agent mode to interact with your indexed codebase.{Style.RESET_ALL}")
+
                 elif result['status'] == 'failed':
-                    print(f"{Fore.RED}❌ Smart indexing failed: {result['error']}{Style.RESET_ALL}")
+                    # Smart indexer already showed the error
                     print(f"{Fore.CYAN}⏱️  Time before failure: {result['processing_time']:.2f} seconds{Style.RESET_ALL}")
 
             except Exception as e:
@@ -1717,6 +1715,14 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
                 print(f"\n{Fore.CYAN}🤖 Quick Interactive Task Creation{Style.RESET_ALL}")
                 print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
 
+                # Show AI provider information
+                try:
+                    from ..code.indexer import _get_ai_provider_info
+                    ai_info = _get_ai_provider_info()
+                    print(f"{Fore.MAGENTA}🤖 AI Provider: {ai_info['description_full']} will enhance your task{Style.RESET_ALL}")
+                except Exception as e:
+                    print(f"{Fore.YELLOW}🤖 AI Provider info unavailable{Style.RESET_ALL}")
+
                 # Initialize AI Task Creator
                 ai_creator = AITaskCreator(project_root=str(Path.cwd()))
 
@@ -1726,6 +1732,14 @@ Keep the analysis concise but insightful, suitable for an AI agent to understand
                 # Progressive wizard (default)
                 print(f"\n{Fore.CYAN}🚀 Progressive Task Creation Wizard{Style.RESET_ALL}")
                 print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+
+                # Show AI provider information
+                try:
+                    from ..code.indexer import _get_ai_provider_info
+                    ai_info = _get_ai_provider_info()
+                    print(f"{Fore.MAGENTA}🤖 AI Provider: {ai_info['description_full']} will enhance your task{Style.RESET_ALL}")
+                except Exception as e:
+                    print(f"{Fore.YELLOW}🤖 AI Provider info unavailable{Style.RESET_ALL}")
 
                 # Initialize AI Task Creator
                 ai_creator = AITaskCreator(project_root=str(Path.cwd()))

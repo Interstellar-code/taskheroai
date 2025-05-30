@@ -360,6 +360,9 @@ class SmartIndexer:
         Returns:
             Dictionary with indexing results
         """
+        import time
+        from colorama import Fore, Style
+
         start_time = time.time()
 
         # Get files that need indexing
@@ -377,15 +380,81 @@ class SmartIndexer:
         indexing_logger = IndexingLogger(self.root_path, self.logs_dir)
 
         try:
+            # Enhanced visual feedback
+            print(f"\n{Fore.CYAN}🚀 Step 4: Processing {len(files_to_index)} files...{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+
+            # Show AI provider info
+            try:
+                from .indexer import _get_ai_provider_info
+                ai_info = _get_ai_provider_info()
+                print(f"{Fore.MAGENTA}🤖 AI Providers: {ai_info['description_full']}, {ai_info['embedding_full']}{Style.RESET_ALL}")
+            except Exception:
+                print(f"{Fore.MAGENTA}🤖 AI Providers: Initializing...{Style.RESET_ALL}")
+
+            print(f"{Fore.YELLOW}📊 Processing Strategy: {analysis.get('scan_type', 'unknown').replace('_', ' ').title()}{Style.RESET_ALL}")
+            print()
+
             # Log the smart indexing decision
             indexing_logger._write_log(f"Smart indexing started - scan type: {analysis.get('scan_type', 'unknown')}", "INFO")
             indexing_logger._write_log(f"Files to process: {len(files_to_index)}", "INFO")
 
-            # Perform the actual indexing
+            # Create enhanced progress callback
+            indexed_count = 0
+            failed_count = 0
+            last_update_time = time.time()
+            current_file = ""
+
+            def enhanced_progress_callback(file_path=None):
+                nonlocal indexed_count, failed_count, last_update_time, current_file
+
+                if file_path:
+                    current_file = os.path.basename(file_path)
+
+                indexed_count += 1
+                current_time = time.time()
+
+                # Calculate metrics
+                percent = int((indexed_count / len(files_to_index)) * 100)
+                elapsed = current_time - start_time
+
+                if elapsed > 0:
+                    rate = indexed_count / elapsed
+                    eta = (len(files_to_index) - indexed_count) / rate if rate > 0 else 0
+
+                    # Update every file or every 1 second
+                    if indexed_count % 1 == 0 or (current_time - last_update_time) >= 1.0:
+                        # Show current file being processed
+                        file_display = f" | {current_file[:25]}" if current_file else ""
+                        print(f"\r{Fore.YELLOW}📈 Progress: {percent:3d}% ({indexed_count:3d}/{len(files_to_index)}) | Rate: {rate:4.1f} files/sec | ETA: {eta:3.0f}s{file_display}{Style.RESET_ALL}", end="", flush=True)
+                        last_update_time = current_time
+                else:
+                    print(f"\r{Fore.YELLOW}📈 Progress: {percent:3d}% ({indexed_count:3d}/{len(files_to_index)}){Style.RESET_ALL}", end="", flush=True)
+
+                # Log progress periodically
+                if indexed_count % 25 == 0:
+                    indexing_logger.log_progress(indexed_count, len(files_to_index))
+
+                return False
+
+            # Perform the actual indexing with enhanced progress
             if force_reindex:
-                indexed_files = self.indexer.force_reindex_all()
+                indexed_files = self.indexer.force_reindex_all(cancel_check_callback=enhanced_progress_callback)
             else:
-                indexed_files = self.indexer.index_directory()
+                indexed_files = self.indexer.index_directory(cancel_check_callback=enhanced_progress_callback)
+
+            # Clear progress line and show completion
+            print(f"\r{' ' * 80}\r", end="")  # Clear the line
+            print(f"{Fore.GREEN}✅ Indexing completed successfully!{Style.RESET_ALL}")
+
+            # Show final statistics
+            processing_time = time.time() - start_time
+            rate = len(indexed_files) / processing_time if processing_time > 0 else 0
+
+            print(f"{Fore.CYAN}📊 Final Statistics:{Style.RESET_ALL}")
+            print(f"  • Files processed: {Fore.GREEN}{len(indexed_files)}{Style.RESET_ALL}")
+            print(f"  • Processing time: {Fore.CYAN}{processing_time:.2f} seconds{Style.RESET_ALL}")
+            print(f"  • Average rate: {Fore.CYAN}{rate:.1f} files/second{Style.RESET_ALL}")
 
             # Finalize logging
             indexing_logger.finalize()
@@ -395,12 +464,15 @@ class SmartIndexer:
                 'files_indexed': len(indexed_files),
                 'files_to_process': len(files_to_index),
                 'analysis': analysis,
-                'processing_time': time.time() - start_time,
+                'processing_time': processing_time,
                 'log_file': indexing_logger.log_file,
                 'json_file': indexing_logger.json_file
             }
 
         except Exception as e:
+            print(f"\r{' ' * 80}\r", end="")  # Clear progress line
+            print(f"{Fore.RED}❌ Smart indexing failed: {str(e)}{Style.RESET_ALL}")
+
             indexing_logger._write_log(f"Smart indexing failed: {str(e)}", "ERROR")
             indexing_logger.finalize()
 
